@@ -5,9 +5,9 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import time
 
-# ─── CONFIG ──────────────────────────────────────────────────────────────────
+# ─── PAGE CONFIG ─────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Dashboard Macro Brasil",
+    page_title="Macro Brasil",
     page_icon="🇧🇷",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -17,104 +17,144 @@ st.set_page_config(
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+*, html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
 section[data-testid="stSidebar"] {
-    background: #0d1117 !important;
-    border-right: 1px solid #1e2236;
-    min-width: 200px !important;
-    max-width: 200px !important;
+    background: #080c14 !important;
+    border-right: 1px solid #131929;
+    min-width: 210px !important; max-width: 210px !important;
 }
-
-.main .block-container { padding-top: 1.5rem; padding-bottom: 1rem; }
-footer { visibility: hidden; }
+.main .block-container { padding-top: 1.2rem; padding-bottom: 1rem; }
+footer, #MainMenu { visibility: hidden; }
 
 .sec-title {
-    font-size: 11px; font-weight: 700; color: #4b5563;
-    text-transform: uppercase; letter-spacing: 2px;
-    border-bottom: 1px solid #1e2236;
-    padding-bottom: 8px; margin-bottom: 16px; margin-top: 8px;
+    font-size: 10px; font-weight: 700; color: #374151;
+    text-transform: uppercase; letter-spacing: 2.5px;
+    border-bottom: 1px solid #131929;
+    padding-bottom: 7px; margin: 10px 0 14px 0;
 }
-.badge-live {
-    display:inline-block; background:#052e16; border:1px solid #166534;
-    color:#4ade80; font-size:10px; padding:2px 8px; border-radius:20px; margin-left:8px;
-}
-.badge-daily {
-    display:inline-block; background:#1e1b4b; border:1px solid #3730a3;
-    color:#818cf8; font-size:10px; padding:2px 8px; border-radius:20px; margin-left:8px;
-}
+.badge-live  { display:inline-block;background:#052e16;border:1px solid #166534;
+               color:#4ade80;font-size:9px;padding:1px 7px;border-radius:20px;margin-left:6px; }
+.badge-daily { display:inline-block;background:#1e1b4b;border:1px solid #3730a3;
+               color:#818cf8;font-size:9px;padding:1px 7px;border-radius:20px;margin-left:6px; }
 .stDownloadButton > button {
-    background: #1d4ed8 !important; color: white !important;
-    border: none !important; border-radius: 8px !important;
-    font-weight: 600 !important;
+    background:#1d4ed8 !important;color:white !important;
+    border:none !important;border-radius:8px !important;font-weight:600 !important;
 }
+div[data-testid="stExpander"] { border: 1px solid #131929 !important; border-radius: 10px !important; }
 </style>
 """, unsafe_allow_html=True)
 
 # ─── CONSTANTES ──────────────────────────────────────────────────────────────
 BCB_BASE  = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{}/dados"
-YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range=5d"
+YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range=7d"
+YAHOO_HIST= "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range={}y"
 
 SGS_CODES = {
-    "Selic":        432,
-    "IPCA":         433,
-    "IBC-Br":       24363,
-    "Dolar PTAX":   1,
-    "PIB":          4380,
-    "Desemprego":   24369,
-    "IGP-M":        189,
-    "Exportacoes":  2257,
+    "Selic":           (432,   "% a.a.",     "Mensal"),
+    "IPCA":            (433,   "% mês",      "Mensal"),
+    "IBC-Br":          (24363, "índice",     "Mensal"),
+    "Dólar PTAX":      (1,     "R$",         "Diário"),
+    "PIB":             (4380,  "% trim.",    "Trimestral"),
+    "Desemprego":      (24369, "%",          "Trimestral"),
+    "IGP-M":           (189,   "% mês",      "Mensal"),
+    "IPCA-15":         (7478,  "% mês",      "Mensal"),
+    "Exportações":     (2257,  "US$ mi",     "Mensal"),
+    "Importações":     (2258,  "US$ mi",     "Mensal"),
+    "Dívida/PIB":      (13762, "%",          "Mensal"),
 }
 
-PLOT_CFG = dict(
-    paper_bgcolor="#0f1117", plot_bgcolor="#0f1117",
-    font_color="#94a3b8", font_family="Inter",
-    margin=dict(l=0, r=4, t=36, b=0),
-    xaxis=dict(gridcolor="#1a1f35", showline=False,
-               tickfont=dict(size=10), zeroline=False),
-    yaxis=dict(gridcolor="#1a1f35", showline=False,
-               tickfont=dict(size=10), zeroline=False),
-    title_font=dict(color="#cbd5e1", size=13),
-    hoverlabel=dict(bgcolor="#1e2236", font_size=12),
+GLOBAL_ASSETS = {
+    # Futuros BR
+    "IBOVESPA":          ("^BVSP",    "pts",  "🇧🇷"),
+    "Dólar (USD/BRL)":   ("USDBRL=X", "R$",   "💵"),
+    "Euro (EUR/BRL)":    ("EURBRL=X", "R$",   "💶"),
+    # Índices globais
+    "S&P 500":           ("^GSPC",    "pts",  "🇺🇸"),
+    "Nasdaq 100":        ("^NDX",     "pts",  "🇺🇸"),
+    "Dow Jones":         ("^DJI",     "pts",  "🇺🇸"),
+    "FTSE 100":          ("^FTSE",    "pts",  "🇬🇧"),
+    # Commodities
+    "Petróleo Brent":    ("BZ=F",     "US$",  "🛢️"),
+    "Petróleo WTI":      ("CL=F",     "US$",  "🛢️"),
+    "Ouro":              ("GC=F",     "US$",  "🥇"),
+    "Prata":             ("SI=F",     "US$",  "🥈"),
+    "Cobre":             ("HG=F",     "US$/lb","🪙"),
+    "Minério de Ferro":  ("TIO=F",    "US$",  "⚙️"),
+    # Cripto
+    "Bitcoin":           ("BTC-USD",  "US$",  "₿"),
+    "Ethereum":          ("ETH-USD",  "US$",  "Ξ"),
+}
+
+CHART_CFG = {"displayModeBar": False}
+
+PLOT_BASE = dict(
+    paper_bgcolor="#0a0e1a", plot_bgcolor="#0a0e1a",
+    font_color="#6b7fa8", font_family="Inter",
+    margin=dict(l=0, r=4, t=38, b=0),
+    xaxis=dict(gridcolor="#131929", showline=False, tickfont=dict(size=10), zeroline=False),
+    yaxis=dict(gridcolor="#131929", showline=False, tickfont=dict(size=10), zeroline=False),
+    title_font=dict(color="#94a3b8", size=13),
+    hoverlabel=dict(bgcolor="#1e2640", font_size=12, bordercolor="#2d3a5a"),
 )
 
-# ─── FUNÇÕES UTILITÁRIAS ─────────────────────────────────────────────────────
+# ─── UTILS ───────────────────────────────────────────────────────────────────
 def hex_rgba(h, a=0.12):
     h = h.lstrip("#")
     r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
     return f"rgba({r},{g},{b},{a})"
 
 def fmt(v, dec=2):
-    if v is None:
-        return "—"
+    if v is None: return "—"
     s = f"{v:,.{dec}f}"
-    # Formato brasileiro: . para milhar, , para decimal
     parts = s.split(".")
-    integer_part = parts[0].replace(",", ".")
-    decimal_part  = parts[1] if len(parts) > 1 else ""
-    return f"{integer_part},{decimal_part}" if decimal_part else integer_part
+    integer = parts[0].replace(",", ".")
+    decimal = parts[1] if len(parts) > 1 else ""
+    return f"{integer},{decimal}" if decimal else integer
 
-# ─── FUNÇÕES DE DADOS ────────────────────────────────────────────────────────
+# ─── DATA FUNCTIONS ───────────────────────────────────────────────────────────
 @st.cache_data(ttl=60)
-def get_yahoo(symbol: str):
-    """Yahoo Finance — retorna preço atual ou último fechamento se mercado fechado."""
+def get_yahoo_quote(symbol: str):
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        headers = {"User-Agent": "Mozilla/5.0"}
         r = requests.get(YAHOO_URL.format(symbol), headers=headers, timeout=8)
         data  = r.json()
-        meta  = data["chart"]["result"][0]["meta"]
+        result = data["chart"]["result"][0]
+        meta  = result["meta"]
         price = meta.get("regularMarketPrice") or meta.get("previousClose")
         prev  = meta.get("chartPreviousClose") or meta.get("previousClose", price)
-        change_p = ((price - prev) / prev * 100) if (prev and price and prev != 0) else None
-        change_v = (price - prev) if (prev and price) else None
-        market   = meta.get("marketState", "CLOSED")
+        chg_p = ((price - prev) / prev * 100) if (prev and price and prev != 0) else None
+        chg_v = (price - prev) if (prev and price) else None
+        market = meta.get("marketState", "CLOSED")
+        # Pega timestamp do último preço disponível
+        timestamps = result.get("timestamp", [])
+        last_ts = timestamps[-1] if timestamps else None
+        last_date = datetime.fromtimestamp(last_ts).strftime("%d/%m/%Y") if last_ts else None
         return {
             "price": price, "prev": prev,
-            "change_p": change_p, "change_v": change_v,
-            "market": market,
+            "chg_p": chg_p, "chg_v": chg_v,
+            "market": market, "last_date": last_date,
+            "currency": meta.get("currency",""),
         }
     except:
         return {}
+
+@st.cache_data(ttl=3600)
+def get_yahoo_hist(symbol: str, years: int = 5):
+    """Histórico via Yahoo Finance para ativos globais."""
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        url = YAHOO_HIST.format(symbol, years)
+        r = requests.get(url, headers=headers, timeout=12)
+        data   = r.json()
+        result = data["chart"]["result"][0]
+        ts     = result["timestamp"]
+        closes = result["indicators"]["quote"][0]["close"]
+        df = pd.DataFrame({"data": pd.to_datetime(ts, unit="s"), "valor": closes})
+        df = df.dropna().reset_index(drop=True)
+        return df
+    except:
+        return pd.DataFrame(columns=["data","valor"])
 
 @st.cache_data(ttl=3600)
 def get_bcb(codigo: int, ultimos: int):
@@ -122,8 +162,21 @@ def get_bcb(codigo: int, ultimos: int):
         url = BCB_BASE.format(codigo) + f"/ultimos/{ultimos}?formato=json"
         r   = requests.get(url, timeout=10)
         df  = pd.DataFrame(r.json())
-        if df.empty:
-            return df
+        if df.empty: return df
+        df["data"]  = pd.to_datetime(df["data"], format="%d/%m/%Y")
+        df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
+        return df.dropna(subset=["valor"]).reset_index(drop=True)
+    except:
+        return pd.DataFrame(columns=["data","valor"])
+
+@st.cache_data(ttl=3600)
+def get_bcb_full(codigo: int):
+    """Carrega série completa do BCB (desde o início)."""
+    try:
+        url = BCB_BASE.format(codigo) + "?formato=json"
+        r   = requests.get(url, timeout=20)
+        df  = pd.DataFrame(r.json())
+        if df.empty: return df
         df["data"]  = pd.to_datetime(df["data"], format="%d/%m/%Y")
         df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
         return df.dropna(subset=["valor"]).reset_index(drop=True)
@@ -136,47 +189,48 @@ def get_bcb_range(codigo: int, ini: str, fim: str):
         url = BCB_BASE.format(codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"
         r   = requests.get(url, timeout=15)
         df  = pd.DataFrame(r.json())
-        if df.empty:
-            return df
+        if df.empty: return df
         df["data"]  = pd.to_datetime(df["data"], format="%d/%m/%Y")
         df["valor"] = pd.to_numeric(df["valor"], errors="coerce")
         return df.dropna(subset=["valor"]).reset_index(drop=True)
     except:
         return pd.DataFrame(columns=["data","valor"])
 
-# ─── KPI CARD (via components.html — funciona dentro de st.columns) ───────────
+# ─── KPI CARD ────────────────────────────────────────────────────────────────
 import streamlit.components.v1 as components
 
-def kpi(label, value, change_p=None, sub="", invert=False, closed=False):
-    if change_p is not None:
-        up  = (change_p >= 0) if not invert else (change_p < 0)
+def kpi(label, value, chg_p=None, sub="", invert=False, closed=False, close_date=None):
+    if chg_p is not None:
+        up  = (chg_p >= 0) if not invert else (chg_p < 0)
         cls = "pos" if up else "neg"
-        arr = "▲" if change_p >= 0 else "▼"
-        dlt = f'<div class="d-{cls}">{arr} {abs(change_p):.2f}%</div>'
+        arr = "▲" if chg_p >= 0 else "▼"
+        dlt = f'<div class="d-{cls}">{arr} {abs(chg_p):.2f}%</div>'
     else:
         dlt = '<div class="d-neu"> </div>'
 
-    closed_html = (
-        '<div class="closed">Último fechamento disponível</div>' if closed else ""
-    )
+    if closed and close_date:
+        badge = f'<div class="closed">Fechamento {close_date}</div>'
+    elif closed:
+        badge = '<div class="closed">Último fechamento</div>'
+    else:
+        badge = ""
 
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:transparent;font-family:'Inter',sans-serif}}
 .card{{
-  background:linear-gradient(135deg,#141728,#1c2140);
-  border:1px solid #252d4a;border-radius:14px;
+  background:linear-gradient(135deg,#0f1424,#161d30);
+  border:1px solid #1e2640;border-radius:14px;
   padding:16px;text-align:center;height:118px;
-  display:flex;flex-direction:column;justify-content:center;gap:3px
+  display:flex;flex-direction:column;justify-content:center;gap:3px;
 }}
-.lbl{{font-size:10px;font-weight:700;color:#5a6a8a;
-       text-transform:uppercase;letter-spacing:1.4px}}
-.val{{font-size:21px;font-weight:800;color:#e2e8f0;line-height:1.15}}
-.d-pos{{font-size:12px;color:#4ade80}}
-.d-neg{{font-size:12px;color:#f87171}}
-.d-neu{{font-size:12px;color:#2a3050}}
-.sub{{font-size:10px;color:#3d4f6e}}
-.closed{{font-size:9px;color:#78350f;background:#1c1208;
+.lbl{{font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:1.6px}}
+.val{{font-size:20px;font-weight:800;color:#e2e8f0;line-height:1.15}}
+.d-pos{{font-size:11px;color:#4ade80}}
+.d-neg{{font-size:11px;color:#f87171}}
+.d-neu{{font-size:11px;color:#1e2640}}
+.sub{{font-size:9px;color:#334155}}
+.closed{{font-size:9px;color:#92400e;background:#1c1208;
           border:1px solid #451a03;display:inline-block;
           padding:1px 7px;border-radius:10px;margin-top:2px}}
 </style></head><body>
@@ -185,29 +239,26 @@ body{{background:transparent;font-family:'Inter',sans-serif}}
   <div class="val">{value}</div>
   {dlt}
   <div class="sub">{sub}</div>
-  {closed_html}
-</div>
-</body></html>"""
+  {badge}
+</div></body></html>"""
     components.html(html, height=126)
 
-# ─── CHART HELPERS ───────────────────────────────────────────────────────────
-CHART_CFG = {"displayModeBar": False}
-
-def line_fig(df, title, color="#6366f1", fill=True, suffix=""):
+# ─── CHART FACTORIES ─────────────────────────────────────────────────────────
+def line_fig(df, title, color="#6366f1", fill=True, suffix="", height=260):
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=df["data"], y=df["valor"],
         mode="lines+markers",
         line=dict(color=color, width=2),
-        marker=dict(size=4, color=color),
+        marker=dict(size=3, color=color),
         fill="tozeroy" if fill else "none",
         fillcolor=hex_rgba(color, 0.10),
         hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.2f}}{suffix}</b><extra></extra>",
     ))
-    fig.update_layout(**PLOT_CFG, title=title, height=255)
+    fig.update_layout(**PLOT_BASE, title=title, height=height)
     return fig
 
-def bar_fig(df, title, suffix=""):
+def bar_fig(df, title, suffix="", height=260):
     colors = ["#4ade80" if v >= 0 else "#f87171" for v in df["valor"]]
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -215,23 +266,49 @@ def bar_fig(df, title, suffix=""):
         marker_color=colors, marker_line_width=0,
         hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.2f}}{suffix}</b><extra></extra>",
     ))
-    fig.update_layout(**PLOT_CFG, title=title, height=255)
+    fig.update_layout(**PLOT_BASE, title=title, height=height)
+    return fig
+
+def candlestick_fig(df, title, height=320):
+    """Só para Yahoo (tem OHLC). Fallback para linha se só tiver close."""
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df["data"], y=df["valor"],
+        mode="lines",
+        line=dict(color="#6366f1", width=1.5),
+        hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.2f}}</b><extra></extra>",
+        fill="tozeroy", fillcolor=hex_rgba("#6366f1", 0.08),
+    ))
+    fig.update_layout(**PLOT_BASE, title=title, height=height)
     return fig
 
 # ─── SIDEBAR ─────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 🇧🇷 Macro Brasil")
-    st.markdown("---")
+    st.markdown(
+        "<div style='padding:8px 0 4px 0'>"
+        "<span style='font-size:20px'>🇧🇷</span> "
+        "<span style='font-size:14px;font-weight:700;color:#94a3b8'>Macro Brasil</span>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("<hr style='border-color:#131929;margin:6px 0 10px 0'>", unsafe_allow_html=True)
+
     pagina = st.radio(
         "nav",
-        options=["📊  Dashboard", "📥  Exportar CSV"],
+        options=[
+            "📊  Dashboard",
+            "🌍  Mercados Globais",
+            "📈  Gráficos Avançados",
+            "📥  Exportar CSV",
+        ],
         label_visibility="collapsed",
     )
-    st.markdown("---")
+
+    st.markdown("<hr style='border-color:#131929;margin:10px 0'>", unsafe_allow_html=True)
     st.markdown(
-        "<div style='font-size:10px;color:#2d3748;line-height:1.8'>"
-        "Fontes de dados:<br>• BCB/SGS<br>• Yahoo Finance<br><br>"
-        "Mercado: ↻ 60s<br>BCB: ↻ 1h"
+        "<div style='font-size:9px;color:#1e2640;line-height:1.9'>"
+        "Fontes:<br>• BCB/SGS (indicadores BR)<br>• Yahoo Finance (mercados)<br><br>"
+        "Mercados: ↻ 60s<br>BCB: ↻ 1h"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -241,29 +318,30 @@ with st.sidebar:
 # ═════════════════════════════════════════════════════════════════════════════
 if pagina == "📊  Dashboard":
 
-    col_t, col_h = st.columns([4, 1])
+    col_t, col_h = st.columns([4,1])
     with col_t:
         st.markdown("## 🇧🇷 Dashboard Macro Brasil")
     with col_h:
         now = datetime.now().strftime("%d/%m/%Y %H:%M")
         st.markdown(
-            f"<div style='text-align:right;color:#2d3748;font-size:11px;padding-top:16px'>"
-            f"Atualizado em<br><b style='color:#4b5a7a'>{now}</b></div>",
+            f"<div style='text-align:right;color:#1e2640;font-size:10px;padding-top:16px'>"
+            f"Atualizado<br><b style='color:#334155'>{now}</b></div>",
             unsafe_allow_html=True,
         )
-    st.markdown("<hr style='border-color:#1a1f35;margin:4px 0 12px 0'>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color:#131929;margin:2px 0 10px 0'>", unsafe_allow_html=True)
 
-    # Carregar dados
-    with st.spinner("Carregando indicadores..."):
-        ibov_d  = get_yahoo("^BVSP")
-        usd_d   = get_yahoo("USDBRL=X")
-        eur_d   = get_yahoo("EURBRL=X")
-        df_sel  = get_bcb(432,   14)
-        df_ipca = get_bcb(433,   14)
-        df_ibc  = get_bcb(24363, 14)
-        df_cam  = get_bcb(1,     50)   # busca 50 para garantir 30 dias úteis
-        df_pib  = get_bcb(4380,  10)
-        df_des  = get_bcb(24369, 10)
+    # Carregar dados (24 meses padrão)
+    with st.spinner("Carregando..."):
+        ibov_d = get_yahoo_quote("^BVSP")
+        usd_d  = get_yahoo_quote("USDBRL=X")
+        eur_d  = get_yahoo_quote("EURBRL=X")
+        # BCB: meses mensais = 24 obs, diários = 60 dias úteis (~3 meses)
+        df_sel  = get_bcb(432,   25)
+        df_ipca = get_bcb(433,   25)
+        df_ibc  = get_bcb(24363, 25)
+        df_cam  = get_bcb(1,     65)   # diário → 65 para garantir ~45 dias úteis
+        df_pib  = get_bcb(4380,  12)
+        df_des  = get_bcb(24369, 12)
 
     # ── KPIs Mercado ─────────────────────────────────────────────────────────
     st.markdown(
@@ -271,32 +349,32 @@ if pagina == "📊  Dashboard":
         '<span class="badge-live">↻ 60s</span></div>',
         unsafe_allow_html=True,
     )
-
     c1, c2, c3 = st.columns(3)
     with c1:
         v = ibov_d.get("price")
-        is_closed = ibov_d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
+        closed = ibov_d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
+        close_date = ibov_d.get("last_date") if closed else None
         kpi("Ibovespa",
-            fmt(v, 0) + " pts" if v else "—",
-            ibov_d.get("change_p"),
-            f"Var. dia: {fmt(ibov_d.get('change_v'), 0)} pts" if v else "—",
-            closed=is_closed)
+            fmt(v,0) + " pts" if v else "—",
+            ibov_d.get("chg_p"),
+            f"Var. dia: {fmt(ibov_d.get('chg_v'),0)} pts" if v else "—",
+            closed=closed, close_date=close_date)
     with c2:
         v = usd_d.get("price")
-        is_closed = usd_d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
+        closed = usd_d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
         kpi("Dólar (USD/BRL)",
             f"R$ {fmt(v,4)}" if v else "—",
-            usd_d.get("change_p"),
+            usd_d.get("chg_p"),
             f"Ant.: R$ {fmt(usd_d.get('prev'),4)}" if v else "—",
-            invert=True, closed=is_closed)
+            invert=True, closed=closed, close_date=usd_d.get("last_date"))
     with c3:
         v = eur_d.get("price")
-        is_closed = eur_d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
+        closed = eur_d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
         kpi("Euro (EUR/BRL)",
             f"R$ {fmt(v,4)}" if v else "—",
-            eur_d.get("change_p"),
+            eur_d.get("chg_p"),
             f"Ant.: R$ {fmt(eur_d.get('prev'),4)}" if v else "—",
-            invert=True, closed=is_closed)
+            invert=True, closed=closed, close_date=eur_d.get("last_date"))
 
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
@@ -306,21 +384,18 @@ if pagina == "📊  Dashboard":
         '<span class="badge-daily">↻ diário</span></div>',
         unsafe_allow_html=True,
     )
-
     c4, c5, c6 = st.columns(3)
     with c4:
         v   = float(df_sel["valor"].iloc[-1])  if not df_sel.empty  else None
         ref = df_sel["data"].iloc[-1].strftime("%b/%Y") if not df_sel.empty else ""
         kpi("Selic", f"{fmt(v)}% a.a." if v else "—", sub=f"Ref: {ref}")
-
     with c5:
         v   = float(df_ipca["valor"].iloc[-1]) if not df_ipca.empty else None
         ref = df_ipca["data"].iloc[-1].strftime("%b/%Y") if not df_ipca.empty else ""
         delta = None
         if not df_ipca.empty and len(df_ipca) >= 2:
             delta = float(df_ipca["valor"].iloc[-1]) - float(df_ipca["valor"].iloc[-2])
-        kpi("IPCA", f"{fmt(v)}% mês" if v else "—", change_p=delta, sub=f"Ref: {ref}")
-
+        kpi("IPCA", f"{fmt(v)}% mês" if v else "—", chg_p=delta, sub=f"Ref: {ref}")
     with c6:
         v   = float(df_des["valor"].iloc[-1])  if not df_des.empty  else None
         ref = df_des["data"].iloc[-1].strftime("%b/%Y") if not df_des.empty else ""
@@ -328,140 +403,334 @@ if pagina == "📊  Dashboard":
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    # ── Gráficos ──────────────────────────────────────────────────────────────
-    st.markdown('<div class="sec-title">Histórico</div>', unsafe_allow_html=True)
+    # ── Gráficos — 24 meses ───────────────────────────────────────────────────
+    st.markdown(
+        '<div class="sec-title">Histórico — últimos 24 meses '
+        '<span style="font-size:9px;color:#334155;font-weight:400">'
+        '(para série completa → Gráficos Avançados no menu)</span></div>',
+        unsafe_allow_html=True,
+    )
 
     ca, cb = st.columns(2)
     with ca:
         if not df_sel.empty:
-            st.plotly_chart(line_fig(df_sel, "Selic — 12 meses (% a.a.)", "#6366f1", suffix="%"),
+            st.plotly_chart(line_fig(df_sel, "Selic (% a.a.)", "#6366f1", suffix="%"),
                             use_container_width=True, config=CHART_CFG)
-        else:
-            st.info("Selic: sem dados.")
+        else: st.info("Sem dados.")
     with cb:
         if not df_ipca.empty:
-            st.plotly_chart(bar_fig(df_ipca, "IPCA — 12 meses (% ao mês)", suffix="%"),
+            st.plotly_chart(bar_fig(df_ipca, "IPCA (% ao mês)", suffix="%"),
                             use_container_width=True, config=CHART_CFG)
-        else:
-            st.info("IPCA: sem dados.")
+        else: st.info("Sem dados.")
 
     cc, cd = st.columns(2)
     with cc:
-        df_cam30 = df_cam.tail(30) if not df_cam.empty else df_cam
+        df_cam30 = df_cam.tail(45) if not df_cam.empty else df_cam
         if not df_cam30.empty:
-            st.plotly_chart(line_fig(df_cam30, "Dólar PTAX — 30 dias úteis (R$)", "#f59e0b", suffix=" R$"),
+            st.plotly_chart(line_fig(df_cam30, "Dólar PTAX — 45 dias úteis (R$)", "#f59e0b", suffix=" R$"),
                             use_container_width=True, config=CHART_CFG)
-        else:
-            st.info("Dólar PTAX: sem dados.")
+        else: st.info("Sem dados.")
     with cd:
         if not df_ibc.empty:
-            st.plotly_chart(line_fig(df_ibc, "IBC-Br — 12 meses", "#22d3ee", fill=False),
+            st.plotly_chart(line_fig(df_ibc, "IBC-Br (índice)", "#22d3ee", fill=False),
                             use_container_width=True, config=CHART_CFG)
-        else:
-            st.info("IBC-Br: sem dados.")
+        else: st.info("Sem dados.")
 
     ce, cf = st.columns(2)
     with ce:
         if not df_pib.empty:
             st.plotly_chart(bar_fig(df_pib, "PIB — variação trimestral (%)", suffix="%"),
                             use_container_width=True, config=CHART_CFG)
-        else:
-            st.info("PIB: sem dados.")
+        else: st.info("Sem dados.")
     with cf:
         if not df_des.empty:
             st.plotly_chart(line_fig(df_des, "Desemprego PNAD (%)", "#f87171", fill=True, suffix="%"),
                             use_container_width=True, config=CHART_CFG)
-        else:
-            st.info("Desemprego: sem dados.")
+        else: st.info("Sem dados.")
 
     st.markdown(
-        "<div style='text-align:center;color:#1a1f35;font-size:10px;margin-top:20px'>"
-        "Mercado: Yahoo Finance (↻ 60s) • Econômicos: BCB/SGS (cache 1h)"
-        "</div>",
-        unsafe_allow_html=True,
+        "<div style='text-align:center;color:#131929;font-size:10px;margin-top:16px'>"
+        "Yahoo Finance (mercados, ↻60s) • BCB/SGS (econômicos, cache 1h)"
+        "</div>", unsafe_allow_html=True,
     )
-
-    # Auto-refresh
     time.sleep(60)
     st.rerun()
 
 # ═════════════════════════════════════════════════════════════════════════════
-# PÁGINA 2 — EXPORTAR CSV
+# PÁGINA 2 — MERCADOS GLOBAIS
 # ═════════════════════════════════════════════════════════════════════════════
-else:
-    st.markdown("## 📥 Exportar Dados")
+elif pagina == "🌍  Mercados Globais":
+
+    col_t, col_h = st.columns([4,1])
+    with col_t:
+        st.markdown("## 🌍 Mercados Globais")
+    with col_h:
+        now = datetime.now().strftime("%d/%m/%Y %H:%M")
+        st.markdown(
+            f"<div style='text-align:right;color:#1e2640;font-size:10px;padding-top:16px'>"
+            f"Atualizado<br><b style='color:#334155'>{now}</b></div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("<hr style='border-color:#131929;margin:2px 0 10px 0'>", unsafe_allow_html=True)
+
+    # Grupos de ativos
+    grupos = {
+        "🇧🇷 Brasil": ["IBOVESPA","Dólar (USD/BRL)","Euro (EUR/BRL)"],
+        "🇺🇸 Índices EUA": ["S&P 500","Nasdaq 100","Dow Jones"],
+        "🌎 Índices Globais": ["FTSE 100"],
+        "🛢️ Energia": ["Petróleo Brent","Petróleo WTI"],
+        "🥇 Metais": ["Ouro","Prata","Cobre","Minério de Ferro"],
+        "₿ Cripto": ["Bitcoin","Ethereum"],
+    }
+
+    for grupo, ativos in grupos.items():
+        st.markdown(f'<div class="sec-title">{grupo}</div>', unsafe_allow_html=True)
+        cols = st.columns(min(len(ativos), 4))
+        for i, nome in enumerate(ativos):
+            symbol, unit, flag = GLOBAL_ASSETS[nome]
+            with st.spinner(f""):
+                d = get_yahoo_quote(symbol)
+            with cols[i % 4]:
+                v = d.get("price")
+                closed = d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
+                prefix = "R$ " if unit == "R$" else ("US$ " if unit in ("US$","US$/lb") else "")
+                val_str = f"{prefix}{fmt(v, 2 if unit!='pts' else 0)} {unit}" if v else "—"
+                invert = nome in ("Dólar (USD/BRL)","Euro (EUR/BRL)")
+                kpi(f"{flag} {nome}", val_str, d.get("chg_p"),
+                    sub=f"Ant.: {prefix}{fmt(d.get('prev'),2)}" if v else "",
+                    invert=invert, closed=closed, close_date=d.get("last_date"))
+
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+    # Mini gráficos dos principais
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Gráficos — últimos 2 anos</div>', unsafe_allow_html=True)
+
+    destaques = [
+        ("IBOVESPA","^BVSP","#6366f1","pts"),
+        ("S&P 500","^GSPC","#22d3ee","pts"),
+        ("Petróleo Brent","BZ=F","#f59e0b","US$"),
+        ("Ouro","GC=F","#fbbf24","US$"),
+    ]
+
+    g1, g2 = st.columns(2)
+    g3, g4 = st.columns(2)
+    pairs = [(g1, destaques[0]), (g2, destaques[1]), (g3, destaques[2]), (g4, destaques[3])]
+    for col, (nome, sym, cor, unit) in pairs:
+        with col:
+            with st.spinner(f"Carregando {nome}..."):
+                df_h = get_yahoo_hist(sym, years=2)
+            if not df_h.empty:
+                st.plotly_chart(
+                    line_fig(df_h, f"{nome} — 2 anos", cor, fill=True, suffix=f" {unit}"),
+                    use_container_width=True, config=CHART_CFG)
+            else:
+                st.info(f"{nome}: sem dados históricos.")
+
+    time.sleep(60)
+    st.rerun()
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PÁGINA 3 — GRÁFICOS AVANÇADOS
+# ═════════════════════════════════════════════════════════════════════════════
+elif pagina == "📈  Gráficos Avançados":
+
+    st.markdown("## 📈 Gráficos Avançados")
     st.markdown(
-        "<p style='color:#5a6a8a;font-size:13px;margin-bottom:16px'>"
-        "Selecione o indicador e o período. Os dados são buscados diretamente do "
-        "Banco Central (BCB/SGS) e exportados em CSV com codificação UTF-8.</p>",
+        "<p style='color:#475569;font-size:13px;margin-bottom:16px'>"
+        "Visualize séries completas desde o início da coleta, ou defina um intervalo personalizado.</p>",
         unsafe_allow_html=True,
     )
-    st.markdown("<hr style='border-color:#1a1f35'>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color:#131929'>", unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([2, 1.5, 1.5])
-    with col1:
-        ind_sel = st.selectbox("Indicador", list(SGS_CODES.keys()), index=1)
-    with col2:
-        d_ini = st.date_input(
-            "Data início",
-            value=datetime.today() - timedelta(days=365),
-            max_value=datetime.today(),
-        )
-    with col3:
-        d_fim = st.date_input(
-            "Data fim",
-            value=datetime.today(),
-            max_value=datetime.today(),
-        )
+    tipo_fonte = st.radio("Fonte:", ["📊 Indicadores BCB (Brasil)", "🌍 Ativos Globais (Yahoo Finance)"],
+                          horizontal=True)
 
-    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-    gerar = st.button("⬇  Gerar CSV", type="primary")
+    if tipo_fonte == "📊 Indicadores BCB (Brasil)":
+        col1, col2 = st.columns(2)
+        with col1:
+            ind_sel = st.selectbox("Indicador", list(SGS_CODES.keys()))
+        with col2:
+            modo = st.radio("Período:", ["Últimos 24 meses","Últimos 5 anos","Série completa","Personalizado"],
+                            horizontal=False)
 
-    if gerar:
-        if d_ini >= d_fim:
-            st.error("A data de início deve ser anterior à data fim.")
-        else:
-            with st.spinner(f"Buscando dados de {ind_sel}..."):
-                cod     = SGS_CODES[ind_sel]
-                ini_str = d_ini.strftime("%d/%m/%Y")
-                fim_str = d_fim.strftime("%d/%m/%Y")
-                df_exp  = get_bcb_range(cod, ini_str, fim_str)
+        if modo == "Personalizado":
+            c3, c4 = st.columns(2)
+            with c3:
+                d_ini = st.date_input("De", value=datetime.today()-timedelta(days=365*5), max_value=datetime.today())
+            with c4:
+                d_fim = st.date_input("Até", value=datetime.today(), max_value=datetime.today())
 
-            if df_exp.empty:
-                st.warning("Nenhum dado encontrado. Tente outro período ou indicador.")
+        if st.button("📈 Carregar gráfico", type="primary"):
+            cod, unit, freq = SGS_CODES[ind_sel]
+            with st.spinner(f"Carregando série de {ind_sel}..."):
+                if modo == "Últimos 24 meses":
+                    n = 25 if "Mensal" in freq else (8 if "Trim" in freq else 60)
+                    df_g = get_bcb(cod, n)
+                elif modo == "Últimos 5 anos":
+                    n = 62 if "Mensal" in freq else (20 if "Trim" in freq else 365)
+                    df_g = get_bcb(cod, n)
+                elif modo == "Série completa":
+                    df_g = get_bcb_full(cod)
+                else:
+                    df_g = get_bcb_range(cod,
+                                         d_ini.strftime("%d/%m/%Y"),
+                                         d_fim.strftime("%d/%m/%Y"))
+
+            if df_g.empty:
+                st.warning("Sem dados para o período selecionado.")
             else:
-                df_out = df_exp.copy()
-                df_out["data"] = df_out["data"].dt.strftime("%d/%m/%Y")
+                st.success(f"✅ {len(df_g)} observações — {ind_sel}")
+                titulo = f"{ind_sel} ({unit}) — {modo}"
+                # Barras para IPCA, PIB, IGP-M, variações; linha para o resto
+                bar_inds = {"IPCA","IGP-M","IPCA-15","PIB","Exportações","Importações"}
+                if ind_sel in bar_inds:
+                    fig = bar_fig(df_g, titulo, suffix=f" {unit}", height=380)
+                else:
+                    fig = line_fig(df_g, titulo, "#6366f1", suffix=f" {unit}", height=380)
+                st.plotly_chart(fig, use_container_width=True, config=CHART_CFG)
 
-                st.success(f"✅ **{len(df_out)} registros** — {ind_sel} de {ini_str} a {fim_str}")
-
-                st.dataframe(
-                    df_out.rename(columns={"data": "Data", "valor": "Valor"}),
-                    use_container_width=True,
-                    height=min(420, 46 + len(df_out) * 35),
-                )
-
-                csv_bytes = df_out.to_csv(index=False).encode("utf-8-sig")
-                nome      = f"{ind_sel.replace(' ','_')}_{d_ini}_{d_fim}.csv"
+                # Download direto da série exibida
+                df_dl = df_g.copy()
+                df_dl["data"] = df_dl["data"].dt.strftime("%d/%m/%Y")
+                csv = df_dl.to_csv(index=False).encode("utf-8-sig")
                 st.download_button(
-                    label=f"💾  Baixar {nome}",
-                    data=csv_bytes,
-                    file_name=nome,
+                    f"💾 Baixar CSV ({len(df_dl)} linhas)",
+                    data=csv,
+                    file_name=f"{ind_sel.replace(' ','_')}_{modo.replace(' ','_')}.csv",
                     mime="text/csv",
                 )
 
-    st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
-    st.markdown("#### Códigos SGS disponíveis neste app")
-    st.dataframe(
-        pd.DataFrame([{"Indicador": k, "Código SGS": v, "Fonte": "BCB/SGS"}
-                      for k, v in SGS_CODES.items()]),
-        hide_index=True,
-        use_container_width=False,
-    )
+    else:  # Yahoo Finance
+        col1, col2 = st.columns(2)
+        with col1:
+            ativo_sel = st.selectbox("Ativo", list(GLOBAL_ASSETS.keys()))
+        with col2:
+            anos = st.select_slider("Período (anos)", options=[1,2,3,5,10], value=5)
+
+        if st.button("📈 Carregar gráfico", type="primary"):
+            symbol, unit, flag = GLOBAL_ASSETS[ativo_sel]
+            with st.spinner(f"Carregando {ativo_sel}..."):
+                df_g = get_yahoo_hist(symbol, years=anos)
+
+            if df_g.empty:
+                st.warning("Sem dados históricos disponíveis para este ativo.")
+            else:
+                st.success(f"✅ {len(df_g)} observações — {ativo_sel}")
+                titulo = f"{flag} {ativo_sel} — {anos} ano(s)"
+                fig = line_fig(df_g, titulo, "#6366f1", suffix=f" {unit}", height=420)
+                st.plotly_chart(fig, use_container_width=True, config=CHART_CFG)
+
+                # Download
+                df_dl = df_g.copy()
+                df_dl["data"] = df_dl["data"].dt.strftime("%d/%m/%Y")
+                csv = df_dl.to_csv(index=False).encode("utf-8-sig")
+                st.download_button(
+                    f"💾 Baixar CSV ({len(df_dl)} linhas)",
+                    data=csv,
+                    file_name=f"{ativo_sel.replace(' ','_')}_{anos}anos.csv",
+                    mime="text/csv",
+                )
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PÁGINA 4 — EXPORTAR CSV
+# ═════════════════════════════════════════════════════════════════════════════
+else:
+
+    st.markdown("## 📥 Exportar CSV")
     st.markdown(
-        "<p style='font-size:11px;color:#3d4f6e;margin-top:8px'>"
-        "Outros códigos em: "
-        "<a href='https://www3.bcb.gov.br/sgspub' target='_blank' "
-        "style='color:#4b6fa8'>www3.bcb.gov.br/sgspub</a></p>",
+        "<p style='color:#475569;font-size:13px;margin-bottom:16px'>"
+        "Baixe dados históricos de qualquer indicador ou ativo em CSV. "
+        "Fontes: BCB/SGS para indicadores brasileiros, Yahoo Finance para ativos globais.</p>",
         unsafe_allow_html=True,
     )
+    st.markdown("<hr style='border-color:#131929'>", unsafe_allow_html=True)
+
+    fonte = st.radio("Fonte de dados:", ["📊 BCB/SGS — Indicadores Brasil", "🌍 Yahoo Finance — Ativos Globais"],
+                     horizontal=True)
+
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+    if fonte == "📊 BCB/SGS — Indicadores Brasil":
+        col1, col2, col3 = st.columns([2,1.5,1.5])
+        with col1:
+            ind_sel = st.selectbox("Indicador", list(SGS_CODES.keys()), index=1)
+        with col2:
+            d_ini = st.date_input("Data início", value=datetime.today()-timedelta(days=365),
+                                  max_value=datetime.today())
+        with col3:
+            d_fim = st.date_input("Data fim", value=datetime.today(), max_value=datetime.today())
+
+        modo_bcb = st.radio("Ou use:", ["Intervalo acima","Série completa desde o início"],
+                             horizontal=True)
+
+        gerar = st.button("⬇  Gerar CSV", type="primary")
+        if gerar:
+            cod, unit, freq = SGS_CODES[ind_sel]
+            with st.spinner(f"Buscando {ind_sel}..."):
+                if modo_bcb == "Série completa desde o início":
+                    df_exp = get_bcb_full(cod)
+                else:
+                    if d_ini >= d_fim:
+                        st.error("Data início deve ser anterior à data fim.")
+                        st.stop()
+                    df_exp = get_bcb_range(cod, d_ini.strftime("%d/%m/%Y"), d_fim.strftime("%d/%m/%Y"))
+
+            if df_exp.empty:
+                st.warning("Nenhum dado encontrado.")
+            else:
+                df_out = df_exp.copy()
+                df_out["data"] = df_out["data"].dt.strftime("%d/%m/%Y")
+                st.success(f"✅ **{len(df_out)} registros** de {ind_sel}")
+                st.dataframe(
+                    df_out.rename(columns={"data":"Data","valor":f"Valor ({unit})"}),
+                    use_container_width=True,
+                    height=min(400, 46 + len(df_out)*35),
+                )
+                csv   = df_out.to_csv(index=False).encode("utf-8-sig")
+                sufixo = "completo" if modo_bcb.startswith("Série") else f"{d_ini}_{d_fim}"
+                nome  = f"{ind_sel.replace(' ','_')}_{sufixo}.csv"
+                st.download_button(f"💾 Baixar {nome}", data=csv, file_name=nome, mime="text/csv")
+
+    else:  # Yahoo Finance
+        col1, col2 = st.columns([2,1])
+        with col1:
+            ativo_sel = st.selectbox("Ativo", list(GLOBAL_ASSETS.keys()))
+        with col2:
+            anos = st.select_slider("Período (anos)", options=[1,2,3,5,10], value=5)
+
+        gerar = st.button("⬇  Gerar CSV", type="primary")
+        if gerar:
+            symbol, unit, flag = GLOBAL_ASSETS[ativo_sel]
+            with st.spinner(f"Buscando {ativo_sel}..."):
+                df_exp = get_yahoo_hist(symbol, years=anos)
+
+            if df_exp.empty:
+                st.warning("Sem dados históricos disponíveis.")
+            else:
+                df_out = df_exp.copy()
+                df_out["data"] = df_out["data"].dt.strftime("%d/%m/%Y")
+                st.success(f"✅ **{len(df_out)} registros** de {flag} {ativo_sel}")
+                st.dataframe(
+                    df_out.rename(columns={"data":"Data","valor":f"Valor ({unit})"}),
+                    use_container_width=True,
+                    height=min(400, 46 + len(df_out)*35),
+                )
+                csv  = df_out.to_csv(index=False).encode("utf-8-sig")
+                nome = f"{ativo_sel.replace(' ','_')}_{anos}anos.csv"
+                st.download_button(f"💾 Baixar {nome}", data=csv, file_name=nome, mime="text/csv")
+
+    # Referência
+    st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+    with st.expander("📋 Ver todos os indicadores e ativos disponíveis"):
+        st.markdown("**BCB/SGS — Indicadores Brasil**")
+        st.dataframe(pd.DataFrame([
+            {"Indicador": k, "Código SGS": v[0], "Unidade": v[1], "Frequência": v[2]}
+            for k, v in SGS_CODES.items()
+        ]), hide_index=True, use_container_width=False)
+
+        st.markdown("<br>**Yahoo Finance — Ativos Globais**", unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame([
+            {"Ativo": k, "Símbolo Yahoo": v[0], "Unidade": v[1]}
+            for k, v in GLOBAL_ASSETS.items()
+        ]), hide_index=True, use_container_width=False)
