@@ -5,6 +5,13 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import time
 
+# ─── SESSION STATE ────────────────────────────────────────────────────────────
+if "pagina"       not in st.session_state: st.session_state.pagina       = "Início"
+if "sb_collapsed" not in st.session_state: st.session_state.sb_collapsed = False
+
+collapsed = st.session_state.sb_collapsed
+sb_w      = 64 if collapsed else 220
+
 # ─── PAGE CONFIG ─────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Macro Brasil",
@@ -12,13 +19,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-# ─── SESSION STATE ────────────────────────────────────────────────────────────
-if "pagina"    not in st.session_state: st.session_state.pagina    = "Início"
-if "sb_collapsed" not in st.session_state: st.session_state.sb_collapsed = False
-
-collapsed = st.session_state.sb_collapsed
-sb_w      = 60 if collapsed else 220
 
 # ─── CSS ─────────────────────────────────────────────────────────────────────
 st.markdown(f"""
@@ -30,29 +30,92 @@ st.markdown(f"""
 .stApp,[data-testid="stAppViewContainer"],[data-testid="stMain"] {{
     background: #f0f2f5 !important;
 }}
-.main .block-container {{ padding-top:0 !important; padding-bottom:2rem; max-width:1400px; }}
+.main .block-container {{
+    padding-top:0 !important; padding-bottom:2rem; max-width:1400px;
+}}
 footer,#MainMenu,header {{ visibility:hidden !important; }}
 [data-testid="stToolbar"] {{ display:none !important; }}
 
-/* ── Sidebar branca + largura dinâmica ── */
+/* ── Sidebar branca ── */
 section[data-testid="stSidebar"] {{
     background: #ffffff !important;
     border-right: 1px solid #e8eaed !important;
     min-width: {sb_w}px !important;
     max-width: {sb_w}px !important;
     overflow: hidden !important;
-    transition: min-width 0.2s, max-width 0.2s;
 }}
 section[data-testid="stSidebar"] > div:first-child {{
     padding: 0 !important;
     overflow: hidden !important;
 }}
-/* Esconde todos os widgets nativos na sidebar */
-section[data-testid="stSidebar"] input[type="radio"],
-section[data-testid="stSidebar"] [data-baseweb="radio"] {{ display:none !important; }}
-section[data-testid="stSidebar"] label {{ display:none !important; }}
+
+/* ── TODOS os botões da sidebar: estilo nav base ── */
 section[data-testid="stSidebar"] .stButton > button {{
-    display:none !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 7px !important;
+    color: #6b7280 !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    width: 100% !important;
+    text-align: left !important;
+    padding: 9px 14px !important;
+    height: auto !important;
+    min-height: 38px !important;
+    box-shadow: none !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    opacity: 1 !important;
+    position: static !important;
+    margin: 0 !important;
+    transition: background 0.12s, color 0.12s !important;
+}}
+section[data-testid="stSidebar"] .stButton > button:hover {{
+    background: #f5f6f8 !important;
+    color: #111827 !important;
+    border: none !important;
+}}
+section[data-testid="stSidebar"] .stButton > button:focus {{
+    box-shadow: none !important;
+    border: none !important;
+    outline: none !important;
+}}
+
+/* Botão ativo (primary) = item de nav selecionado */
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] {{
+    background: #f0f2ff !important;
+    color: #1a2035 !important;
+    font-weight: 600 !important;
+    border-left: 3px solid #1a2035 !important;
+    border-radius: 0 7px 7px 0 !important;
+    padding-left: 11px !important;
+}}
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]:hover {{
+    background: #e8ebff !important;
+    color: #1a2035 !important;
+    border-left: 3px solid #1a2035 !important;
+}}
+
+/* ── Botão de toggle (tertiary via markdown, ou o primeiro da lista) ── */
+.sb-toggle-btn .stButton > button {{
+    width: 32px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 6px !important;
+    color: #6b7280 !important;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+}}
+.sb-toggle-btn .stButton > button:hover {{
+    background: #f5f6f8 !important;
+    border-color: #d1d5db !important;
 }}
 
 /* ── Cabeçalho de página ── */
@@ -85,17 +148,30 @@ section[data-testid="stSidebar"] .stButton > button {{
     border-radius:20px; text-transform:none; letter-spacing:0;
 }}
 
-/* ── Botões gerais ── */
-.stButton > button {{
-    background:#1a2035 !important; color:#ffffff !important;
-    border:none !important; border-radius:7px !important;
-    font-weight:600 !important; font-size:13px !important; padding:8px 18px !important;
+/* ── Botões no conteúdo principal ── */
+.main .stButton > button {{
+    background: #1a2035 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 7px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    padding: 8px 18px !important;
+    height: auto !important;
+    min-height: auto !important;
+    opacity: 1 !important;
+    position: static !important;
+    margin: 0 !important;
+    width: auto !important;
+    text-align: center !important;
+    display: inline-flex !important;
+    justify-content: center !important;
 }}
-.stButton > button:hover {{ background:#2d3a56 !important; }}
+.main .stButton > button:hover {{ background: #2d3a56 !important; }}
 .stDownloadButton > button {{
-    background:#ffffff !important; color:#374151 !important;
-    border:1px solid #e2e8f0 !important; border-radius:7px !important;
-    font-weight:500 !important; font-size:12px !important;
+    background: #ffffff !important; color: #374151 !important;
+    border: 1px solid #e2e8f0 !important; border-radius: 7px !important;
+    font-weight: 500 !important; font-size: 12px !important;
 }}
 
 /* ── Selectboxes / inputs ── */
@@ -103,8 +179,10 @@ section[data-testid="stSidebar"] .stButton > button {{
     background:#ffffff !important; border:1px solid #e2e8f0 !important;
     border-radius:7px !important; color:#111827 !important;
 }}
-[data-testid="stSelectbox"] label,[data-testid="stDateInput"] label,
-[data-testid="stSlider"] label,[data-testid="stRadio"] > label {{
+.main [data-testid="stSelectbox"] label,
+.main [data-testid="stDateInput"] label,
+.main [data-testid="stSlider"] label,
+.main [data-testid="stRadio"] > label {{
     font-size:12px !important; font-weight:500 !important; color:#4b5563 !important;
 }}
 
@@ -115,7 +193,8 @@ section[data-testid="stSidebar"] .stButton > button {{
 [data-testid="stTabs"] button[role="tab"] {{
     font-size:13px !important; font-weight:500 !important; color:#6b7280 !important;
     padding:8px 20px !important; border-radius:0 !important;
-    border:none !important; border-bottom:2px solid transparent !important; background:transparent !important;
+    border:none !important; border-bottom:2px solid transparent !important;
+    background:transparent !important;
 }}
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {{
     color:#1a2035 !important; border-bottom:2px solid #1a2035 !important; font-weight:600 !important;
@@ -125,12 +204,11 @@ section[data-testid="stSidebar"] .stButton > button {{
 div[data-testid="stExpander"] {{
     background:#ffffff !important; border:1px solid #e8eaed !important; border-radius:10px !important;
 }}
-div[data-testid="stExpander"] summary p {{ color:#374151 !important; font-weight:500 !important; }}
 
 /* ── Alertas ── */
 [data-testid="stAlert"] {{ border-radius:8px !important; font-size:13px !important; }}
 
-/* Sem fade de transição */
+/* Sem fade */
 [data-testid="stMain"],[data-testid="stVerticalBlock"] {{
     animation:none !important; transition:none !important;
 }}
@@ -202,6 +280,16 @@ PLOT_INTER = {**PLOT_BASE,
     "dragmode": "pan",
 }
 
+# ─── Ícones Unicode minimalistas ─────────────────────────────────────────────
+# (funcionam dentro de st.button sem precisar de HTML)
+NAV_ICONS = {
+    "Início":           "⌂",
+    "Mercados Globais": "◎",
+    "Gráficos":         "⌇",
+    "Exportar":         "↓",
+}
+NAV_KEYS = ["Início", "Mercados Globais", "Gráficos", "Exportar"]
+
 # ─── UTILS ───────────────────────────────────────────────────────────────────
 def hex_rgba(h, a=0.08):
     h = h.lstrip("#")
@@ -226,38 +314,26 @@ def parse_bcb_valor(valor_str):
 
 # ─── BCB API — robusta com retry e fallback ───────────────────────────────────
 def _bcb_fetch(url: str) -> list:
-    """
-    Tenta buscar a URL da API BCB com até 3 tentativas e fallback sem SSL.
-    Retorna lista de dicts ou [] em caso de falha.
-    """
     for attempt in range(3):
         try:
             kwargs = dict(headers=HEADERS, timeout=20)
-            if attempt == 2:          # 3ª tentativa: desativa verificação SSL
+            if attempt == 2:
                 kwargs["verify"] = False
             r = requests.get(url, **kwargs)
             if r.status_code != 200:
-                time.sleep(1)
-                continue
-            content_type = r.headers.get("Content-Type", "")
-            if "html" in content_type.lower():
-                time.sleep(1)
-                continue
+                time.sleep(1); continue
+            if "html" in r.headers.get("Content-Type","").lower():
+                time.sleep(1); continue
             data = r.json()
-            if isinstance(data, dict):   # objeto de erro BCB
-                time.sleep(1)
-                continue
+            if isinstance(data, dict):
+                time.sleep(1); continue
             if isinstance(data, list) and len(data) > 0:
                 return data
             time.sleep(0.5)
         except requests.exceptions.SSLError:
-            if attempt < 2:
-                time.sleep(1)
-                continue
+            if attempt < 2: time.sleep(1); continue
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
-            if attempt < 2:
-                time.sleep(1)
-                continue
+            if attempt < 2: time.sleep(1); continue
         except Exception:
             break
     return []
@@ -272,29 +348,25 @@ def _build_df(raw: list) -> pd.DataFrame:
     df = df.dropna(subset=["data","valor"]).sort_values("data").reset_index(drop=True)
     return df[["data","valor"]]
 
-# Cache curto para resultados vazios (60s), longo para dados válidos (1h)
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_bcb(codigo: int, ultimos: int) -> pd.DataFrame:
     url = BCB_BASE.format(codigo=codigo) + f"/ultimos/{ultimos}?formato=json"
     raw = _bcb_fetch(url)
     if not raw:
-        # Fallback: pede os últimos 30 via intervalo de datas
-        hoje  = datetime.today()
-        ini   = (hoje - timedelta(days=ultimos * 45)).strftime("%d/%m/%Y")
-        fim   = hoje.strftime("%d/%m/%Y")
-        url2  = BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"
-        raw   = _bcb_fetch(url2)
+        hoje = datetime.today()
+        ini  = (hoje - timedelta(days=ultimos * 45)).strftime("%d/%m/%Y")
+        fim  = hoje.strftime("%d/%m/%Y")
+        raw  = _bcb_fetch(BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}")
     return _build_df(raw)
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_bcb_full(codigo: int) -> pd.DataFrame:
-    url = BCB_BASE.format(codigo=codigo) + "?formato=json"
-    return _build_df(_bcb_fetch(url))
+    return _build_df(_bcb_fetch(BCB_BASE.format(codigo=codigo) + "?formato=json"))
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_bcb_range(codigo: int, ini: str, fim: str) -> pd.DataFrame:
-    url = BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"
-    return _build_df(_bcb_fetch(url))
+    return _build_df(_bcb_fetch(
+        BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"))
 
 # ─── YAHOO FINANCE ────────────────────────────────────────────────────────────
 @st.cache_data(ttl=60, show_spinner=False)
@@ -385,14 +457,14 @@ body{{background:transparent;font-family:'Inter',sans-serif}}
   box-shadow:0 1px 3px rgba(0,0,0,0.05); overflow:hidden; position:relative;
 }}
 .ribbon{{
-  position:absolute; top:0; right:0;
-  background:#fef3c7; border-bottom-left-radius:8px;
-  color:#92400e; font-size:9px; font-weight:600; padding:3px 9px; white-space:nowrap;
+  position:absolute; top:0; right:0; background:#fef3c7;
+  border-bottom-left-radius:8px; color:#92400e; font-size:9px;
+  font-weight:600; padding:3px 9px; white-space:nowrap;
 }}
 .ribbon-ext{{
-  position:absolute; top:0; right:0;
-  background:#eff6ff; border-bottom-left-radius:8px;
-  color:#1d4ed8; font-size:9px; font-weight:600; padding:3px 9px; white-space:nowrap;
+  position:absolute; top:0; right:0; background:#eff6ff;
+  border-bottom-left-radius:8px; color:#1d4ed8; font-size:9px;
+  font-weight:600; padding:3px 9px; white-space:nowrap;
 }}
 .lbl{{font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1.5px;margin-top:6px}}
 .val{{font-size:19px;font-weight:700;color:#111827;line-height:1.2}}
@@ -418,8 +490,7 @@ def _apply_range(fig, df, suffix="", pad_pct=0.08):
     x_min, x_max = df["data"].min(), df["data"].max()
     x_pad = (x_max-x_min)*0.02
     fig.update_xaxes(range=[x_min-x_pad, x_max+x_pad])
-    fig.update_yaxes(range=[y_min-y_pad, y_max+y_pad],
-                     tickformat=".2f",
+    fig.update_yaxes(range=[y_min-y_pad, y_max+y_pad], tickformat=".2f",
                      ticksuffix=suffix.strip() if suffix.strip() else "")
     return fig
 
@@ -451,161 +522,107 @@ def bar_fig(df, title, suffix="", height=260, interactive=False):
     return fig
 
 # ─── SIDEBAR ─────────────────────────────────────────────────────────────────
-# SVGs Feather-style, 16×16
-ICONS = {
-    "Início":          '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
-    "Mercados Globais":'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
-    "Gráficos":        '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
-    "Exportar":        '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
-}
-NAV_KEYS = ["Início", "Mercados Globais", "Gráficos", "Exportar"]
-
-# Ícone do toggle (chevron)
-CHEV_LEFT  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>'
-CHEV_RIGHT = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
-
 with st.sidebar:
     if collapsed:
-        # ── MODO COLAPSADO: só ícones ───────────────────────────────────────
-        # Botão de toggle (expand)
+        # ── MODO COLAPSADO (64px) ─────────────────────────────────────────
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
+        # Botão toggle: visível, centrado
         st.markdown(
-            "<div style='padding:14px 0 10px 0;display:flex;justify-content:center'>",
+            "<div class='sb-toggle-btn' style='display:flex;justify-content:center;padding:4px 8px'>",
             unsafe_allow_html=True,
         )
-        if st.button("▶", key="sb_expand", help="Expandir menu",
-                     use_container_width=True):
+        if st.button("›", key="sb_toggle"):
             st.session_state.sb_collapsed = False
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown(
-            "<div style='height:1px;background:#e8eaed;margin:0 8px 10px 8px'></div>",
+            "<div style='height:1px;background:#e8eaed;margin:8px 6px'></div>",
             unsafe_allow_html=True,
         )
 
-        # Ícones de navegação (um por linha, centralizado)
+        # Ícones de navegação centralizados
         for key in NAV_KEYS:
             is_active = st.session_state.pagina == key
-            color     = "#1a2035" if is_active else "#9ca3af"
-            bg        = "#f0f2ff" if is_active else "transparent"
-            icon_svg  = ICONS[key].format(c=color)
+            icon      = NAV_ICONS[key]
+            btn_type  = "primary" if is_active else "secondary"
+            # Centraliza o ícone com padding
             st.markdown(
-                f"<div style='display:flex;justify-content:center;margin:2px 6px;"
-                f"padding:9px 0;border-radius:8px;background:{bg};cursor:pointer'>"
-                f"<span title='{key}'>{icon_svg}</span></div>",
+                "<div style='display:flex;justify-content:center;padding:0 4px'>",
                 unsafe_allow_html=True,
             )
-            if st.button(key, key=f"nav_c_{key}", use_container_width=True):
+            if st.button(icon, key=f"nav_{key}", type=btn_type,
+                         use_container_width=True, help=key):
                 st.session_state.pagina = key
                 st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        # CSS para tornar os botões invisíveis mas clicáveis sobre os ícones
+        # CSS extra para modo colapsado: centralizar texto dos botões
         st.markdown("""
         <style>
-        [data-testid="stSidebar"] .stButton { position:relative; margin-top:-44px !important; }
-        [data-testid="stSidebar"] .stButton > button {
-            display:block !important; opacity:0 !important;
-            width:100% !important; height:38px !important;
-            cursor:pointer !important; background:transparent !important;
-            border:none !important; position:relative; z-index:5;
+        section[data-testid="stSidebar"] .stButton > button {
+            justify-content: center !important;
+            padding: 9px 0 !important;
+            font-size: 17px !important;
+        }
+        section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] {
+            padding: 9px 0 !important;
+            border-left: none !important;
+            border-radius: 8px !important;
         }
         </style>
         """, unsafe_allow_html=True)
 
     else:
-        # ── MODO EXPANDIDO ──────────────────────────────────────────────────
-        # Header com logo + botão collapse
-        st.markdown(
-            "<div style='padding:18px 16px 10px 18px;display:flex;"
-            "align-items:flex-start;justify-content:space-between'>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "<div>"
-            "<div style='font-size:9px;font-weight:700;color:#d1d5db;"
-            "letter-spacing:3px;text-transform:uppercase;margin-bottom:3px'>BR</div>"
-            "<div style='font-size:15px;font-weight:700;color:#111827;"
-            "letter-spacing:-0.3px'>Macro Brasil</div>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-        if st.button("◀", key="sb_collapse", help="Recolher menu"):
-            st.session_state.sb_collapsed = True
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+        # ── MODO EXPANDIDO (220px) ────────────────────────────────────────
+        # Linha de header: logo + botão collapse
+        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
 
-        # Estilo do botão toggle
-        st.markdown("""
-        <style>
-        [data-testid="stSidebar"] [data-testid="stBaseButton-secondary"] {
-            background: transparent !important;
-            border: 1px solid #e8eaed !important;
-            color: #9ca3af !important;
-            padding: 3px 7px !important;
-            font-size: 11px !important;
-            border-radius: 6px !important;
-            min-height: unset !important;
-            height: 26px !important;
-            width: 28px !important;
-            display: block !important;
-            opacity: 1 !important;
-        }
-        [data-testid="stSidebar"] [data-testid="stBaseButton-secondary"]:hover {
-            background: #f5f6f8 !important;
-            color: #374151 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        col_logo, col_btn = st.columns([5, 2])
+        with col_logo:
+            st.markdown(
+                "<div style='padding:14px 0 8px 18px'>"
+                "<div style='font-size:9px;font-weight:700;color:#d1d5db;"
+                "letter-spacing:3px;text-transform:uppercase;margin-bottom:3px'>BR</div>"
+                "<div style='font-size:15px;font-weight:700;color:#111827;"
+                "letter-spacing:-0.3px'>Macro Brasil</div></div>",
+                unsafe_allow_html=True,
+            )
+        with col_btn:
+            st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
+            st.markdown("<div class='sb-toggle-btn'>", unsafe_allow_html=True)
+            if st.button("‹", key="sb_toggle"):
+                st.session_state.sb_collapsed = True
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown(
-            "<div style='height:1px;background:#e8eaed;margin:0 0 8px 0'></div>",
+            "<div style='height:1px;background:#e8eaed;margin:2px 0 6px 0'></div>",
             unsafe_allow_html=True,
         )
         st.markdown(
             "<div style='font-size:9px;font-weight:700;color:#9ca3af;"
             "text-transform:uppercase;letter-spacing:2px;"
-            "padding:6px 18px 6px 18px'>Navegação</div>",
+            "padding:4px 18px 8px 18px'>Navegação</div>",
             unsafe_allow_html=True,
         )
 
         for key in NAV_KEYS:
             is_active = st.session_state.pagina == key
-            color     = "#1a2035" if is_active else "#9ca3af"
-            bg        = "#f0f2ff" if is_active else "transparent"
-            fw        = "600"    if is_active else "500"
-            tc        = "#1a2035" if is_active else "#4b5563"
-            bl        = "3px solid #1a2035" if is_active else "3px solid transparent"
-            icon_svg  = ICONS[key].format(c=color)
-            st.markdown(
-                f"<div style='display:flex;align-items:center;gap:10px;"
-                f"padding:9px 12px 9px 14px;margin:1px 6px;border-radius:7px;"
-                f"background:{bg};border-left:{bl};cursor:pointer'>"
-                f"{icon_svg}"
-                f"<span style='font-size:13px;font-weight:{fw};color:{tc};font-family:Inter,sans-serif'>"
-                f"{key}</span></div>",
-                unsafe_allow_html=True,
-            )
-            if st.button(key, key=f"nav_e_{key}", use_container_width=True):
+            icon      = NAV_ICONS[key]
+            btn_type  = "primary" if is_active else "secondary"
+            label     = f"{icon}   {key}"
+            st.markdown("<div style='padding:0 6px'>", unsafe_allow_html=True)
+            if st.button(label, key=f"nav_{key}", type=btn_type, use_container_width=True):
                 st.session_state.pagina = key
                 st.rerun()
-
-        # Botões de nav invisíveis sobrepostos
-        st.markdown("""
-        <style>
-        [data-testid="stSidebar"] .stButton { position:relative; margin-top:-42px !important; }
-        [data-testid="stSidebar"] .stButton > button {
-            display:block !important; opacity:0 !important;
-            width:100% !important; height:38px !important;
-            cursor:pointer !important; background:transparent !important;
-            border:none !important; position:relative; z-index:5;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
         # Rodapé
-        st.markdown("<div style='height:40px'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
         st.markdown(
-            "<div style='height:1px;background:#e8eaed;margin:0 0 10px 0'></div>",
+            "<div style='height:1px;background:#e8eaed;margin:0 0 8px 0'></div>",
             unsafe_allow_html=True,
         )
         st.markdown(
@@ -642,7 +659,6 @@ if pagina == "Início":
         df_pib  = get_bcb(4380,  8)
         df_des  = get_bcb(24369, 8)
 
-    # ── KPIs Mercado ──────────────────────────────────────────────────────────
     st.markdown(
         '<div class="sec-title">Indicadores de Mercado'
         '<span class="badge-live">↻ 60s</span></div>',
@@ -651,27 +667,21 @@ if pagina == "Início":
     c1, c2, c3 = st.columns(3)
     with c1:
         v = ibov_d.get("price")
-        kpi("IBOVESPA",
-            fmt(v, 0)+" pts" if v else "—",
+        kpi("IBOVESPA", fmt(v,0)+" pts" if v else "—",
             ibov_d.get("chg_p"),
             f"Var. dia: {fmt(ibov_d.get('chg_v'),0)} pts" if ibov_d.get("chg_v") is not None else "—",
             d=ibov_d)
     with c2:
         v = usd_d.get("price")
-        kpi("Dólar (USD/BRL)",
-            f"R$ {fmt(v,4)}" if v else "—",
-            usd_d.get("chg_p"),
-            f"Ant.: R$ {fmt(usd_d.get('prev'),4)}" if v else "—",
+        kpi("Dólar (USD/BRL)", f"R$ {fmt(v,4)}" if v else "—",
+            usd_d.get("chg_p"), f"Ant.: R$ {fmt(usd_d.get('prev'),4)}" if v else "—",
             invert=True, d=usd_d)
     with c3:
         v = eur_d.get("price")
-        kpi("Euro (EUR/BRL)",
-            f"R$ {fmt(v,4)}" if v else "—",
-            eur_d.get("chg_p"),
-            f"Ant.: R$ {fmt(eur_d.get('prev'),4)}" if v else "—",
+        kpi("Euro (EUR/BRL)", f"R$ {fmt(v,4)}" if v else "—",
+            eur_d.get("chg_p"), f"Ant.: R$ {fmt(eur_d.get('prev'),4)}" if v else "—",
             invert=True, d=eur_d)
 
-    # ── KPIs Econômicos ───────────────────────────────────────────────────────
     st.markdown(
         '<div class="sec-title">Indicadores Econômicos'
         '<span class="badge-daily">↻ diário</span></div>',
@@ -699,7 +709,6 @@ if pagina == "Início":
         else:
             kpi("Desemprego (PNAD)", "—", sub="BCB indisponível")
 
-    # ── Gráficos ──────────────────────────────────────────────────────────────
     st.markdown(
         '<div class="sec-title">Histórico — 12 meses'
         '<span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;'
