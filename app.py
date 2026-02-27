@@ -13,149 +13,127 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ─── SESSION STATE ────────────────────────────────────────────────────────────
+if "pagina"    not in st.session_state: st.session_state.pagina    = "Início"
+if "sb_collapsed" not in st.session_state: st.session_state.sb_collapsed = False
+
+collapsed = st.session_state.sb_collapsed
+sb_w      = 60 if collapsed else 220
+
 # ─── CSS ─────────────────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
-*, html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
+*, html, body, [class*="css"] {{ font-family: 'Inter', sans-serif !important; }}
 
 /* ── Fundo principal ── */
-.stApp,[data-testid="stAppViewContainer"],[data-testid="stMain"] {
-    background: #f5f6f8 !important;
-}
-.main .block-container { padding-top:0 !important; padding-bottom:2rem; max-width:1400px; }
-footer,#MainMenu,header { visibility:hidden !important; }
-[data-testid="stToolbar"] { display:none !important; }
+.stApp,[data-testid="stAppViewContainer"],[data-testid="stMain"] {{
+    background: #f0f2f5 !important;
+}}
+.main .block-container {{ padding-top:0 !important; padding-bottom:2rem; max-width:1400px; }}
+footer,#MainMenu,header {{ visibility:hidden !important; }}
+[data-testid="stToolbar"] {{ display:none !important; }}
 
-/* ── Sidebar BRANCA ── */
-section[data-testid="stSidebar"] {
+/* ── Sidebar branca + largura dinâmica ── */
+section[data-testid="stSidebar"] {{
     background: #ffffff !important;
     border-right: 1px solid #e8eaed !important;
-    min-width: 220px !important;
-    max-width: 220px !important;
-}
-section[data-testid="stSidebar"] * { color: #374151 !important; }
-
-/* ── Radio nav ── */
-section[data-testid="stSidebar"] .stRadio > div { gap: 2px !important; }
-section[data-testid="stSidebar"] .stRadio > div > label {
-    display: flex !important;
-    align-items: center !important;
-    padding: 8px 12px 8px 16px !important;
-    border-radius: 7px !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    color: #6b7280 !important;
-    cursor: pointer !important;
-    margin: 1px 6px !important;
-    background: transparent !important;
-    border-left: 3px solid transparent !important;
-    transition: background 0.12s, color 0.12s !important;
-}
-section[data-testid="stSidebar"] .stRadio > div > label:hover {
-    background: #f5f6f8 !important;
-    color: #111827 !important;
-}
-/* Item ativo — borda esquerda azul-escura */
-section[data-testid="stSidebar"] .stRadio > div > label[data-checked="true"],
-section[data-testid="stSidebar"] .stRadio > div > label[aria-checked="true"] {
-    background: #f0f2ff !important;
-    color: #1a2035 !important;
-    border-left: 3px solid #1a2035 !important;
-    font-weight: 600 !important;
-}
-/* Esconde o círculo do radio */
+    min-width: {sb_w}px !important;
+    max-width: {sb_w}px !important;
+    overflow: hidden !important;
+    transition: min-width 0.2s, max-width 0.2s;
+}}
+section[data-testid="stSidebar"] > div:first-child {{
+    padding: 0 !important;
+    overflow: hidden !important;
+}}
+/* Esconde todos os widgets nativos na sidebar */
 section[data-testid="stSidebar"] input[type="radio"],
-section[data-testid="stSidebar"] [data-baseweb="radio"] { display: none !important; }
-
-/* Divisor e seção */
-.sb-divider { height:1px; background:#e8eaed; margin:8px 0; }
-.sb-section {
-    font-size:9px; font-weight:700; color:#9ca3af;
-    text-transform:uppercase; letter-spacing:2px;
-    padding:12px 18px 6px 18px;
-}
+section[data-testid="stSidebar"] [data-baseweb="radio"] {{ display:none !important; }}
+section[data-testid="stSidebar"] label {{ display:none !important; }}
+section[data-testid="stSidebar"] .stButton > button {{
+    display:none !important;
+}}
 
 /* ── Cabeçalho de página ── */
-.page-top {
+.page-top {{
     background:#ffffff; border-bottom:1px solid #e8eaed;
-    padding:16px 28px; margin:0 -3rem 24px -3rem;
+    padding:15px 28px; margin:0 -3rem 22px -3rem;
     display:flex; align-items:center; justify-content:space-between;
-}
-.page-top h1 { font-size:16px; font-weight:600; color:#111827; margin:0; }
-.page-top .ts { font-size:11px; color:#9ca3af; text-align:right; line-height:1.5; }
+}}
+.page-top h1 {{ font-size:16px; font-weight:600; color:#111827; margin:0; }}
+.page-top .ts {{ font-size:11px; color:#6b7280; text-align:right; line-height:1.5; }}
 
 /* ── Títulos de seção ── */
-.sec-title {
-    font-size:10px; font-weight:700; color:#9ca3af;
+.sec-title {{
+    font-size:10px; font-weight:700; color:#6b7280;
     text-transform:uppercase; letter-spacing:2px;
     margin:20px 0 12px 0; padding-bottom:8px;
-    border-bottom:1px solid #e8eaed;
-}
+    border-bottom:1px solid #e2e5e9;
+    display:flex; align-items:center; gap:8px;
+}}
 
 /* ── Badges ── */
-.badge-live {
+.badge-live {{
     display:inline-block; background:#f0fdf4; border:1px solid #bbf7d0;
     color:#16a34a; font-size:9px; font-weight:600; padding:2px 8px;
-    border-radius:20px; margin-left:8px; text-transform:none; letter-spacing:0;
-}
-.badge-daily {
+    border-radius:20px; text-transform:none; letter-spacing:0;
+}}
+.badge-daily {{
     display:inline-block; background:#f5f3ff; border:1px solid #ddd6fe;
     color:#7c3aed; font-size:9px; font-weight:600; padding:2px 8px;
-    border-radius:20px; margin-left:8px; text-transform:none; letter-spacing:0;
-}
+    border-radius:20px; text-transform:none; letter-spacing:0;
+}}
 
-/* ── Botões ── */
-.stButton > button {
+/* ── Botões gerais ── */
+.stButton > button {{
     background:#1a2035 !important; color:#ffffff !important;
     border:none !important; border-radius:7px !important;
     font-weight:600 !important; font-size:13px !important; padding:8px 18px !important;
-}
-.stButton > button:hover { background:#2d3a56 !important; }
-.stDownloadButton > button {
+}}
+.stButton > button:hover {{ background:#2d3a56 !important; }}
+.stDownloadButton > button {{
     background:#ffffff !important; color:#374151 !important;
     border:1px solid #e2e8f0 !important; border-radius:7px !important;
     font-weight:500 !important; font-size:12px !important;
-}
+}}
 
 /* ── Selectboxes / inputs ── */
-[data-testid="stSelectbox"] > div > div {
+[data-testid="stSelectbox"] > div > div {{
     background:#ffffff !important; border:1px solid #e2e8f0 !important;
     border-radius:7px !important; color:#111827 !important;
-}
-[data-testid="stSelectbox"] label,
-[data-testid="stDateInput"] label,
-[data-testid="stSlider"] label,
-[data-testid="stRadio"] > label {
-    font-size:12px !important; font-weight:500 !important; color:#6b7280 !important;
-}
+}}
+[data-testid="stSelectbox"] label,[data-testid="stDateInput"] label,
+[data-testid="stSlider"] label,[data-testid="stRadio"] > label {{
+    font-size:12px !important; font-weight:500 !important; color:#4b5563 !important;
+}}
 
 /* ── Tabs ── */
-[data-testid="stTabs"] [data-testid="stTabsTabList"] {
+[data-testid="stTabs"] [data-testid="stTabsTabList"] {{
     background:transparent !important; border-bottom:1px solid #e8eaed !important; gap:0 !important;
-}
-[data-testid="stTabs"] button[role="tab"] {
-    font-size:13px !important; font-weight:500 !important; color:#9ca3af !important;
+}}
+[data-testid="stTabs"] button[role="tab"] {{
+    font-size:13px !important; font-weight:500 !important; color:#6b7280 !important;
     padding:8px 20px !important; border-radius:0 !important;
     border:none !important; border-bottom:2px solid transparent !important; background:transparent !important;
-}
-[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+}}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {{
     color:#1a2035 !important; border-bottom:2px solid #1a2035 !important; font-weight:600 !important;
-}
+}}
 
 /* ── Expander ── */
-div[data-testid="stExpander"] {
+div[data-testid="stExpander"] {{
     background:#ffffff !important; border:1px solid #e8eaed !important; border-radius:10px !important;
-}
+}}
+div[data-testid="stExpander"] summary p {{ color:#374151 !important; font-weight:500 !important; }}
 
 /* ── Alertas ── */
-[data-testid="stAlert"] { border-radius:8px !important; font-size:13px !important; }
+[data-testid="stAlert"] {{ border-radius:8px !important; font-size:13px !important; }}
 
-/* Desativa fade de transição */
-[data-testid="stMain"],[data-testid="stVerticalBlock"] {
+/* Sem fade de transição */
+[data-testid="stMain"],[data-testid="stVerticalBlock"] {{
     animation:none !important; transition:none !important;
-}
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -171,9 +149,6 @@ HEADERS    = {
     ),
     "Accept": "application/json",
 }
-
-# Estados de mercado que indicam cotação em tempo real
-LIVE_STATES = {"REGULAR", "PRE", "POST", "PREPRE", "POSTPOST"}
 
 SGS = {
     "Selic":       (432,   "% a.a.",  "Mensal",      "line"),
@@ -207,7 +182,7 @@ GLOBAL = {
     "Ethereum":        ("ETH-USD",  "US$",    False),
 }
 
-CHART_CFG  = {"displayModeBar": False, "staticPlot": False, "scrollZoom": False}
+CHART_CFG = {"displayModeBar": False, "staticPlot": False, "scrollZoom": False}
 
 PLOT_BASE = dict(
     paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
@@ -249,18 +224,45 @@ def parse_bcb_valor(valor_str):
     try:    return float(s)
     except: return None
 
-# ─── BCB API ─────────────────────────────────────────────────────────────────
-def _bcb_request(url):
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=15)
-        r.raise_for_status()
-        if "html" in r.headers.get("Content-Type","").lower(): return []
-        data = r.json()
-        if not isinstance(data, list) or len(data) == 0: return []
-        return data
-    except: return []
+# ─── BCB API — robusta com retry e fallback ───────────────────────────────────
+def _bcb_fetch(url: str) -> list:
+    """
+    Tenta buscar a URL da API BCB com até 3 tentativas e fallback sem SSL.
+    Retorna lista de dicts ou [] em caso de falha.
+    """
+    for attempt in range(3):
+        try:
+            kwargs = dict(headers=HEADERS, timeout=20)
+            if attempt == 2:          # 3ª tentativa: desativa verificação SSL
+                kwargs["verify"] = False
+            r = requests.get(url, **kwargs)
+            if r.status_code != 200:
+                time.sleep(1)
+                continue
+            content_type = r.headers.get("Content-Type", "")
+            if "html" in content_type.lower():
+                time.sleep(1)
+                continue
+            data = r.json()
+            if isinstance(data, dict):   # objeto de erro BCB
+                time.sleep(1)
+                continue
+            if isinstance(data, list) and len(data) > 0:
+                return data
+            time.sleep(0.5)
+        except requests.exceptions.SSLError:
+            if attempt < 2:
+                time.sleep(1)
+                continue
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            if attempt < 2:
+                time.sleep(1)
+                continue
+        except Exception:
+            break
+    return []
 
-def _build_df(raw):
+def _build_df(raw: list) -> pd.DataFrame:
     if not raw: return pd.DataFrame(columns=["data","valor"])
     df = pd.DataFrame(raw)
     if "data" not in df.columns or "valor" not in df.columns:
@@ -270,82 +272,64 @@ def _build_df(raw):
     df = df.dropna(subset=["data","valor"]).sort_values("data").reset_index(drop=True)
     return df[["data","valor"]]
 
+# Cache curto para resultados vazios (60s), longo para dados válidos (1h)
 @st.cache_data(ttl=3600, show_spinner=False)
-def get_bcb(codigo, ultimos):
-    return _build_df(_bcb_request(BCB_BASE.format(codigo=codigo) + f"/ultimos/{ultimos}?formato=json"))
+def get_bcb(codigo: int, ultimos: int) -> pd.DataFrame:
+    url = BCB_BASE.format(codigo=codigo) + f"/ultimos/{ultimos}?formato=json"
+    raw = _bcb_fetch(url)
+    if not raw:
+        # Fallback: pede os últimos 30 via intervalo de datas
+        hoje  = datetime.today()
+        ini   = (hoje - timedelta(days=ultimos * 45)).strftime("%d/%m/%Y")
+        fim   = hoje.strftime("%d/%m/%Y")
+        url2  = BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"
+        raw   = _bcb_fetch(url2)
+    return _build_df(raw)
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def get_bcb_full(codigo):
-    return _build_df(_bcb_request(BCB_BASE.format(codigo=codigo) + "?formato=json"))
+def get_bcb_full(codigo: int) -> pd.DataFrame:
+    url = BCB_BASE.format(codigo=codigo) + "?formato=json"
+    return _build_df(_bcb_fetch(url))
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def get_bcb_range(codigo, ini, fim):
-    return _build_df(_bcb_request(
-        BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"))
+def get_bcb_range(codigo: int, ini: str, fim: str) -> pd.DataFrame:
+    url = BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"
+    return _build_df(_bcb_fetch(url))
 
-# ─── YAHOO FINANCE — lógica robusta aberto/fechado ───────────────────────────
+# ─── YAHOO FINANCE ────────────────────────────────────────────────────────────
 @st.cache_data(ttl=60, show_spinner=False)
 def get_quote(symbol: str) -> dict:
-    """
-    Retorna dados de cotação com lógica explícita de mercado aberto/fechado:
-    1. Busca 5 dias de histórico (garante ter o último dia útil com fechamento).
-    2. Se mercado REGULAR → usa regularMarketPrice (tempo real).
-    3. Se PRE/POST → usa preço de pré/pós mercado com indicação.
-    4. Se CLOSED → usa previousClose do último dia útil disponível.
-    """
     try:
-        url    = YAHOO_SNAP.format(sym=symbol)
-        r      = requests.get(url, headers=HEADERS, timeout=10)
+        r      = requests.get(YAHOO_SNAP.format(sym=symbol), headers=HEADERS, timeout=10)
         r.raise_for_status()
         data   = r.json()
         result = data["chart"]["result"][0]
         meta   = result["meta"]
-
         market_state = meta.get("marketState", "CLOSED")
         is_live      = market_state == "REGULAR"
-        is_extended  = market_state in ("PRE", "POST", "PREPRE", "POSTPOST")
+        is_extended  = market_state in ("PRE","POST","PREPRE","POSTPOST")
         is_closed    = not (is_live or is_extended)
 
-        if is_live:
-            # Tempo real
-            price = meta.get("regularMarketPrice")
-            prev  = meta.get("chartPreviousClose") or meta.get("previousClose", price)
-            close_date = None
-        elif is_extended:
-            # Pré/pós mercado — usa regularMarketPrice se disponível, senão previousClose
+        if is_live or is_extended:
             price = meta.get("regularMarketPrice") or meta.get("previousClose")
             prev  = meta.get("chartPreviousClose") or meta.get("previousClose", price)
             close_date = None
         else:
-            # Mercado fechado — usa previousClose (último fechamento oficial)
             price = meta.get("previousClose") or meta.get("regularMarketPrice")
             prev  = meta.get("chartPreviousClose") or price
-            # Tenta obter a data do último fechamento a partir dos timestamps
             ts_list = result.get("timestamp", [])
             if ts_list:
                 close_date = datetime.fromtimestamp(ts_list[-1]).strftime("%d/%m/%Y")
             else:
-                # Fallback: data da última cotação nos metadados
-                reg_ts = meta.get("regularMarketTime")
+                reg_ts     = meta.get("regularMarketTime")
                 close_date = datetime.fromtimestamp(reg_ts).strftime("%d/%m/%Y") if reg_ts else None
 
-        if price is None:
-            return {}
-
-        chg_p = ((price - prev) / prev * 100) if (prev and prev != 0) else None
-        chg_v = (price - prev) if prev else None
-
-        return {
-            "price":      price,
-            "prev":       prev,
-            "chg_p":      chg_p,
-            "chg_v":      chg_v,
-            "market":     market_state,
-            "is_live":    is_live,
-            "is_extended": is_extended,
-            "is_closed":  is_closed,
-            "close_date": close_date,
-        }
+        if price is None: return {}
+        chg_p = ((price-prev)/prev*100) if (prev and prev!=0) else None
+        chg_v = (price-prev) if prev else None
+        return {"price":price,"prev":prev,"chg_p":chg_p,"chg_v":chg_v,
+                "market":market_state,"is_live":is_live,
+                "is_extended":is_extended,"is_closed":is_closed,"close_date":close_date}
     except:
         return {}
 
@@ -367,10 +351,6 @@ def get_hist(symbol, years=5):
 import streamlit.components.v1 as components
 
 def kpi(label, value, chg_p=None, sub="", invert=False, d=None):
-    """
-    d = dict retornado por get_quote()
-    Quando mercado fechado: mostra ribbon no canto superior direito com a data.
-    """
     is_closed   = d.get("is_closed",   False) if d else False
     is_extended = d.get("is_extended", False) if d else False
     close_date  = d.get("close_date",  None)  if d else None
@@ -383,80 +363,52 @@ def kpi(label, value, chg_p=None, sub="", invert=False, d=None):
     else:
         dlt = '<div class="d-neu">—</div>'
 
-    # Sub-label
     sub_html = f'<div class="sub">{sub}</div>' if sub else ""
 
-    # Ribbon de fechamento (canto superior direito) — só quando mercado fechado
     ribbon = ""
     if is_closed and close_date:
         ribbon = f'<div class="ribbon">Fechamento {close_date}</div>'
     elif is_closed:
         ribbon = '<div class="ribbon">Último fechamento</div>'
     elif is_extended:
-        mstate = d.get("market","") if d else ""
+        mstate    = d.get("market","") if d else ""
         label_ext = "Pré-mercado" if "PRE" in mstate else "Pós-mercado"
-        ribbon = f'<div class="ribbon-ext">{label_ext}</div>'
+        ribbon    = f'<div class="ribbon-ext">{label_ext}</div>'
 
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:transparent;font-family:'Inter',sans-serif}}
-.wrap{{position:relative}}
 .card{{
-  background:#ffffff;
-  border:1px solid #e8eaed;
-  border-radius:12px;
-  padding:16px 12px 14px 12px;
-  text-align:center;
-  min-height:114px;
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  gap:4px;
-  box-shadow:0 1px 3px rgba(0,0,0,0.04);
-  overflow:hidden;
-  position:relative;
+  background:#ffffff; border:1px solid #e2e5e9; border-radius:12px;
+  padding:16px 12px 14px 12px; text-align:center; min-height:112px;
+  display:flex; flex-direction:column; justify-content:center; gap:4px;
+  box-shadow:0 1px 3px rgba(0,0,0,0.05); overflow:hidden; position:relative;
 }}
-/* ribbon canto superior direito */
 .ribbon{{
-  position:absolute;
-  top:0; right:0;
-  background:#fef3c7;
-  border-bottom-left-radius:8px;
-  color:#92400e;
-  font-size:9px;
-  font-weight:600;
-  padding:3px 9px;
-  white-space:nowrap;
-  letter-spacing:0.2px;
+  position:absolute; top:0; right:0;
+  background:#fef3c7; border-bottom-left-radius:8px;
+  color:#92400e; font-size:9px; font-weight:600; padding:3px 9px; white-space:nowrap;
 }}
 .ribbon-ext{{
-  position:absolute;
-  top:0; right:0;
-  background:#eff6ff;
-  border-bottom-left-radius:8px;
-  color:#1d4ed8;
-  font-size:9px;
-  font-weight:600;
-  padding:3px 9px;
-  white-space:nowrap;
+  position:absolute; top:0; right:0;
+  background:#eff6ff; border-bottom-left-radius:8px;
+  color:#1d4ed8; font-size:9px; font-weight:600; padding:3px 9px; white-space:nowrap;
 }}
-.lbl{{font-size:9px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:1.5px;margin-top:6px}}
-.val{{font-size:19px;font-weight:700;color:#111827;line-height:1.15}}
-.d-pos{{font-size:11px;font-weight:500;color:#16a34a}}
-.d-neg{{font-size:11px;font-weight:500;color:#dc2626}}
-.d-neu{{font-size:11px;color:#d1d5db}}
-.sub{{font-size:9px;color:#d1d5db;margin-top:1px}}
+.lbl{{font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1.5px;margin-top:6px}}
+.val{{font-size:19px;font-weight:700;color:#111827;line-height:1.2}}
+.d-pos{{font-size:12px;font-weight:600;color:#16a34a}}
+.d-neg{{font-size:12px;font-weight:600;color:#dc2626}}
+.d-neu{{font-size:12px;color:#9ca3af}}
+.sub{{font-size:10px;color:#9ca3af;margin-top:1px}}
 </style></head><body>
-<div class="wrap">
-  <div class="card">
-    {ribbon}
-    <div class="lbl">{label}</div>
-    <div class="val">{value}</div>
-    {dlt}
-    {sub_html}
-  </div>
+<div class="card">
+  {ribbon}
+  <div class="lbl">{label}</div>
+  <div class="val">{value}</div>
+  {dlt}
+  {sub_html}
 </div></body></html>"""
-    components.html(html, height=122)
+    components.html(html, height=120)
 
 # ─── CHART FACTORIES ──────────────────────────────────────────────────────────
 def _apply_range(fig, df, suffix="", pad_pct=0.08):
@@ -466,11 +418,9 @@ def _apply_range(fig, df, suffix="", pad_pct=0.08):
     x_min, x_max = df["data"].min(), df["data"].max()
     x_pad = (x_max-x_min)*0.02
     fig.update_xaxes(range=[x_min-x_pad, x_max+x_pad])
-    fig.update_yaxes(
-        range=[y_min-y_pad, y_max+y_pad],
-        tickformat=".2f",
-        ticksuffix=suffix.strip() if suffix.strip() else "",
-    )
+    fig.update_yaxes(range=[y_min-y_pad, y_max+y_pad],
+                     tickformat=".2f",
+                     ticksuffix=suffix.strip() if suffix.strip() else "")
     return fig
 
 def line_fig(df, title, color="#1a2035", fill=True, suffix="", height=260, interactive=False):
@@ -500,83 +450,171 @@ def bar_fig(df, title, suffix="", height=260, interactive=False):
     if not interactive: fig = _apply_range(fig, df, suffix, pad_pct=0.15)
     return fig
 
-# ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-# Ícones SVG minimalistas monocromáticos (stroke-only, 16×16)
-ICON_HOME = """<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:9px;flex-shrink:0;opacity:0.7"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>"""
-ICON_GLOB = """<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:9px;flex-shrink:0;opacity:0.7"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>"""
-ICON_CHRT = """<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:9px;flex-shrink:0;opacity:0.7"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>"""
-ICON_EXPO = """<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:9px;flex-shrink:0;opacity:0.7"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>"""
+# ─── SIDEBAR ─────────────────────────────────────────────────────────────────
+# SVGs Feather-style, 16×16
+ICONS = {
+    "Início":          '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+    "Mercados Globais":'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+    "Gráficos":        '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+    "Exportar":        '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+}
+NAV_KEYS = ["Início", "Mercados Globais", "Gráficos", "Exportar"]
 
-NAV_ICONS  = [ICON_HOME, ICON_GLOB, ICON_CHRT, ICON_EXPO]
-NAV_KEYS   = ["Início", "Mercados Globais", "Gráficos", "Exportar"]
-NAV_LABELS = ["Início", "Mercados Globais", "Gráficos", "Exportar"]
-
-if "pagina" not in st.session_state:
-    st.session_state.pagina = "Início"
+# Ícone do toggle (chevron)
+CHEV_LEFT  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>'
+CHEV_RIGHT = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
 
 with st.sidebar:
-    # Logo
-    st.markdown(
-        "<div style='padding:22px 18px 16px 18px'>"
-        "<div style='font-size:9px;font-weight:700;color:#d1d5db;letter-spacing:3px;"
-        "text-transform:uppercase;margin-bottom:4px'>BR</div>"
-        "<div style='font-size:16px;font-weight:700;color:#111827;letter-spacing:-0.3px'>"
-        "Macro Brasil</div>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown("<div class='sb-divider'></div>", unsafe_allow_html=True)
-    st.markdown("<div class='sb-section'>Navegação</div>", unsafe_allow_html=True)
-
-    # Navegação com botões HTML + session_state
-    for key, label, icon in zip(NAV_KEYS, NAV_LABELS, NAV_ICONS):
-        is_active = st.session_state.pagina == key
-        active_style = (
-            "background:#f0f2ff;color:#1a2035;font-weight:600;"
-            "border-left:3px solid #1a2035;padding-left:13px;"
-        ) if is_active else (
-            "background:transparent;color:#6b7280;font-weight:500;"
-            "border-left:3px solid transparent;padding-left:13px;"
+    if collapsed:
+        # ── MODO COLAPSADO: só ícones ───────────────────────────────────────
+        # Botão de toggle (expand)
+        st.markdown(
+            "<div style='padding:14px 0 10px 0;display:flex;justify-content:center'>",
+            unsafe_allow_html=True,
         )
-        btn_html = (
-            f"<div style='display:flex;align-items:center;padding:8px 12px 8px 0;"
-            f"margin:1px 6px;border-radius:7px;cursor:pointer;font-size:13px;"
-            f"font-family:Inter,sans-serif;{active_style}'>"
-            f"{icon}{label}</div>"
-        )
-        st.markdown(btn_html, unsafe_allow_html=True)
-        if st.button(label, key=f"nav_{key}", use_container_width=True,
-                     help=None, type="secondary"):
-            st.session_state.pagina = key
+        if st.button("▶", key="sb_expand", help="Expandir menu",
+                     use_container_width=True):
+            st.session_state.sb_collapsed = False
             st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # Rodapé (sem position:absolute para não sobrepor conteúdo)
-    st.markdown("<div style='height:30px'></div>", unsafe_allow_html=True)
-    st.markdown("<div class='sb-divider'></div>", unsafe_allow_html=True)
-    st.markdown(
-        "<div style='font-size:9px;color:#d1d5db;line-height:1.9;padding:8px 18px 16px 18px'>"
-        "Fontes: BCB/SGS · Yahoo Finance<br>"
-        "Mercados: ↻ 60s &nbsp;|&nbsp; BCB: ↻ 1h"
-        "</div>",
-        unsafe_allow_html=True,
-    )
+        st.markdown(
+            "<div style='height:1px;background:#e8eaed;margin:0 8px 10px 8px'></div>",
+            unsafe_allow_html=True,
+        )
 
-# Esconde os botões Streamlit reais (ficam invisíveis, só funcionam como gatilho)
-st.markdown("""
-<style>
-/* Botões de navegação invisíveis — apenas gatilho de clique */
-[data-testid="stSidebar"] .stButton > button {
-    position:absolute !important; opacity:0 !important;
-    width:100% !important; height:38px !important;
-    top:-38px !important; left:0 !important;
-    cursor:pointer !important; z-index:10 !important;
-    border:none !important; background:transparent !important;
-}
-[data-testid="stSidebar"] .stButton {
-    position:relative !important; margin-top:-4px !important;
-}
-</style>
-""", unsafe_allow_html=True)
+        # Ícones de navegação (um por linha, centralizado)
+        for key in NAV_KEYS:
+            is_active = st.session_state.pagina == key
+            color     = "#1a2035" if is_active else "#9ca3af"
+            bg        = "#f0f2ff" if is_active else "transparent"
+            icon_svg  = ICONS[key].format(c=color)
+            st.markdown(
+                f"<div style='display:flex;justify-content:center;margin:2px 6px;"
+                f"padding:9px 0;border-radius:8px;background:{bg};cursor:pointer'>"
+                f"<span title='{key}'>{icon_svg}</span></div>",
+                unsafe_allow_html=True,
+            )
+            if st.button(key, key=f"nav_c_{key}", use_container_width=True):
+                st.session_state.pagina = key
+                st.rerun()
+
+        # CSS para tornar os botões invisíveis mas clicáveis sobre os ícones
+        st.markdown("""
+        <style>
+        [data-testid="stSidebar"] .stButton { position:relative; margin-top:-44px !important; }
+        [data-testid="stSidebar"] .stButton > button {
+            display:block !important; opacity:0 !important;
+            width:100% !important; height:38px !important;
+            cursor:pointer !important; background:transparent !important;
+            border:none !important; position:relative; z-index:5;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+    else:
+        # ── MODO EXPANDIDO ──────────────────────────────────────────────────
+        # Header com logo + botão collapse
+        st.markdown(
+            "<div style='padding:18px 16px 10px 18px;display:flex;"
+            "align-items:flex-start;justify-content:space-between'>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<div>"
+            "<div style='font-size:9px;font-weight:700;color:#d1d5db;"
+            "letter-spacing:3px;text-transform:uppercase;margin-bottom:3px'>BR</div>"
+            "<div style='font-size:15px;font-weight:700;color:#111827;"
+            "letter-spacing:-0.3px'>Macro Brasil</div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        if st.button("◀", key="sb_collapse", help="Recolher menu"):
+            st.session_state.sb_collapsed = True
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Estilo do botão toggle
+        st.markdown("""
+        <style>
+        [data-testid="stSidebar"] [data-testid="stBaseButton-secondary"] {
+            background: transparent !important;
+            border: 1px solid #e8eaed !important;
+            color: #9ca3af !important;
+            padding: 3px 7px !important;
+            font-size: 11px !important;
+            border-radius: 6px !important;
+            min-height: unset !important;
+            height: 26px !important;
+            width: 28px !important;
+            display: block !important;
+            opacity: 1 !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stBaseButton-secondary"]:hover {
+            background: #f5f6f8 !important;
+            color: #374151 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        st.markdown(
+            "<div style='height:1px;background:#e8eaed;margin:0 0 8px 0'></div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<div style='font-size:9px;font-weight:700;color:#9ca3af;"
+            "text-transform:uppercase;letter-spacing:2px;"
+            "padding:6px 18px 6px 18px'>Navegação</div>",
+            unsafe_allow_html=True,
+        )
+
+        for key in NAV_KEYS:
+            is_active = st.session_state.pagina == key
+            color     = "#1a2035" if is_active else "#9ca3af"
+            bg        = "#f0f2ff" if is_active else "transparent"
+            fw        = "600"    if is_active else "500"
+            tc        = "#1a2035" if is_active else "#4b5563"
+            bl        = "3px solid #1a2035" if is_active else "3px solid transparent"
+            icon_svg  = ICONS[key].format(c=color)
+            st.markdown(
+                f"<div style='display:flex;align-items:center;gap:10px;"
+                f"padding:9px 12px 9px 14px;margin:1px 6px;border-radius:7px;"
+                f"background:{bg};border-left:{bl};cursor:pointer'>"
+                f"{icon_svg}"
+                f"<span style='font-size:13px;font-weight:{fw};color:{tc};font-family:Inter,sans-serif'>"
+                f"{key}</span></div>",
+                unsafe_allow_html=True,
+            )
+            if st.button(key, key=f"nav_e_{key}", use_container_width=True):
+                st.session_state.pagina = key
+                st.rerun()
+
+        # Botões de nav invisíveis sobrepostos
+        st.markdown("""
+        <style>
+        [data-testid="stSidebar"] .stButton { position:relative; margin-top:-42px !important; }
+        [data-testid="stSidebar"] .stButton > button {
+            display:block !important; opacity:0 !important;
+            width:100% !important; height:38px !important;
+            cursor:pointer !important; background:transparent !important;
+            border:none !important; position:relative; z-index:5;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Rodapé
+        st.markdown("<div style='height:40px'></div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='height:1px;background:#e8eaed;margin:0 0 10px 0'></div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<div style='font-size:9px;color:#d1d5db;line-height:1.9;padding:0 18px 16px 18px'>"
+            "Fontes: BCB/SGS · Yahoo Finance<br>"
+            "Mercados: ↻ 60s &nbsp;|&nbsp; BCB: ↻ 1h"
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
 pagina = st.session_state.pagina
 
@@ -614,23 +652,23 @@ if pagina == "Início":
     with c1:
         v = ibov_d.get("price")
         kpi("IBOVESPA",
-            fmt(v, 0) + " pts" if v else "—",
+            fmt(v, 0)+" pts" if v else "—",
             ibov_d.get("chg_p"),
             f"Var. dia: {fmt(ibov_d.get('chg_v'),0)} pts" if ibov_d.get("chg_v") is not None else "—",
             d=ibov_d)
     with c2:
         v = usd_d.get("price")
         kpi("Dólar (USD/BRL)",
-            f"R$ {fmt(v, 4)}" if v else "—",
+            f"R$ {fmt(v,4)}" if v else "—",
             usd_d.get("chg_p"),
-            f"Ant.: R$ {fmt(usd_d.get('prev'), 4)}" if v else "—",
+            f"Ant.: R$ {fmt(usd_d.get('prev'),4)}" if v else "—",
             invert=True, d=usd_d)
     with c3:
         v = eur_d.get("price")
         kpi("Euro (EUR/BRL)",
-            f"R$ {fmt(v, 4)}" if v else "—",
+            f"R$ {fmt(v,4)}" if v else "—",
             eur_d.get("chg_p"),
-            f"Ant.: R$ {fmt(eur_d.get('prev'), 4)}" if v else "—",
+            f"Ant.: R$ {fmt(eur_d.get('prev'),4)}" if v else "—",
             invert=True, d=eur_d)
 
     # ── KPIs Econômicos ───────────────────────────────────────────────────────
@@ -649,7 +687,7 @@ if pagina == "Início":
     with c5:
         if not df_ipca.empty:
             v, ref = df_ipca["valor"].iloc[-1], df_ipca["data"].iloc[-1].strftime("%b/%Y")
-            delta  = (df_ipca["valor"].iloc[-1] - df_ipca["valor"].iloc[-2]) if len(df_ipca)>=2 else None
+            delta  = (df_ipca["valor"].iloc[-1]-df_ipca["valor"].iloc[-2]) if len(df_ipca)>=2 else None
             kpi("IPCA", f"{fmt(v)}% mês",
                 chg_p=float(delta) if delta is not None else None, sub=f"Ref: {ref}")
         else:
@@ -664,8 +702,8 @@ if pagina == "Início":
     # ── Gráficos ──────────────────────────────────────────────────────────────
     st.markdown(
         '<div class="sec-title">Histórico — 12 meses'
-        '<span style="font-size:10px;font-weight:400;color:#d1d5db;text-transform:none;'
-        'letter-spacing:0;margin-left:8px">→ série completa em Gráficos</span></div>',
+        '<span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;'
+        'letter-spacing:0;margin-left:4px">→ série completa em Gráficos</span></div>',
         unsafe_allow_html=True,
     )
     ca, cb = st.columns(2)
@@ -684,8 +722,9 @@ if pagina == "Início":
     with cc:
         df_cam30 = df_cam.tail(30) if not df_cam.empty else df_cam
         if not df_cam30.empty:
-            st.plotly_chart(line_fig(df_cam30,"Dólar PTAX — 30 dias úteis (R$)","#d97706",suffix=" R$"),
-                            use_container_width=True, config=CHART_CFG)
+            st.plotly_chart(
+                line_fig(df_cam30,"Dólar PTAX — 30 dias úteis (R$)","#d97706",suffix=" R$"),
+                use_container_width=True, config=CHART_CFG)
         else: st.warning("⚠️ Dólar PTAX: indisponível.")
     with cd:
         if not df_ibc.empty:
@@ -701,12 +740,14 @@ if pagina == "Início":
         else: st.warning("⚠️ PIB: indisponível.")
     with cf:
         if not df_des.empty:
-            st.plotly_chart(line_fig(df_des,"Desemprego PNAD (%)","#dc2626",fill=True,suffix="%"),
-                            use_container_width=True, config=CHART_CFG)
+            st.plotly_chart(
+                line_fig(df_des,"Desemprego PNAD (%)","#dc2626",fill=True,suffix="%"),
+                use_container_width=True, config=CHART_CFG)
         else: st.warning("⚠️ Desemprego: indisponível.")
 
     st.markdown(
-        "<div style='text-align:center;color:#d1d5db;font-size:10px;margin-top:20px;margin-bottom:8px'>"
+        "<div style='text-align:center;color:#d1d5db;font-size:10px;"
+        "margin-top:20px;margin-bottom:8px'>"
         "Yahoo Finance (↻60s) • BCB/SGS (↻1h)</div>",
         unsafe_allow_html=True,
     )
@@ -745,11 +786,11 @@ elif pagina == "Mercados Globais":
             d = get_quote(sym)
             with cols[i]:
                 v       = d.get("price")
-                prefix  = "R$ " if unit == "R$" else ("US$ " if "US$" in unit else "")
-                dec     = 0 if unit == "pts" else 2
-                val_str = f"{prefix}{fmt(v, dec)}" if v else "—"
+                prefix  = "R$ " if unit=="R$" else ("US$ " if "US$" in unit else "")
+                dec     = 0 if unit=="pts" else 2
+                val_str = f"{prefix}{fmt(v,dec)}" if v else "—"
                 kpi(nome, val_str, d.get("chg_p"),
-                    sub=f"Ant.: {prefix}{fmt(d.get('prev'), dec)}" if v else "",
+                    sub=f"Ant.: {prefix}{fmt(d.get('prev'),dec)}" if v else "",
                     invert=inv, d=d)
         st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
 
@@ -802,10 +843,10 @@ elif pagina == "Gráficos":
         else:
             date_min      = df_full["data"].min().date()
             date_max      = df_full["data"].max().date()
-            default_start = max(date_min, (df_full["data"].max() - pd.DateOffset(months=12)).date())
+            default_start = max(date_min, (df_full["data"].max()-pd.DateOffset(months=12)).date())
 
             st.markdown(
-                f"<div style='font-size:11px;color:#9ca3af;margin:6px 0 14px 0'>"
+                f"<div style='font-size:11px;color:#6b7280;margin:6px 0 14px 0'>"
                 f"Disponível: <strong style='color:#374151'>{date_min.strftime('%d/%m/%Y')}</strong>"
                 f" → <strong style='color:#374151'>{date_max.strftime('%d/%m/%Y')}</strong>"
                 f" &nbsp;·&nbsp; {len(df_full)} obs.</div>",
@@ -854,7 +895,7 @@ elif pagina == "Gráficos":
         with col1:
             ativo = st.selectbox("Ativo", list(GLOBAL.keys()), key="graf_ativo")
         with col2:
-            anos = st.select_slider("Período (anos)", [1, 2, 3, 5, 10], value=5, key="graf_anos")
+            anos = st.select_slider("Período (anos)", [1,2,3,5,10], value=5, key="graf_anos")
 
         sym, unit, _ = GLOBAL[ativo]
         with st.spinner(f"Carregando {ativo}..."):
@@ -878,7 +919,7 @@ elif pagina == "Gráficos":
 # ═════════════════════════════════════════════════════════════════════════════
 # 📥 EXPORTAR
 # ═════════════════════════════════════════════════════════════════════════════
-else:  # Exportar
+else:
 
     st.markdown(
         "<div class='page-top'><h1>Exportar dados</h1>"
@@ -925,7 +966,7 @@ else:  # Exportar
     else:
         col1, col2 = st.columns([2, 1])
         with col1: ativo = st.selectbox("Ativo", list(GLOBAL.keys()))
-        with col2: anos  = st.select_slider("Período (anos)", [1, 2, 3, 5, 10], value=5)
+        with col2: anos  = st.select_slider("Período (anos)", [1,2,3,5,10], value=5)
 
         if st.button("Gerar CSV", type="primary"):
             sym, unit, _ = GLOBAL[ativo]
