@@ -13,119 +13,226 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ─── CSS ─────────────────────────────────────────────────────────────────────
+# ─── CSS — TEMA MINIMALISTA BRANCO ───────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-*, html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-/* ── Desativa fade/transição de página ── */
-[data-testid="stMain"],
+*, html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* ── Fundo principal branco/cinza claro ── */
+.stApp,
 [data-testid="stAppViewContainer"],
+[data-testid="stMain"] {
+    background: #f5f6f8 !important;
+}
+.main .block-container {
+    padding-top: 0 !important;
+    padding-bottom: 2rem;
+    max-width: 1400px;
+}
+
+/* ── Sidebar escura ── */
+section[data-testid="stSidebar"] {
+    background: #1a2035 !important;
+    border-right: none !important;
+    min-width: 230px !important;
+    max-width: 230px !important;
+}
+
+/* Radio nav items */
+section[data-testid="stSidebar"] .stRadio > div {
+    gap: 1px !important;
+}
+section[data-testid="stSidebar"] .stRadio > div > label {
+    display: flex !important;
+    align-items: center !important;
+    padding: 9px 14px !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: #7a8fac !important;
+    cursor: pointer !important;
+    margin: 1px 4px !important;
+    background: transparent !important;
+    transition: background 0.15s !important;
+}
+section[data-testid="stSidebar"] .stRadio > div > label:hover {
+    background: #243050 !important;
+    color: #b0bfd4 !important;
+}
+section[data-testid="stSidebar"] input[type="radio"] {
+    display: none !important;
+}
+section[data-testid="stSidebar"] [data-baseweb="radio"] {
+    display: none !important;
+}
+
+/* ── Esconde elementos desnecessários ── */
+footer, #MainMenu, header { visibility: hidden !important; }
+[data-testid="stToolbar"] { display: none !important; }
+
+/* ── Divisor sidebar ── */
+.sb-divider {
+    height: 1px;
+    background: #243050;
+    margin: 8px 14px;
+}
+.sb-section {
+    font-size: 9px;
+    font-weight: 700;
+    color: #3a4f6a;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 12px 18px 6px 18px;
+}
+
+/* ── Cabeçalho de página (barra branca no topo) ── */
+.page-top {
+    background: #ffffff;
+    border-bottom: 1px solid #e8eaed;
+    padding: 18px 28px 16px 28px;
+    margin: 0 -3rem 24px -3rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.page-top h1 {
+    font-size: 17px;
+    font-weight: 600;
+    color: #1a2035;
+    margin: 0;
+    letter-spacing: -0.3px;
+}
+.page-top .ts {
+    font-size: 11px;
+    color: #9ca3af;
+    text-align: right;
+    line-height: 1.5;
+}
+
+/* ── Títulos de seção ── */
+.sec-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin: 20px 0 12px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e8eaed;
+}
+
+/* ── Badges ── */
+.badge-live {
+    display: inline-block;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #16a34a;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-left: 8px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+.badge-daily {
+    display: inline-block;
+    background: #f5f3ff;
+    border: 1px solid #ddd6fe;
+    color: #7c3aed;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-left: 8px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* ── Botões ── */
+.stButton > button {
+    background: #1a2035 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    padding: 8px 18px !important;
+}
+.stButton > button:hover {
+    background: #243050 !important;
+    border: none !important;
+}
+.stDownloadButton > button {
+    background: #ffffff !important;
+    color: #374151 !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    font-size: 12px !important;
+}
+
+/* ── Inputs / selectboxes — fundo branco ── */
+[data-testid="stSelectbox"] > div > div {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    color: #1a2035 !important;
+}
+[data-testid="stSelectbox"] label,
+[data-testid="stDateInput"] label,
+[data-testid="stSlider"] label,
+[data-testid="stRadio"] > label {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: #6b7280 !important;
+}
+
+/* ── Tabs ── */
+[data-testid="stTabs"] [data-testid="stTabsTabList"] {
+    background: transparent !important;
+    border-bottom: 1px solid #e8eaed !important;
+    gap: 0 !important;
+}
+[data-testid="stTabs"] button[role="tab"] {
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: #9ca3af !important;
+    padding: 8px 20px !important;
+    border-radius: 0 !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    background: transparent !important;
+}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+    color: #1a2035 !important;
+    border-bottom: 2px solid #1a2035 !important;
+    font-weight: 600 !important;
+}
+
+/* ── Expander ── */
+div[data-testid="stExpander"] {
+    background: #ffffff !important;
+    border: 1px solid #e8eaed !important;
+    border-radius: 10px !important;
+}
+
+/* ── Alertas ── */
+[data-testid="stAlert"] {
+    border-radius: 8px !important;
+    font-size: 13px !important;
+}
+
+/* Desativa fade de transição de página */
+[data-testid="stMain"],
 [data-testid="stVerticalBlock"] {
     animation: none !important;
     transition: none !important;
 }
-
-/* ── Sidebar ── */
-section[data-testid="stSidebar"] {
-    background: #080c14 !important;
-    border-right: 1px solid #131929;
-    min-width: 220px !important;
-    max-width: 220px !important;
-}
-section[data-testid="stSidebar"] .stRadio > div {
-    gap: 2px !important;
-}
-section[data-testid="stSidebar"] .stRadio label {
-    display: flex !important;
-    align-items: center !important;
-    padding: 8px 12px !important;
-    border-radius: 8px !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    color: #64748b !important;
-    cursor: pointer !important;
-    transition: background 0.15s, color 0.15s !important;
-    margin: 1px 0 !important;
-}
-section[data-testid="stSidebar"] .stRadio label:hover {
-    background: #0f1424 !important;
-    color: #94a3b8 !important;
-}
-section[data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {
-    font-size: 13px !important;
-}
-/* Radio selecionado */
-section[data-testid="stSidebar"] .stRadio [aria-checked="true"] + label,
-section[data-testid="stSidebar"] .stRadio label[data-checked="true"] {
-    background: #0f1e3d !important;
-    color: #818cf8 !important;
-}
-
-/* ── Main container ── */
-.main .block-container { padding-top: 1.2rem; padding-bottom: 1rem; max-width: 1400px; }
-footer, #MainMenu { visibility: hidden; }
-
-/* ── Títulos de seção ── */
-.sec-title {
-    font-size: 10px; font-weight: 700; color: #374151;
-    text-transform: uppercase; letter-spacing: 2.5px;
-    border-bottom: 1px solid #131929; padding-bottom: 7px; margin: 14px 0 14px 0;
-}
-.sec-label {
-    font-size: 9px; font-weight: 700; color: #1e2640;
-    text-transform: uppercase; letter-spacing: 2.5px;
-    margin: 18px 0 6px 0; padding-left: 2px;
-}
-
-/* ── Badges ── */
-.badge-live  { display:inline-block;background:#052e16;border:1px solid #166534;
-               color:#4ade80;font-size:9px;padding:1px 7px;border-radius:20px;margin-left:6px; }
-.badge-daily { display:inline-block;background:#1e1b4b;border:1px solid #3730a3;
-               color:#818cf8;font-size:9px;padding:1px 7px;border-radius:20px;margin-left:6px; }
-
-/* ── Botões ── */
-.stDownloadButton > button {
-    background:#1d4ed8 !important; color:white !important;
-    border:none !important; border-radius:8px !important; font-weight:600 !important;
-}
-.stButton > button[kind="primary"] {
-    background: #6366f1 !important; border: none !important;
-    border-radius: 8px !important; font-weight: 600 !important;
-}
-
-/* ── Expander ── */
-div[data-testid="stExpander"] { border:1px solid #131929 !important; border-radius:10px !important; }
-
-/* ── Tabs (para página de gráficos) ── */
-div[data-testid="stTabs"] [data-testid="stTabsTabList"] {
-    border-bottom: 1px solid #131929 !important;
-    gap: 4px;
-}
-div[data-testid="stTabs"] button[role="tab"] {
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    color: #475569 !important;
-    padding: 6px 16px !important;
-    border-radius: 8px 8px 0 0 !important;
-    border: 1px solid transparent !important;
-}
-div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
-    color: #818cf8 !important;
-    border-color: #131929 !important;
-    border-bottom-color: #0f1117 !important;
-    background: #0f1117 !important;
-}
-
-/* ── Page header bar ── */
-.page-header {
-    display: flex; justify-content: space-between; align-items: flex-end;
-    border-bottom: 1px solid #131929; padding-bottom: 12px; margin-bottom: 18px;
-}
-.page-header h2 { font-size: 20px; font-weight: 700; color: #e2e8f0; margin: 0; }
-.page-header .ts { font-size: 10px; color: #2d3748; text-align: right; line-height: 1.6; }
-.page-header .ts b { color: #4b5a7a; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -174,35 +281,39 @@ GLOBAL = {
     "Ethereum":        ("ETH-USD",  "US$",   "Ξ",   False),
 }
 
-CHART_CFG = {
-    "displayModeBar": False,
-    "staticPlot": False,
-    "scrollZoom": False,
-}
+CHART_CFG = {"displayModeBar": False, "staticPlot": False, "scrollZoom": False}
 
+# ── Plotly: tema claro ────────────────────────────────────────────────────────
 PLOT_BASE = dict(
-    paper_bgcolor="#0a0e1a",
-    plot_bgcolor="#0a0e1a",
-    font_color="#6b7fa8",
+    paper_bgcolor="#ffffff",
+    plot_bgcolor="#ffffff",
+    font_color="#6b7280",
     font_family="Inter",
-    margin=dict(l=0, r=4, t=38, b=0),
+    margin=dict(l=0, r=4, t=36, b=0),
     xaxis=dict(
-        gridcolor="#131929", showline=False,
-        tickfont=dict(size=10), zeroline=False,
-        fixedrange=False,
+        gridcolor="#f1f5f9", showline=False,
+        tickfont=dict(size=10, color="#9ca3af"), zeroline=False,
+        fixedrange=True,
     ),
     yaxis=dict(
-        gridcolor="#131929", showline=False,
-        tickfont=dict(size=10), zeroline=False,
-        fixedrange=False,
+        gridcolor="#f1f5f9", showline=False,
+        tickfont=dict(size=10, color="#9ca3af"), zeroline=False,
+        fixedrange=True,
     ),
-    title_font=dict(color="#94a3b8", size=13),
-    hoverlabel=dict(bgcolor="#1e2640", font_size=12),
-    dragmode="pan",
+    title_font=dict(color="#374151", size=12, family="Inter"),
+    hoverlabel=dict(bgcolor="#1a2035", font_size=12, font_color="#e2e8f0", bordercolor="#1a2035"),
+    dragmode=False,
 )
 
+# Para a aba Gráficos (pan/zoom habilitado)
+PLOT_INTER = {**PLOT_BASE,
+    "xaxis": {**PLOT_BASE["xaxis"], "fixedrange": False},
+    "yaxis": {**PLOT_BASE["yaxis"], "fixedrange": False},
+    "dragmode": "pan",
+}
+
 # ─── UTILS ───────────────────────────────────────────────────────────────────
-def hex_rgba(h, a=0.12):
+def hex_rgba(h, a=0.10):
     h = h.lstrip("#")
     r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
     return f"rgba({r},{g},{b},{a})"
@@ -216,13 +327,10 @@ def fmt(v, dec=2):
     return f"{integer},{decimal}" if decimal else integer
 
 def parse_bcb_valor(valor_str):
-    if valor_str is None:
-        return None
-    s = str(valor_str).strip()
-    s = s.replace("\xa0", "").replace(" ", "")
+    if valor_str is None: return None
+    s = str(valor_str).strip().replace("\xa0","").replace(" ","")
     if "," in s:
-        s = s.replace(".", "")
-        s = s.replace(",", ".")
+        s = s.replace(".", "").replace(",", ".")
     try:
         return float(s)
     except ValueError:
@@ -233,73 +341,61 @@ def _bcb_request(url: str) -> list:
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
         r.raise_for_status()
-        content_type = r.headers.get("Content-Type", "")
-        if "html" in content_type.lower():
-            return []
+        if "html" in r.headers.get("Content-Type","").lower(): return []
         data = r.json()
-        if isinstance(data, dict):
-            return []
-        if not isinstance(data, list) or len(data) == 0:
-            return []
+        if not isinstance(data, list) or len(data) == 0: return []
         return data
     except Exception:
         return []
 
 def _build_df(raw: list) -> pd.DataFrame:
-    if not raw:
-        return pd.DataFrame(columns=["data", "valor"])
+    if not raw: return pd.DataFrame(columns=["data","valor"])
     df = pd.DataFrame(raw)
     if "data" not in df.columns or "valor" not in df.columns:
-        return pd.DataFrame(columns=["data", "valor"])
-    df["data"] = pd.to_datetime(df["data"], format="%d/%m/%Y", errors="coerce")
+        return pd.DataFrame(columns=["data","valor"])
+    df["data"]  = pd.to_datetime(df["data"], format="%d/%m/%Y", errors="coerce")
     df["valor"] = df["valor"].apply(parse_bcb_valor)
-    df = df.dropna(subset=["data", "valor"])
-    df = df.sort_values("data").reset_index(drop=True)
-    return df[["data", "valor"]]
+    df = df.dropna(subset=["data","valor"]).sort_values("data").reset_index(drop=True)
+    return df[["data","valor"]]
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_bcb(codigo: int, ultimos: int) -> pd.DataFrame:
-    url = BCB_BASE.format(codigo=codigo) + f"/ultimos/{ultimos}?formato=json"
-    return _build_df(_bcb_request(url))
+    return _build_df(_bcb_request(BCB_BASE.format(codigo=codigo) + f"/ultimos/{ultimos}?formato=json"))
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_bcb_full(codigo: int) -> pd.DataFrame:
-    url = BCB_BASE.format(codigo=codigo) + "?formato=json"
-    return _build_df(_bcb_request(url))
+    return _build_df(_bcb_request(BCB_BASE.format(codigo=codigo) + "?formato=json"))
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_bcb_range(codigo: int, ini: str, fim: str) -> pd.DataFrame:
-    url = (BCB_BASE.format(codigo=codigo)
-           + f"?formato=json&dataInicial={ini}&dataFinal={fim}")
-    return _build_df(_bcb_request(url))
+    return _build_df(_bcb_request(
+        BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"))
 
 # ─── YAHOO FINANCE ────────────────────────────────────────────────────────────
 @st.cache_data(ttl=60, show_spinner=False)
 def get_quote(symbol: str) -> dict:
     try:
-        url   = YAHOO_SNAP.format(sym=symbol)
-        r     = requests.get(url, headers=HEADERS, timeout=8)
+        r      = requests.get(YAHOO_SNAP.format(sym=symbol), headers=HEADERS, timeout=8)
         r.raise_for_status()
-        data  = r.json()
+        data   = r.json()
         result = data["chart"]["result"][0]
-        meta  = result["meta"]
-        price = meta.get("regularMarketPrice") or meta.get("previousClose")
-        prev  = meta.get("chartPreviousClose") or meta.get("previousClose", price)
-        chg_p = ((price - prev) / prev * 100) if (prev and price and prev != 0) else None
-        chg_v = (price - prev) if (prev and price) else None
-        market = meta.get("marketState", "CLOSED")
-        ts    = result.get("timestamp", [])
+        meta   = result["meta"]
+        price  = meta.get("regularMarketPrice") or meta.get("previousClose")
+        prev   = meta.get("chartPreviousClose") or meta.get("previousClose", price)
+        chg_p  = ((price-prev)/prev*100) if (prev and price and prev!=0) else None
+        chg_v  = (price-prev) if (prev and price) else None
+        market = meta.get("marketState","CLOSED")
+        ts     = result.get("timestamp",[])
         last_d = datetime.fromtimestamp(ts[-1]).strftime("%d/%m/%Y") if ts else None
-        return {"price": price, "prev": prev, "chg_p": chg_p, "chg_v": chg_v,
-                "market": market, "last_date": last_d}
+        return {"price":price,"prev":prev,"chg_p":chg_p,"chg_v":chg_v,
+                "market":market,"last_date":last_d}
     except:
         return {}
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_hist(symbol: str, years: int = 5) -> pd.DataFrame:
     try:
-        url  = YAHOO_HIST.format(sym=symbol, y=years)
-        r    = requests.get(url, headers=HEADERS, timeout=12)
+        r    = requests.get(YAHOO_HIST.format(sym=symbol, y=years), headers=HEADERS, timeout=12)
         r.raise_for_status()
         data = r.json()
         res  = data["chart"]["result"][0]
@@ -308,9 +404,9 @@ def get_hist(symbol: str, years: int = 5) -> pd.DataFrame:
         df   = pd.DataFrame({"data": pd.to_datetime(ts, unit="s"), "valor": vals})
         return df.dropna().reset_index(drop=True)
     except:
-        return pd.DataFrame(columns=["data", "valor"])
+        return pd.DataFrame(columns=["data","valor"])
 
-# ─── KPI CARD ─────────────────────────────────────────────────────────────────
+# ─── KPI CARD — tema branco/claro ─────────────────────────────────────────────
 import streamlit.components.v1 as components
 
 def kpi(label, value, chg_p=None, sub="", invert=False, closed=False, close_date=None):
@@ -331,16 +427,26 @@ def kpi(label, value, chg_p=None, sub="", invert=False, closed=False, close_date
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:transparent;font-family:'Inter',sans-serif}}
-.card{{background:linear-gradient(135deg,#0f1424,#161d30);border:1px solid #1e2640;
-       border-radius:14px;padding:16px;text-align:center;height:118px;
-       display:flex;flex-direction:column;justify-content:center;gap:3px}}
-.lbl{{font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:1.6px}}
-.val{{font-size:20px;font-weight:800;color:#e2e8f0;line-height:1.15}}
-.d-pos{{font-size:11px;color:#4ade80}}
-.d-neg{{font-size:11px;color:#f87171}}
-.d-neu{{font-size:11px;color:#2a3050}}
-.sub{{font-size:9px;color:#334155}}
-.cb{{font-size:9px;color:#92400e;background:#1c1208;border:1px solid #451a03;
+.card{{
+  background:#ffffff;
+  border:1px solid #e8eaed;
+  border-radius:12px;
+  padding:16px 12px;
+  text-align:center;
+  height:116px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:4px;
+  box-shadow:0 1px 3px rgba(0,0,0,0.04);
+}}
+.lbl{{font-size:9px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:1.5px}}
+.val{{font-size:19px;font-weight:700;color:#111827;line-height:1.15}}
+.d-pos{{font-size:11px;font-weight:500;color:#16a34a}}
+.d-neg{{font-size:11px;font-weight:500;color:#dc2626}}
+.d-neu{{font-size:11px;color:#d1d5db}}
+.sub{{font-size:9px;color:#d1d5db}}
+.cb{{font-size:9px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;
      display:inline-block;padding:1px 7px;border-radius:10px;margin-top:2px}}
 </style></head><body>
 <div class="card">
@@ -350,81 +456,82 @@ body{{background:transparent;font-family:'Inter',sans-serif}}
   <div class="sub">{sub}</div>
   {badge}
 </div></body></html>"""
-    components.html(html, height=126)
+    components.html(html, height=124)
 
-# ─── CHART FACTORIES ──────────────────────────────────────────────────────────
-def _apply_fixed_axes(fig, df, suffix="", pad_pct=0.08):
-    if df.empty:
-        return fig
+# ─── CHART FACTORIES — fundo branco ──────────────────────────────────────────
+def _apply_range(fig, df, suffix="", pad_pct=0.08):
+    if df.empty: return fig
     y_min = df["valor"].min()
     y_max = df["valor"].max()
-    y_pad = (y_max - y_min) * pad_pct if (y_max - y_min) > 0 else abs(y_max) * 0.1 or 1
-    x_min = df["data"].min()
-    x_max = df["data"].max()
-    x_pad = (x_max - x_min) * 0.02
-    fig.update_xaxes(range=[x_min - x_pad, x_max + x_pad])
+    y_pad = (y_max-y_min)*pad_pct if (y_max-y_min)>0 else abs(y_max)*0.1 or 1
+    x_min, x_max = df["data"].min(), df["data"].max()
+    x_pad = (x_max-x_min)*0.02
+    fig.update_xaxes(range=[x_min-x_pad, x_max+x_pad])
     fig.update_yaxes(
-        range=[y_min - y_pad, y_max + y_pad],
+        range=[y_min-y_pad, y_max+y_pad],
         tickformat=".2f",
         ticksuffix=suffix.strip() if suffix.strip() else "",
     )
     return fig
 
-def line_fig(df, title, color="#6366f1", fill=True, suffix="", height=260, fixed_axes=True):
-    fig = go.Figure()
+def line_fig(df, title, color="#1a2035", fill=True, suffix="", height=260, interactive=False):
+    base = PLOT_INTER if interactive else PLOT_BASE
+    fig  = go.Figure()
     fig.add_trace(go.Scatter(
         x=df["data"], y=df["valor"],
-        mode="lines+markers",
+        mode="lines",
         line=dict(color=color, width=2),
-        marker=dict(size=4, color=color),
         fill="tozeroy" if fill else "none",
-        fillcolor=hex_rgba(color, 0.10),
+        fillcolor=hex_rgba(color, 0.07),
         hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.2f}}{suffix}</b><extra></extra>",
     ))
-    fig.update_layout(**PLOT_BASE, title=title, height=height)
-    if fixed_axes:
-        fig = _apply_fixed_axes(fig, df, suffix)
+    fig.update_layout(**base, title=title, height=height)
+    if not interactive:
+        fig = _apply_range(fig, df, suffix)
     return fig
 
-def bar_fig(df, title, suffix="", height=260, fixed_axes=True):
-    colors = ["#4ade80" if v >= 0 else "#f87171" for v in df["valor"]]
-    fig = go.Figure()
+def bar_fig(df, title, suffix="", height=260, interactive=False):
+    colors = ["#16a34a" if v >= 0 else "#dc2626" for v in df["valor"]]
+    base   = PLOT_INTER if interactive else PLOT_BASE
+    fig    = go.Figure()
     fig.add_trace(go.Bar(
         x=df["data"], y=df["valor"],
-        marker_color=colors, marker_line_width=0,
+        marker_color=colors,
+        marker_line_width=0,
         hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.4f}}{suffix}</b><extra></extra>",
     ))
-    fig.update_layout(**PLOT_BASE, title=title, height=height)
-    if fixed_axes:
-        fig = _apply_fixed_axes(fig, df, suffix, pad_pct=0.15)
+    fig.update_layout(**base, title=title, height=height)
+    if not interactive:
+        fig = _apply_range(fig, df, suffix, pad_pct=0.15)
     return fig
 
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown(
-        "<div style='padding:14px 4px 10px 4px;display:flex;align-items:center;gap:8px'>"
-        "<span style='font-size:20px'>🇧🇷</span>"
-        "<span style='font-size:15px;font-weight:700;color:#94a3b8;letter-spacing:0.3px'>Macro Brasil</span>"
+        "<div style='padding:22px 18px 14px 18px'>"
+        "<div style='font-size:10px;font-weight:700;color:#3a5070;letter-spacing:3px;"
+        "text-transform:uppercase;margin-bottom:3px'>BR</div>"
+        "<div style='font-size:17px;font-weight:700;color:#c8d6e8;letter-spacing:-0.3px'>"
+        "Macro Brasil</div>"
         "</div>",
         unsafe_allow_html=True,
     )
-    st.markdown("<div style='height:2px;background:#131929;margin-bottom:12px'></div>",
-                unsafe_allow_html=True)
+    st.markdown("<div class='sb-divider'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='sb-section'>Navegação</div>", unsafe_allow_html=True)
 
-    st.markdown("<div class='sec-label'>NAVEGAÇÃO</div>", unsafe_allow_html=True)
     pagina = st.radio(
         "nav",
         options=["🏠  Início", "🌍  Mercados Globais", "📈  Gráficos", "📥  Exportar"],
         label_visibility="collapsed",
     )
 
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-    st.markdown("<div style='height:2px;background:#131929'></div>", unsafe_allow_html=True)
     st.markdown(
-        "<div style='font-size:9px;color:#1e2640;line-height:2;padding:10px 4px 0 4px'>"
-        "Fontes:<br>• BCB/SGS<br>• Yahoo Finance<br><br>"
-        "Mercados: ↻ 60s<br>BCB: ↻ 1h"
-        "</div>",
+        "<div style='position:absolute;bottom:0;left:0;right:0;"
+        "padding:14px 18px;border-top:1px solid #243050'>"
+        "<div style='font-size:9px;color:#3a4f6a;line-height:1.9'>"
+        "Fontes: BCB/SGS · Yahoo Finance<br>"
+        "Mercados: ↻ 60s &nbsp;|&nbsp; BCB: ↻ 1h"
+        "</div></div>",
         unsafe_allow_html=True,
     )
 
@@ -433,21 +540,15 @@ with st.sidebar:
 # ═════════════════════════════════════════════════════════════════════════════
 if pagina == "🏠  Início":
 
-    # ── Header ───────────────────────────────────────────────────────────────
-    col_t, col_h = st.columns([5, 1])
-    with col_t:
-        st.markdown("<h2 style='margin:0;color:#e2e8f0'>🇧🇷 Dashboard Macro Brasil</h2>",
-                    unsafe_allow_html=True)
-    with col_h:
-        st.markdown(
-            f"<div style='text-align:right;color:#2d3748;font-size:10px;padding-top:10px'>"
-            f"Atualizado<br><b style='color:#4b5a7a'>{datetime.now().strftime('%d/%m/%Y %H:%M')}</b></div>",
-            unsafe_allow_html=True,
-        )
-    st.markdown("<div style='height:2px;background:#131929;margin:10px 0 18px 0'></div>",
-                unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='page-top'>"
+        f"<h1>🇧🇷 Dashboard Macro Brasil</h1>"
+        f"<div class='ts'>Atualizado<br>"
+        f"<strong style='color:#374151'>{datetime.now().strftime('%d/%m/%Y %H:%M')}</strong>"
+        f"</div></div>",
+        unsafe_allow_html=True,
+    )
 
-    # ── Carregamento de dados ─────────────────────────────────────────────────
     with st.spinner("Carregando indicadores..."):
         ibov_d  = get_quote("^BVSP")
         usd_d   = get_quote("USDBRL=X")
@@ -467,15 +568,15 @@ if pagina == "🏠  Início":
     )
     c1, c2, c3 = st.columns(3)
     with c1:
-        v = ibov_d.get("price")
+        v      = ibov_d.get("price")
         closed = ibov_d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
         kpi("Ibovespa",
             fmt(v, 0) + " pts" if v else "—",
             ibov_d.get("chg_p"),
-            f"Var. dia: {fmt(ibov_d.get('chg_v'), 0)} pts" if ibov_d.get("chg_v") is not None else "—",
+            f"Var. dia: {fmt(ibov_d.get('chg_v'),0)} pts" if ibov_d.get("chg_v") is not None else "—",
             closed=closed, close_date=ibov_d.get("last_date"))
     with c2:
-        v = usd_d.get("price")
+        v      = usd_d.get("price")
         closed = usd_d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
         kpi("Dólar (USD/BRL)",
             f"R$ {fmt(v, 4)}" if v else "—",
@@ -483,15 +584,13 @@ if pagina == "🏠  Início":
             f"Ant.: R$ {fmt(usd_d.get('prev'), 4)}" if v else "—",
             invert=True, closed=closed, close_date=usd_d.get("last_date"))
     with c3:
-        v = eur_d.get("price")
+        v      = eur_d.get("price")
         closed = eur_d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
         kpi("Euro (EUR/BRL)",
             f"R$ {fmt(v, 4)}" if v else "—",
             eur_d.get("chg_p"),
             f"Ant.: R$ {fmt(eur_d.get('prev'), 4)}" if v else "—",
             invert=True, closed=closed, close_date=eur_d.get("last_date"))
-
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
     # ── KPIs Econômicos ───────────────────────────────────────────────────────
     st.markdown(
@@ -509,10 +608,11 @@ if pagina == "🏠  Início":
             kpi("Selic", "—", sub="BCB indisponível")
     with c5:
         if not df_ipca.empty:
-            v   = df_ipca["valor"].iloc[-1]
-            ref = df_ipca["data"].iloc[-1].strftime("%b/%Y")
-            delta = (df_ipca["valor"].iloc[-1] - df_ipca["valor"].iloc[-2]) if len(df_ipca) >= 2 else None
-            kpi("IPCA", f"{fmt(v)}% mês", chg_p=float(delta) if delta is not None else None, sub=f"Ref: {ref}")
+            v     = df_ipca["valor"].iloc[-1]
+            ref   = df_ipca["data"].iloc[-1].strftime("%b/%Y")
+            delta = (df_ipca["valor"].iloc[-1] - df_ipca["valor"].iloc[-2]) if len(df_ipca)>=2 else None
+            kpi("IPCA", f"{fmt(v)}% mês",
+                chg_p=float(delta) if delta is not None else None, sub=f"Ref: {ref}")
         else:
             kpi("IPCA", "—", sub="BCB indisponível")
     with c6:
@@ -523,69 +623,62 @@ if pagina == "🏠  Início":
         else:
             kpi("Desemprego (PNAD)", "—", sub="BCB indisponível")
 
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
-    # ── Gráficos — 12 meses ───────────────────────────────────────────────────
+    # ── Gráficos ──────────────────────────────────────────────────────────────
     st.markdown(
-        '<div class="sec-title">Histórico — 12 meses '
-        '<span style="font-size:9px;color:#2d3748;font-weight:400">'
-        '→ série completa em Gráficos</span></div>',
+        '<div class="sec-title">Histórico — 12 meses'
+        '<span style="font-size:10px;font-weight:400;color:#d1d5db;text-transform:none;'
+        'letter-spacing:0;margin-left:8px">→ série completa em Gráficos</span></div>',
         unsafe_allow_html=True,
     )
 
     ca, cb = st.columns(2)
     with ca:
         if not df_sel.empty:
-            st.plotly_chart(
-                line_fig(df_sel, "Selic (% a.a.)", "#6366f1", suffix="%"),
-                use_container_width=True, config=CHART_CFG)
+            st.plotly_chart(line_fig(df_sel, "Selic (% a.a.)", "#1a2035", suffix="%"),
+                            use_container_width=True, config=CHART_CFG)
         else:
-            st.warning("⚠️ Selic: indisponível no momento.")
+            st.warning("⚠️ Selic: indisponível.")
     with cb:
         if not df_ipca.empty:
-            st.plotly_chart(
-                bar_fig(df_ipca, "IPCA (% ao mês)", suffix="%"),
-                use_container_width=True, config=CHART_CFG)
+            st.plotly_chart(bar_fig(df_ipca, "IPCA (% ao mês)", suffix="%"),
+                            use_container_width=True, config=CHART_CFG)
         else:
-            st.warning("⚠️ IPCA: indisponível no momento.")
+            st.warning("⚠️ IPCA: indisponível.")
 
     cc, cd = st.columns(2)
     with cc:
         df_cam30 = df_cam.tail(30) if not df_cam.empty else df_cam
         if not df_cam30.empty:
-            st.plotly_chart(
-                line_fig(df_cam30, "Dólar PTAX — 30 dias úteis (R$)", "#f59e0b", suffix=" R$"),
-                use_container_width=True, config=CHART_CFG)
+            st.plotly_chart(line_fig(df_cam30, "Dólar PTAX — 30 dias úteis (R$)", "#d97706", suffix=" R$"),
+                            use_container_width=True, config=CHART_CFG)
         else:
-            st.warning("⚠️ Dólar PTAX: indisponível no momento.")
+            st.warning("⚠️ Dólar PTAX: indisponível.")
     with cd:
         if not df_ibc.empty:
-            st.plotly_chart(
-                line_fig(df_ibc, "IBC-Br", "#22d3ee", fill=False),
-                use_container_width=True, config=CHART_CFG)
+            st.plotly_chart(line_fig(df_ibc, "IBC-Br", "#0891b2", fill=False),
+                            use_container_width=True, config=CHART_CFG)
         else:
-            st.warning("⚠️ IBC-Br: indisponível no momento.")
+            st.warning("⚠️ IBC-Br: indisponível.")
 
     ce, cf = st.columns(2)
     with ce:
         if not df_pib.empty:
-            st.plotly_chart(
-                bar_fig(df_pib, "PIB — variação trimestral (%)", suffix="%"),
-                use_container_width=True, config=CHART_CFG)
+            st.plotly_chart(bar_fig(df_pib, "PIB — variação trimestral (%)", suffix="%"),
+                            use_container_width=True, config=CHART_CFG)
         else:
-            st.warning("⚠️ PIB: indisponível no momento.")
+            st.warning("⚠️ PIB: indisponível.")
     with cf:
         if not df_des.empty:
-            st.plotly_chart(
-                line_fig(df_des, "Desemprego PNAD (%)", "#f87171", fill=True, suffix="%"),
-                use_container_width=True, config=CHART_CFG)
+            st.plotly_chart(line_fig(df_des, "Desemprego PNAD (%)", "#dc2626", fill=True, suffix="%"),
+                            use_container_width=True, config=CHART_CFG)
         else:
-            st.warning("⚠️ Desemprego: indisponível no momento.")
+            st.warning("⚠️ Desemprego: indisponível.")
 
     st.markdown(
-        "<div style='text-align:center;color:#131929;font-size:10px;margin-top:16px'>"
-        "Yahoo Finance (↻60s) • BCB/SGS (↻1h)"
-        "</div>", unsafe_allow_html=True,
+        "<div style='text-align:center;color:#d1d5db;font-size:10px;"
+        "margin-top:20px;margin-bottom:8px'>"
+        "Yahoo Finance (↻60s) • BCB/SGS (↻1h)</div>",
+        unsafe_allow_html=True,
     )
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -593,18 +686,14 @@ if pagina == "🏠  Início":
 # ═════════════════════════════════════════════════════════════════════════════
 elif pagina == "🌍  Mercados Globais":
 
-    col_t, col_h = st.columns([5, 1])
-    with col_t:
-        st.markdown("<h2 style='margin:0;color:#e2e8f0'>🌍 Mercados Globais</h2>",
-                    unsafe_allow_html=True)
-    with col_h:
-        st.markdown(
-            f"<div style='text-align:right;color:#2d3748;font-size:10px;padding-top:10px'>"
-            f"Atualizado<br><b style='color:#4b5a7a'>{datetime.now().strftime('%d/%m/%Y %H:%M')}</b></div>",
-            unsafe_allow_html=True,
-        )
-    st.markdown("<div style='height:2px;background:#131929;margin:10px 0 18px 0'></div>",
-                unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='page-top'>"
+        f"<h1>🌍 Mercados Globais</h1>"
+        f"<div class='ts'>Atualizado<br>"
+        f"<strong style='color:#374151'>{datetime.now().strftime('%d/%m/%Y %H:%M')}</strong>"
+        f"</div></div>",
+        unsafe_allow_html=True,
+    )
 
     grupos = {
         "🇧🇷 Brasil":      ["IBOVESPA","Dólar (USD/BRL)","Euro (EUR/BRL)"],
@@ -624,26 +713,25 @@ elif pagina == "🌍  Mercados Globais":
         cols = st.columns(len(ativos))
         for i, nome in enumerate(ativos):
             sym, unit, flag, inv = GLOBAL[nome]
-            d = get_quote(sym)
+            d      = get_quote(sym)
             with cols[i]:
-                v      = d.get("price")
-                closed = d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
-                prefix = "R$ " if unit == "R$" else ("US$ " if "US$" in unit else "")
-                dec    = 0 if unit == "pts" else 2
+                v       = d.get("price")
+                closed  = d.get("market","CLOSED") not in ("REGULAR","PRE","POST")
+                prefix  = "R$ " if unit == "R$" else ("US$ " if "US$" in unit else "")
+                dec     = 0 if unit == "pts" else 2
                 val_str = f"{prefix}{fmt(v, dec)}" if v else "—"
                 kpi(f"{flag} {nome}", val_str, d.get("chg_p"),
                     sub=f"Ant.: {prefix}{fmt(d.get('prev'), dec)}" if v else "",
                     invert=inv, closed=closed, close_date=d.get("last_date"))
-        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
 
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Histórico — 2 anos</div>', unsafe_allow_html=True)
 
     destaques = [
-        ("IBOVESPA",       "^BVSP",  "#6366f1", "pts"),
-        ("S&P 500",        "^GSPC",  "#22d3ee", "pts"),
-        ("Petróleo Brent", "BZ=F",   "#f59e0b", "US$"),
-        ("Ouro",           "GC=F",   "#fbbf24", "US$"),
+        ("IBOVESPA",       "^BVSP",  "#1a2035", "pts"),
+        ("S&P 500",        "^GSPC",  "#0891b2", "pts"),
+        ("Petróleo Brent", "BZ=F",   "#d97706", "US$"),
+        ("Ouro",           "GC=F",   "#b45309", "US$"),
     ]
     g1, g2 = st.columns(2)
     g3, g4 = st.columns(2)
@@ -665,81 +753,62 @@ elif pagina == "🌍  Mercados Globais":
 # ═════════════════════════════════════════════════════════════════════════════
 elif pagina == "📈  Gráficos":
 
-    col_t, col_h = st.columns([5, 1])
-    with col_t:
-        st.markdown("<h2 style='margin:0;color:#e2e8f0'>📈 Gráficos</h2>",
-                    unsafe_allow_html=True)
-    with col_h:
-        st.markdown(
-            f"<div style='text-align:right;color:#2d3748;font-size:10px;padding-top:10px'>"
-            f"Série completa com filtro de período</div>",
-            unsafe_allow_html=True,
-        )
-    st.markdown("<div style='height:2px;background:#131929;margin:10px 0 18px 0'></div>",
-                unsafe_allow_html=True)
+    st.markdown(
+        "<div class='page-top'>"
+        "<h1>📈 Gráficos</h1>"
+        "<div class='ts'>Série completa · filtro por período</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
-    tab_bcb, tab_yahoo = st.tabs(["📊 BCB — Indicadores Brasil", "🌍 Yahoo Finance — Ativos Globais"])
+    tab_bcb, tab_yahoo = st.tabs(["BCB — Indicadores Brasil", "Yahoo Finance — Ativos Globais"])
 
     # ── Tab BCB ───────────────────────────────────────────────────────────────
     with tab_bcb:
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
-        col1, col2 = st.columns([2, 2])
+        col1, _ = st.columns([2, 3])
         with col1:
             ind = st.selectbox("Indicador", list(SGS.keys()), key="graf_ind")
-        with col2:
-            st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-            st.caption("A série completa é carregada automaticamente. Ajuste o período abaixo.")
 
         cod, unit, freq, tipo = SGS[ind]
 
-        # Sempre busca a série completa (cacheada por 1h)
-        with st.spinner(f"Carregando série completa de {ind}..."):
+        with st.spinner(f"Carregando série de {ind}..."):
             df_full = get_bcb_full(cod)
 
         if df_full.empty:
-            st.warning("⚠️ Sem dados disponíveis. A API BCB pode estar temporariamente indisponível.")
+            st.warning("⚠️ Sem dados. A API BCB pode estar temporariamente indisponível.")
         else:
-            date_min = df_full["data"].min().date()
-            date_max = df_full["data"].max().date()
-            # Padrão: últimos 12 meses
+            date_min      = df_full["data"].min().date()
+            date_max      = df_full["data"].max().date()
             default_start = max(date_min, (df_full["data"].max() - pd.DateOffset(months=12)).date())
 
             st.markdown(
-                f"<div style='font-size:11px;color:#475569;margin:4px 0 10px 0'>"
-                f"Série disponível: <b style='color:#64748b'>{date_min.strftime('%d/%m/%Y')}</b>"
-                f" → <b style='color:#64748b'>{date_max.strftime('%d/%m/%Y')}</b>"
-                f" &nbsp;|&nbsp; {len(df_full)} observações"
+                f"<div style='font-size:11px;color:#9ca3af;margin:6px 0 14px 0'>"
+                f"Série disponível: <strong style='color:#374151'>{date_min.strftime('%d/%m/%Y')}</strong>"
+                f" → <strong style='color:#374151'>{date_max.strftime('%d/%m/%Y')}</strong>"
+                f" &nbsp;·&nbsp; {len(df_full)} observações"
                 f"</div>",
                 unsafe_allow_html=True,
             )
 
             c3, c4, c5 = st.columns([2, 2, 1])
             with c3:
-                d_ini = st.date_input(
-                    "De", value=default_start,
-                    min_value=date_min, max_value=date_max,
-                    key="graf_ini"
-                )
+                d_ini = st.date_input("De", value=default_start,
+                                      min_value=date_min, max_value=date_max, key="graf_ini")
             with c4:
-                d_fim = st.date_input(
-                    "Até", value=date_max,
-                    min_value=date_min, max_value=date_max,
-                    key="graf_fim"
-                )
+                d_fim = st.date_input("Até", value=date_max,
+                                      min_value=date_min, max_value=date_max, key="graf_fim")
             with c5:
-                st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-                if st.button("🔄 Série completa", key="graf_reset"):
+                st.markdown("<div style='height:26px'></div>", unsafe_allow_html=True)
+                if st.button("Série completa", key="graf_reset"):
                     st.session_state["graf_ini"] = date_min
                     st.session_state["graf_fim"] = date_max
                     st.rerun()
 
-            # Filtra em memória — sem nova chamada à API
             if d_ini >= d_fim:
                 st.error("⚠️ Data início deve ser anterior à data fim.")
             else:
-                mask  = (df_full["data"].dt.date >= d_ini) & (df_full["data"].dt.date <= d_fim)
-                df_g  = df_full[mask].copy()
+                mask = (df_full["data"].dt.date >= d_ini) & (df_full["data"].dt.date <= d_fim)
+                df_g = df_full[mask].copy()
 
                 if df_g.empty:
                     st.warning("Nenhuma observação no período selecionado.")
@@ -747,11 +816,12 @@ elif pagina == "📈  Gráficos":
                     st.success(f"✅ {len(df_g)} observações · {ind} ({unit}) · {freq}")
                     titulo = f"{ind} ({unit})"
                     fig = (
-                        bar_fig(df_g, titulo, suffix=f" {unit}", height=420, fixed_axes=False)
+                        bar_fig(df_g, titulo, suffix=f" {unit}", height=420, interactive=True)
                         if tipo == "bar"
-                        else line_fig(df_g, titulo, "#6366f1", suffix=f" {unit}", height=420, fixed_axes=False)
+                        else line_fig(df_g, titulo, "#1a2035", suffix=f" {unit}", height=420, interactive=True)
                     )
-                    st.plotly_chart(fig, use_container_width=True, config={**CHART_CFG, "scrollZoom": True})
+                    st.plotly_chart(fig, use_container_width=True,
+                                    config={**CHART_CFG, "scrollZoom": True})
 
                     df_dl = df_g.copy()
                     df_dl["data"] = df_dl["data"].dt.strftime("%d/%m/%Y")
@@ -765,7 +835,6 @@ elif pagina == "📈  Gráficos":
 
     # ── Tab Yahoo Finance ─────────────────────────────────────────────────────
     with tab_yahoo:
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
         col1, col2 = st.columns([2, 1])
         with col1:
             ativo = st.selectbox("Ativo", list(GLOBAL.keys()), key="graf_ativo")
@@ -781,8 +850,9 @@ elif pagina == "📈  Gráficos":
         else:
             st.success(f"✅ {len(df_g)} observações · {flag} {ativo}")
             fig = line_fig(df_g, f"{flag} {ativo} — {anos} ano(s)",
-                           "#6366f1", suffix=f" {unit}", height=420, fixed_axes=False)
-            st.plotly_chart(fig, use_container_width=True, config={**CHART_CFG, "scrollZoom": True})
+                           "#1a2035", suffix=f" {unit}", height=420, interactive=True)
+            st.plotly_chart(fig, use_container_width=True,
+                            config={**CHART_CFG, "scrollZoom": True})
 
             df_dl = df_g.copy()
             df_dl["data"] = df_dl["data"].dt.strftime("%d/%m/%Y")
@@ -798,22 +868,18 @@ elif pagina == "📈  Gráficos":
 # 📥 EXPORTAR
 # ═════════════════════════════════════════════════════════════════════════════
 else:
-    col_t, col_h = st.columns([5, 1])
-    with col_t:
-        st.markdown("<h2 style='margin:0;color:#e2e8f0'>📥 Exportar</h2>",
-                    unsafe_allow_html=True)
-    with col_h:
-        st.markdown(
-            "<div style='text-align:right;color:#2d3748;font-size:10px;padding-top:10px'>"
-            "Baixe dados históricos em CSV</div>",
-            unsafe_allow_html=True,
-        )
-    st.markdown("<div style='height:2px;background:#131929;margin:10px 0 18px 0'></div>",
-                unsafe_allow_html=True)
+
+    st.markdown(
+        "<div class='page-top'>"
+        "<h1>📥 Exportar dados</h1>"
+        "<div class='ts'>BCB/SGS (Brasil) · Yahoo Finance (globais)</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
     fonte = st.radio("Fonte:", ["📊 BCB/SGS — Brasil", "🌍 Yahoo Finance — Globais"],
                      horizontal=True)
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
     if fonte == "📊 BCB/SGS — Brasil":
         col1, col2, col3 = st.columns([2, 1.5, 1.5])
@@ -833,12 +899,10 @@ else:
                     if d_ini >= d_fim:
                         st.error("Data início deve ser anterior à data fim.")
                         st.stop()
-                    df_exp = get_bcb_range(cod,
-                                           d_ini.strftime("%d/%m/%Y"),
-                                           d_fim.strftime("%d/%m/%Y"))
+                    df_exp = get_bcb_range(cod, d_ini.strftime("%d/%m/%Y"), d_fim.strftime("%d/%m/%Y"))
 
             if df_exp.empty:
-                st.warning("Nenhum dado encontrado. Tente outro período ou verifique a disponibilidade da API BCB.")
+                st.warning("Nenhum dado encontrado. Verifique a disponibilidade da API BCB.")
             else:
                 df_out = df_exp.copy()
                 df_out["data"] = df_out["data"].dt.strftime("%d/%m/%Y")
@@ -853,7 +917,7 @@ else:
                 nome = f"{ind.replace(' ','_')}_{suf}.csv"
                 st.download_button(f"💾 Baixar {nome}", data=csv, file_name=nome, mime="text/csv")
 
-    else:  # Yahoo
+    else:
         col1, col2 = st.columns([2, 1])
         with col1: ativo = st.selectbox("Ativo", list(GLOBAL.keys()))
         with col2: anos  = st.select_slider("Período (anos)", [1, 2, 3, 5, 10], value=5)
