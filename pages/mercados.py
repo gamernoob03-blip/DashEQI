@@ -70,7 +70,7 @@ def render():
             if not df_h.empty:
                 st.plotly_chart(
                     line_fig(df_h, f"{nome} — 2 anos", cor, fill=True, suffix=f" {unit}"),
-                    use_container_width=True, config=CHART_CFG,
+                    width="stretch", config=CHART_CFG,
                 )
             else:
                 st.info(f"{nome}: sem dados.")
