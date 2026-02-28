@@ -1,7 +1,8 @@
 """
 sidebar.py — Menu lateral
-Lida com estado de colapso, navegação entre páginas e layout da sidebar.
 """
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import streamlit as st
 
@@ -15,77 +16,69 @@ NAV_KEYS = list(NAV_ICONS.keys())
 
 
 def init_state():
-    """Inicializa variáveis de session_state necessárias para a sidebar."""
-    if "pagina"       not in st.session_state:
-        st.session_state.pagina       = "Início"
+    if "pagina" not in st.session_state:
+        st.session_state.pagina = "Início"
     if "sb_collapsed" not in st.session_state:
         st.session_state.sb_collapsed = False
 
 
-def _nav_button(key: str, label: str, use_container_width: bool = True):
-    """Botão de navegação com highlight automático se for a página ativa."""
-    is_active = st.session_state.pagina == key
-    clicked   = st.button(
-        label,
-        key=f"nav_{'c' if st.session_state.sb_collapsed else 'e'}_{key}",
-        type="primary" if is_active else "secondary",
-        use_container_width=use_container_width,
-        help=key if st.session_state.sb_collapsed else None,
-    )
-    if clicked:
-        st.session_state.pagina = key
-        st.rerun()
-
-
 def render():
-    """
-    Renderiza a sidebar completa.
-    Chame esta função dentro de `with st.sidebar:` no app principal,
-    ou deixe que ela cuide do contexto internamente.
-    """
-    collapsed = st.session_state.sb_collapsed
-
     with st.sidebar:
-        if collapsed:
+        if st.session_state.sb_collapsed:
             _render_collapsed()
         else:
             _render_expanded()
 
 
+def _nav_btn(key: str, label: str):
+    is_active = st.session_state.pagina == key
+    prefix    = "c" if st.session_state.sb_collapsed else "e"
+    if st.button(label, key=f"nav_{prefix}_{key}",
+                 type="primary" if is_active else "secondary",
+                 use_container_width=True,
+                 help=key if st.session_state.sb_collapsed else None):
+        st.session_state.pagina = key
+        st.rerun()
+
+
 def _render_collapsed():
-    """Sidebar no modo estreito (64px) — apenas ícones."""
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    # Botão para expandir
-    st.markdown(
-        "<div class='sb-toggle-btn' style='display:flex;justify-content:center;padding:4px 8px'>",
-        unsafe_allow_html=True,
-    )
+    # Botão expandir
+    st.markdown("<div class='sb-toggle-btn' style='display:flex;justify-content:center;padding:4px 8px'>",
+                unsafe_allow_html=True)
     if st.button("›", key="sb_expand"):
         st.session_state.sb_collapsed = False
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown(
-        "<div style='height:1px;background:#e8eaed;margin:8px 6px'></div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<hr style='margin:8px 6px;border-color:#e8eaed'>", unsafe_allow_html=True)
 
-    # Ícones de navegação centralizados
+    # CSS para centralizar ícones no modo colapsado
+    st.markdown("""
+    <style>
+    section[data-testid="stSidebar"] .stButton > button {
+        justify-content: center !important;
+        padding: 9px 0 !important;
+        font-size: 18px !important;
+    }
+    section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] {
+        padding: 9px 0 !important;
+        border-left: none !important;
+        border-radius: 8px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     for key in NAV_KEYS:
-        st.markdown(
-            "<div style='display:flex;justify-content:center;padding:0 4px'>",
-            unsafe_allow_html=True,
-        )
-        _nav_button(key, NAV_ICONS[key])
+        st.markdown("<div style='padding:0 6px'>", unsafe_allow_html=True)
+        _nav_btn(key, NAV_ICONS[key])
         st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_expanded():
-    """Sidebar no modo expandido (220px) — logo + labels de navegação."""
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
 
-    # Logo + botão de colapso
     col_logo, col_btn = st.columns([5, 2])
     with col_logo:
         st.markdown(
@@ -104,31 +97,23 @@ def _render_expanded():
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown(
-        "<div style='height:1px;background:#e8eaed;margin:2px 0 6px 0'></div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<hr style='margin:4px 0 6px;border-color:#e8eaed'>", unsafe_allow_html=True)
     st.markdown(
         "<div style='font-size:9px;font-weight:700;color:#9ca3af;"
         "text-transform:uppercase;letter-spacing:2px;"
-        "padding:4px 18px 8px 18px'>Navegação</div>",
+        "padding:2px 18px 8px'>Navegação</div>",
         unsafe_allow_html=True,
     )
 
-    # Botões de navegação
     for key in NAV_KEYS:
         st.markdown("<div style='padding:0 6px'>", unsafe_allow_html=True)
-        _nav_button(key, f"{NAV_ICONS[key]}   {key}")
+        _nav_btn(key, f"{NAV_ICONS[key]}   {key}")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Rodapé
     st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
+    st.markdown("<hr style='border-color:#e8eaed;margin-bottom:8px'>", unsafe_allow_html=True)
     st.markdown(
-        "<div style='height:1px;background:#e8eaed;margin:0 0 8px 0'></div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "<div style='font-size:9px;color:#d1d5db;line-height:1.9;padding:0 18px 16px 18px'>"
+        "<div style='font-size:9px;color:#d1d5db;line-height:1.9;padding:0 18px 16px'>"
         "Fontes: BCB/SGS · Yahoo Finance<br>"
         "Mercados: ↻ 60s &nbsp;|&nbsp; BCB: ↻ 1h"
         "</div>",
