@@ -92,7 +92,7 @@ def render():
             else line_fig(df_g, f"{ind} ({unit})", "#1a2035", suffix=f" {unit}", height=420, interactive=True)
         )
         st.plotly_chart(
-            fig, use_container_width=True,
+            fig, width="stretch",
             config={**CHART_CFG, "scrollZoom": True},
         )
 
@@ -123,7 +123,7 @@ def render():
             suffix=f" {unit}", height=420, interactive=True,
         )
         st.plotly_chart(
-            fig, use_container_width=True,
+            fig, width="stretch",
             config={**CHART_CFG, "scrollZoom": True},
         )
         _download_button(df_g, f"{ativo.replace(' ','_')}_{anos}a.csv")
