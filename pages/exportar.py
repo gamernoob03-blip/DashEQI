@@ -39,7 +39,7 @@ def render():
                 {"Indicador": k, "Cód. SGS": v[0], "Unidade": v[1], "Freq.": v[2]}
                 for k, v in SGS.items()
             ]),
-            hide_index=True, use_container_width=False,
+            hide_index=True, width="content",
         )
         st.markdown("<br>**Yahoo Finance — Ativos Globais**", unsafe_allow_html=True)
         st.dataframe(
@@ -47,7 +47,7 @@ def render():
                 {"Ativo": k, "Símbolo": v[0], "Unidade": v[1]}
                 for k, v in GLOBAL.items()
             ]),
-            hide_index=True, use_container_width=False,
+            hide_index=True, width="content",
         )
 
 
@@ -96,7 +96,7 @@ def _export_bcb():
         st.success(f"✅ **{len(df_out)} registros** — {ind} ({unit}) · {freq}")
         st.dataframe(
             df_out.rename(columns={"data": "Data", "valor": f"Valor ({unit})"}),
-            use_container_width=True,
+            width="stretch",
             height=min(380, 46 + len(df_out) * 35),
         )
         suf  = "completo" if "completa" in modo else f"{d_ini}_{d_fim}"
@@ -130,7 +130,7 @@ def _export_yahoo():
         st.success(f"✅ **{len(df_out)} registros** — {ativo}")
         st.dataframe(
             df_out.rename(columns={"data": "Data", "valor": f"Valor ({unit})"}),
-            use_container_width=True,
+            width="stretch",
             height=min(380, 46 + len(df_out) * 35),
         )
         nome = f"{ativo.replace(' ', '_')}_{anos}anos.csv"
