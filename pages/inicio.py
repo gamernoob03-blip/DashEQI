@@ -112,7 +112,7 @@ def render():
         if not df_sel.empty:
             st.plotly_chart(
                 line_fig(df_sel, "Selic (% a.a.)", "#1a2035", suffix="%"),
-                use_container_width=True, config=CHART_CFG,
+                width="stretch", config=CHART_CFG,
             )
         else:
             st.warning("⚠️ Selic: indisponível.")
@@ -120,7 +120,7 @@ def render():
         if not df_ipca.empty:
             st.plotly_chart(
                 bar_fig(df_ipca, "IPCA (% ao mês)", suffix="%"),
-                use_container_width=True, config=CHART_CFG,
+                width="stretch", config=CHART_CFG,
             )
         else:
             st.warning("⚠️ IPCA: indisponível.")
@@ -131,7 +131,7 @@ def render():
         if not df_cam30.empty:
             st.plotly_chart(
                 line_fig(df_cam30, "Dólar PTAX — 30 dias úteis (R$)", "#d97706", suffix=" R$"),
-                use_container_width=True, config=CHART_CFG,
+                width="stretch", config=CHART_CFG,
             )
         else:
             st.warning("⚠️ Dólar PTAX: indisponível.")
@@ -139,7 +139,7 @@ def render():
         if not df_ibc.empty:
             st.plotly_chart(
                 line_fig(df_ibc, "IBC-Br", "#0891b2", fill=False),
-                use_container_width=True, config=CHART_CFG,
+                width="stretch", config=CHART_CFG,
             )
         else:
             st.warning("⚠️ IBC-Br: indisponível.")
@@ -149,7 +149,7 @@ def render():
         if not df_pib.empty:
             st.plotly_chart(
                 bar_fig(df_pib, "PIB — variação trimestral (%)", suffix="%"),
-                use_container_width=True, config=CHART_CFG,
+                width="stretch", config=CHART_CFG,
             )
         else:
             st.warning("⚠️ PIB: indisponível.")
@@ -157,7 +157,7 @@ def render():
         if not df_des.empty:
             st.plotly_chart(
                 line_fig(df_des, "Desemprego PNAD (%)", "#dc2626", fill=True, suffix="%"),
-                use_container_width=True, config=CHART_CFG,
+                width="stretch", config=CHART_CFG,
             )
         else:
             st.warning("⚠️ Desemprego: indisponível.")
