@@ -36,55 +36,6 @@ st.markdown("""
 footer, #MainMenu, header   { visibility: hidden !important; }
 [data-testid="stToolbar"]   { display: none !important; }
 
-/* Sidebar */
-section[data-testid="stSidebar"] {
-    background:   #ffffff !important;
-    border-right: 1px solid #e8eaed !important;
-}
-section[data-testid="stSidebar"] > div:first-child {
-    padding-top: 0 !important;
-}
-
-/* Radio como nav */
-section[data-testid="stSidebar"] [data-testid="stRadio"] > div {
-    gap: 2px !important;
-}
-section[data-testid="stSidebar"] [data-testid="stRadio"] label {
-    background:    transparent !important;
-    border-radius: 7px !important;
-    padding:       9px 14px !important;
-    cursor:        pointer !important;
-    color:         #6b7280 !important;
-    font-size:     14px !important;
-    font-weight:   500 !important;
-    width:         100% !important;
-    transition:    background 0.12s !important;
-}
-section[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
-    background: #f5f6f8 !important;
-    color:      #111827 !important;
-}
-section[data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"] {
-    align-items: center !important;
-}
-/* Oculta o círculo do radio — deixa parecer botão de nav */
-section[data-testid="stSidebar"] [data-testid="stRadio"] [data-testid="stMarkdownContainer"] {
-    display: none !important;
-}
-section[data-testid="stSidebar"] [data-testid="stRadio"] input[type="radio"] {
-    display: none !important;
-}
-/* Item selecionado */
-section[data-testid="stSidebar"] [data-testid="stRadio"] label[aria-checked="true"],
-section[data-testid="stSidebar"] [data-testid="stRadio"] div[aria-checked="true"] > label {
-    background:  #f0f2ff !important;
-    color:       #1a2035 !important;
-    font-weight: 600 !important;
-    border-left: 3px solid #1a2035 !important;
-    border-radius: 0 7px 7px 0 !important;
-    padding-left: 11px !important;
-}
-
 /* st.metric como KPI card */
 [data-testid="stMetric"] {
     background:    #ffffff !important;
