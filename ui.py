@@ -1,9 +1,9 @@
-from datetime import datetime
 """
 ui.py — Componentes de interface reutilizáveis
-KPI cards, fábricas de gráficos Plotly e helpers de formatação.
+KPI cards (via st.metric nativo), gráficos Plotly e helpers de formatação.
 """
 
+from datetime import datetime
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -20,110 +20,52 @@ def fmt(v, dec: int = 2) -> str:
 
 
 def hex_rgba(h: str, a: float = 0.08) -> str:
-    """Converte hex #RRGGBB para rgba(r,g,b,a)."""
     h = h.lstrip("#")
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     return f"rgba({r},{g},{b},{a})"
 
 
 # ─── KPI CARD ─────────────────────────────────────────────────────────────────
-def kpi_card(label: str, value: str, chg_p=None, sub: str = "", invert: bool = False, d: dict = None):
+def kpi_card(label: str, value: str, chg_p=None, sub: str = "",
+             invert: bool = False, d: dict = None):
     """
-    Renderiza um card KPI via st.metric nativo do Streamlit.
-
-    Parâmetros:
-        label   — título do indicador
-        value   — valor principal formatado (string)
-        chg_p   — variação percentual (float ou None)
-        sub     — texto de rodapé (ex: "Ref: Jan/25")
-        invert  — inverte a cor do delta (útil para câmbio: queda = bom)
-        d       — dict retornado por get_quote() para exibir ribbon de mercado
+    Renderiza KPI usando st.metric nativo (funciona em todas as versões/ambientes).
+    O CSS global em app.py customiza a aparência do metric.
     """
-    is_closed   = d.get("is_closed",   False) if d else False
-    is_extended = d.get("is_extended", False) if d else False
-    close_date  = d.get("close_date",  None)  if d else None
+    d = d or {}
+    is_closed   = d.get("is_closed",   False)
+    is_extended = d.get("is_extended", False)
+    close_date  = d.get("close_date",  None)
+    market      = d.get("market",      "")
 
-    # ── Ribbon de status ──────────────────────────────────────────────────
+    # ── Ribbon de status (acima do metric) ───────────────────────────────
     if is_closed and close_date:
-        ribbon_txt   = f"Fechamento {close_date}"
-        ribbon_color = "#92400e"
-        ribbon_bg    = "#fef3c7"
+        st.caption(f"🕐 Fechamento {close_date}")
     elif is_closed:
-        ribbon_txt   = "Último fechamento"
-        ribbon_color = "#92400e"
-        ribbon_bg    = "#fef3c7"
+        st.caption("🕐 Último fechamento")
     elif is_extended:
-        mstate       = d.get("market", "") if d else ""
-        ribbon_txt   = "Pré-mercado" if "PRE" in mstate else "Pós-mercado"
-        ribbon_color = "#1d4ed8"
-        ribbon_bg    = "#eff6ff"
-    else:
-        ribbon_txt = ribbon_color = ribbon_bg = None
+        label_ext = "Pré-mercado" if "PRE" in market else "Pós-mercado"
+        st.caption(f"⏳ {label_ext}")
 
-    ribbon_html = ""
-    if ribbon_txt:
-        ribbon_html = (
-            f'<div style="position:absolute;top:0;right:0;background:{ribbon_bg};'
-            f'border-bottom-left-radius:8px;color:{ribbon_color};font-size:9px;'
-            f'font-weight:600;padding:3px 9px;white-space:nowrap;'
-            f'font-family:Inter,sans-serif">{ribbon_txt}</div>'
-        )
-
-    # ── Delta ─────────────────────────────────────────────────────────────
+    # ── Delta formatado ───────────────────────────────────────────────────
+    delta_str = None
     if chg_p is not None:
-        up          = (chg_p >= 0) if not invert else (chg_p < 0)
-        delta_color = "#16a34a" if up else "#dc2626"
-        arrow       = "▲" if chg_p >= 0 else "▼"
-        delta_html  = (
-            f'<p style="font-size:12px;font-weight:600;color:{delta_color};'
-            f'margin:2px 0 0 0;font-family:Inter,sans-serif">'
-            f'{arrow} {abs(chg_p):.2f}%</p>'
-        )
-    else:
-        delta_html = '<p style="font-size:12px;color:#9ca3af;margin:2px 0 0 0">—</p>'
+        arrow     = "▲" if chg_p >= 0 else "▼"
+        delta_str = f"{arrow} {abs(chg_p):.2f}%"
 
-    # ── Sub ───────────────────────────────────────────────────────────────
-    sub_html = (
-        f'<p style="font-size:10px;color:#9ca3af;margin:1px 0 0 0;'
-        f'font-family:Inter,sans-serif">{sub}</p>'
-        if sub else ""
+    # st.metric lida com delta internamente;
+    # usamos delta_color="off" e controlamos a cor via CSS
+    st.metric(
+        label=label,
+        value=value,
+        delta=delta_str,
+        delta_color="off",          # desliga cor automática; CSS cuida disso
+        help=sub if sub else None,
     )
 
-    # ── Card completo ─────────────────────────────────────────────────────
-    st.markdown(
-        f"""
-        <div style="
-            background:#ffffff;
-            border:1px solid #e2e5e9;
-            border-radius:12px;
-            padding:18px 16px 16px;
-            text-align:center;
-            min-height:116px;
-            display:flex;
-            flex-direction:column;
-            justify-content:center;
-            align-items:center;
-            gap:2px;
-            box-shadow:0 1px 3px rgba(0,0,0,0.05);
-            position:relative;
-            overflow:hidden;
-            font-family:Inter,sans-serif;
-        ">
-            {ribbon_html}
-            <p style="font-size:9px;font-weight:700;color:#6b7280;
-                text-transform:uppercase;letter-spacing:1.5px;margin:4px 0 0 0">
-                {label}
-            </p>
-            <p style="font-size:20px;font-weight:700;color:#111827;
-                line-height:1.2;margin:4px 0 0 0">
-                {value}
-            </p>
-            {delta_html}
-            {sub_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    # Sub-texto abaixo do metric
+    if sub:
+        st.caption(sub)
 
 
 # ─── PLOTLY — configurações base ─────────────────────────────────────────────
@@ -144,7 +86,10 @@ _PLOT_BASE = dict(
         zeroline=False, fixedrange=True,
     ),
     title_font=dict(color="#374151", size=12, family="Inter"),
-    hoverlabel=dict(bgcolor="#1a2035", font_size=12, font_color="#e2e8f0", bordercolor="#1a2035"),
+    hoverlabel=dict(
+        bgcolor="#1a2035", font_size=12,
+        font_color="#e2e8f0", bordercolor="#1a2035",
+    ),
     dragmode=False,
 )
 
@@ -159,7 +104,6 @@ CHART_CFG = {"displayModeBar": False, "staticPlot": False, "scrollZoom": False}
 
 
 def _apply_range(fig, df, suffix: str = "", pad_pct: float = 0.08):
-    """Ajusta eixos para eliminar espaço desnecessário."""
     if df.empty:
         return fig
     y_min, y_max = df["valor"].min(), df["valor"].max()
@@ -175,22 +119,12 @@ def _apply_range(fig, df, suffix: str = "", pad_pct: float = 0.08):
     return fig
 
 
-# ─── GRÁFICO DE LINHA ─────────────────────────────────────────────────────────
-def line_fig(
-    df,
-    title:       str,
-    color:       str   = "#1a2035",
-    fill:        bool  = True,
-    suffix:      str   = "",
-    height:      int   = 260,
-    interactive: bool  = False,
-) -> go.Figure:
-    """Cria gráfico de linha Plotly com área preenchida opcional."""
+def line_fig(df, title, color="#1a2035", fill=True, suffix="",
+             height=260, interactive=False):
     base = _PLOT_INTER if interactive else _PLOT_BASE
     fig  = go.Figure()
     fig.add_trace(go.Scatter(
-        x=df["data"], y=df["valor"],
-        mode="lines",
+        x=df["data"], y=df["valor"], mode="lines",
         line=dict(color=color, width=2),
         fill="tozeroy" if fill else "none",
         fillcolor=hex_rgba(color, 0.07),
@@ -202,15 +136,7 @@ def line_fig(
     return fig
 
 
-# ─── GRÁFICO DE BARRAS ────────────────────────────────────────────────────────
-def bar_fig(
-    df,
-    title:       str,
-    suffix:      str  = "",
-    height:      int  = 260,
-    interactive: bool = False,
-) -> go.Figure:
-    """Cria gráfico de barras colorido (verde = positivo, vermelho = negativo)."""
+def bar_fig(df, title, suffix="", height=260, interactive=False):
     colors = ["#16a34a" if v >= 0 else "#dc2626" for v in df["valor"]]
     base   = _PLOT_INTER if interactive else _PLOT_BASE
     fig    = go.Figure()
@@ -225,25 +151,9 @@ def bar_fig(
     return fig
 
 
-# ─── TÍTULOS DE SEÇÃO ─────────────────────────────────────────────────────────
 def section_title(text: str, badge: str = "", badge_cls: str = "badge-live"):
-    """Renderiza cabeçalho de seção com badge opcional."""
-    badge_html = (
-        f'<span class="{badge_cls}">{badge}</span>' if badge else ""
-    )
+    badge_html = f'<span class="{badge_cls}">{badge}</span>' if badge else ""
     st.markdown(
         f'<div class="sec-title">{text} {badge_html}</div>',
-        unsafe_allow_html=True,
-    )
-
-
-def page_header(title: str, subtitle: str = ""):
-    """Renderiza cabeçalho fixo de página."""
-    sub_html = subtitle if subtitle else datetime.now().strftime("%d/%m/%Y %H:%M")  # noqa: F821
-    st.markdown(
-        f"<div class='page-top'>"
-        f"<h1>{title}</h1>"
-        f"<div class='ts'>{sub_html}</div>"
-        f"</div>",
         unsafe_allow_html=True,
     )
