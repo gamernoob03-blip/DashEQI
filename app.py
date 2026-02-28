@@ -5,14 +5,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import time
 
-# ─── SESSION STATE ────────────────────────────────────────────────────────────
-if "pagina"       not in st.session_state: st.session_state.pagina       = "Início"
-if "sb_collapsed" not in st.session_state: st.session_state.sb_collapsed = False
-
-collapsed = st.session_state.sb_collapsed
-sb_w      = 64 if collapsed else 220
-
-# ─── PAGE CONFIG ─────────────────────────────────────────────────────────────
+# ─── PAGE CONFIG deve vir ANTES de qualquer outro st.* ───────────────────────
 st.set_page_config(
     page_title="Macro Brasil",
     page_icon="🇧🇷",
@@ -20,13 +13,19 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ─── SESSION STATE ────────────────────────────────────────────────────────────
+if "pagina"       not in st.session_state: st.session_state.pagina       = "Início"
+if "sb_collapsed" not in st.session_state: st.session_state.sb_collapsed = False
+
+collapsed = st.session_state.sb_collapsed
+sb_w      = 64 if collapsed else 220
+
 # ─── CSS ─────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 *, html, body, [class*="css"] {{ font-family: 'Inter', sans-serif !important; }}
 
-/* ── Fundo principal ── */
 .stApp,[data-testid="stAppViewContainer"],[data-testid="stMain"] {{
     background: #f0f2f5 !important;
 }}
@@ -36,7 +35,7 @@ st.markdown(f"""
 footer,#MainMenu,header {{ visibility:hidden !important; }}
 [data-testid="stToolbar"] {{ display:none !important; }}
 
-/* ── Sidebar branca ── */
+/* ── Sidebar ── */
 section[data-testid="stSidebar"] {{
     background: #ffffff !important;
     border-right: 1px solid #e8eaed !important;
@@ -49,7 +48,7 @@ section[data-testid="stSidebar"] > div:first-child {{
     overflow: hidden !important;
 }}
 
-/* ── TODOS os botões da sidebar: estilo nav base ── */
+/* ── Todos os botões da sidebar ── */
 section[data-testid="stSidebar"] .stButton > button {{
     background: transparent !important;
     border: none !important;
@@ -66,23 +65,20 @@ section[data-testid="stSidebar"] .stButton > button {{
     display: flex !important;
     align-items: center !important;
     gap: 10px !important;
-    opacity: 1 !important;
-    position: static !important;
-    margin: 0 !important;
     transition: background 0.12s, color 0.12s !important;
 }}
 section[data-testid="stSidebar"] .stButton > button:hover {{
     background: #f5f6f8 !important;
     color: #111827 !important;
-    border: none !important;
 }}
-section[data-testid="stSidebar"] .stButton > button:focus {{
+section[data-testid="stSidebar"] .stButton > button:focus,
+section[data-testid="stSidebar"] .stButton > button:focus-visible {{
     box-shadow: none !important;
     border: none !important;
     outline: none !important;
 }}
 
-/* Botão ativo (primary) = item de nav selecionado */
+/* ── Botão ativo (primary) ── */
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] {{
     background: #f0f2ff !important;
     color: #1a2035 !important;
@@ -94,10 +90,9 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] {{
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]:hover {{
     background: #e8ebff !important;
     color: #1a2035 !important;
-    border-left: 3px solid #1a2035 !important;
 }}
 
-/* ── Botão de toggle (tertiary via markdown, ou o primeiro da lista) ── */
+/* ── Toggle button ── */
 .sb-toggle-btn .stButton > button {{
     width: 32px !important;
     height: 28px !important;
@@ -106,10 +101,8 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]:hove
     border: 1px solid #e2e8f0 !important;
     border-radius: 6px !important;
     color: #6b7280 !important;
-    font-size: 14px !important;
+    font-size: 16px !important;
     font-weight: 400 !important;
-    display: flex !important;
-    align-items: center !important;
     justify-content: center !important;
     text-align: center !important;
 }}
@@ -159,11 +152,7 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]:hove
     padding: 8px 18px !important;
     height: auto !important;
     min-height: auto !important;
-    opacity: 1 !important;
-    position: static !important;
-    margin: 0 !important;
     width: auto !important;
-    text-align: center !important;
     display: inline-flex !important;
     justify-content: center !important;
 }}
@@ -174,7 +163,7 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]:hove
     font-weight: 500 !important; font-size: 12px !important;
 }}
 
-/* ── Selectboxes / inputs ── */
+/* ── Selectboxes ── */
 [data-testid="stSelectbox"] > div > div {{
     background:#ffffff !important; border:1px solid #e2e8f0 !important;
     border-radius:7px !important; color:#111827 !important;
@@ -208,10 +197,24 @@ div[data-testid="stExpander"] {{
 /* ── Alertas ── */
 [data-testid="stAlert"] {{ border-radius:8px !important; font-size:13px !important; }}
 
-/* Sem fade */
+/* ── Remove animações que causam flicker ── */
 [data-testid="stMain"],[data-testid="stVerticalBlock"] {{
     animation:none !important; transition:none !important;
 }}
+
+/* ── Collapsed mode: centralizar ícones ── */
+{'''
+section[data-testid="stSidebar"] .stButton > button {
+    justify-content: center !important;
+    padding: 9px 0 !important;
+    font-size: 17px !important;
+}
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] {
+    padding: 9px 0 !important;
+    border-left: none !important;
+    border-radius: 8px !important;
+}
+''' if collapsed else ''}
 </style>
 """, unsafe_allow_html=True)
 
@@ -260,7 +263,9 @@ GLOBAL = {
     "Ethereum":        ("ETH-USD",  "US$",    False),
 }
 
-CHART_CFG = {"displayModeBar": False, "staticPlot": False, "scrollZoom": False}
+CHART_CFG  = {"displayModeBar": False, "staticPlot": False, "scrollZoom": False}
+NAV_ICONS  = {"Início": "⌂", "Mercados Globais": "◎", "Gráficos": "⌇", "Exportar": "↓"}
+NAV_KEYS   = ["Início", "Mercados Globais", "Gráficos", "Exportar"]
 
 PLOT_BASE = dict(
     paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
@@ -280,16 +285,6 @@ PLOT_INTER = {**PLOT_BASE,
     "dragmode": "pan",
 }
 
-# ─── Ícones Unicode minimalistas ─────────────────────────────────────────────
-# (funcionam dentro de st.button sem precisar de HTML)
-NAV_ICONS = {
-    "Início":           "⌂",
-    "Mercados Globais": "◎",
-    "Gráficos":         "⌇",
-    "Exportar":         "↓",
-}
-NAV_KEYS = ["Início", "Mercados Globais", "Gráficos", "Exportar"]
-
 # ─── UTILS ───────────────────────────────────────────────────────────────────
 def hex_rgba(h, a=0.08):
     h = h.lstrip("#")
@@ -298,7 +293,7 @@ def hex_rgba(h, a=0.08):
 
 def fmt(v, dec=2):
     if v is None: return "—"
-    s = f"{v:,.{dec}f}"
+    s     = f"{v:,.{dec}f}"
     parts = s.split(".")
     integer = parts[0].replace(",", ".")
     decimal = parts[1] if len(parts) > 1 else ""
@@ -312,7 +307,7 @@ def parse_bcb_valor(valor_str):
     try:    return float(s)
     except: return None
 
-# ─── BCB API — robusta com retry e fallback ───────────────────────────────────
+# ─── BCB API ─────────────────────────────────────────────────────────────────
 def _bcb_fetch(url: str) -> list:
     for attempt in range(3):
         try:
@@ -419,68 +414,51 @@ def get_hist(symbol, years=5):
     except:
         return pd.DataFrame(columns=["data","valor"])
 
-# ─── KPI CARD ─────────────────────────────────────────────────────────────────
-import streamlit.components.v1 as components
-
+# ─── KPI CARD — usa st.markdown em vez de components.html ────────────────────
+# Troca components.html por st.markdown para evitar os warnings de iframe/tema
 def kpi(label, value, chg_p=None, sub="", invert=False, d=None):
     is_closed   = d.get("is_closed",   False) if d else False
     is_extended = d.get("is_extended", False) if d else False
     close_date  = d.get("close_date",  None)  if d else None
 
+    # Delta
     if chg_p is not None:
-        up  = (chg_p >= 0) if not invert else (chg_p < 0)
-        cls = "pos" if up else "neg"
-        arr = "▲" if chg_p >= 0 else "▼"
-        dlt = f'<div class="d-{cls}">{arr} {abs(chg_p):.2f}%</div>'
+        up      = (chg_p >= 0) if not invert else (chg_p < 0)
+        color_d = "#16a34a" if up else "#dc2626"
+        arrow   = "▲" if chg_p >= 0 else "▼"
+        delta_html = f'<div style="font-size:12px;font-weight:600;color:{color_d};margin-top:2px">{arrow} {abs(chg_p):.2f}%</div>'
     else:
-        dlt = '<div class="d-neu">—</div>'
+        delta_html = '<div style="font-size:12px;color:#9ca3af;margin-top:2px">—</div>'
 
-    sub_html = f'<div class="sub">{sub}</div>' if sub else ""
+    sub_html = f'<div style="font-size:10px;color:#9ca3af;margin-top:1px">{sub}</div>' if sub else ""
 
-    ribbon = ""
+    # Ribbon de status do mercado
     if is_closed and close_date:
-        ribbon = f'<div class="ribbon">Fechamento {close_date}</div>'
+        ribbon = f'<div style="position:absolute;top:0;right:0;background:#fef3c7;border-bottom-left-radius:8px;color:#92400e;font-size:9px;font-weight:600;padding:3px 9px;white-space:nowrap">Fechamento {close_date}</div>'
     elif is_closed:
-        ribbon = '<div class="ribbon">Último fechamento</div>'
+        ribbon = '<div style="position:absolute;top:0;right:0;background:#fef3c7;border-bottom-left-radius:8px;color:#92400e;font-size:9px;font-weight:600;padding:3px 9px">Último fechamento</div>'
     elif is_extended:
         mstate    = d.get("market","") if d else ""
         label_ext = "Pré-mercado" if "PRE" in mstate else "Pós-mercado"
-        ribbon    = f'<div class="ribbon-ext">{label_ext}</div>'
+        ribbon    = f'<div style="position:absolute;top:0;right:0;background:#eff6ff;border-bottom-left-radius:8px;color:#1d4ed8;font-size:9px;font-weight:600;padding:3px 9px">{label_ext}</div>'
+    else:
+        ribbon = ""
 
-    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{background:transparent;font-family:'Inter',sans-serif}}
-.card{{
-  background:#ffffff; border:1px solid #e2e5e9; border-radius:12px;
-  padding:16px 12px 14px 12px; text-align:center; min-height:112px;
-  display:flex; flex-direction:column; justify-content:center; gap:4px;
-  box-shadow:0 1px 3px rgba(0,0,0,0.05); overflow:hidden; position:relative;
-}}
-.ribbon{{
-  position:absolute; top:0; right:0; background:#fef3c7;
-  border-bottom-left-radius:8px; color:#92400e; font-size:9px;
-  font-weight:600; padding:3px 9px; white-space:nowrap;
-}}
-.ribbon-ext{{
-  position:absolute; top:0; right:0; background:#eff6ff;
-  border-bottom-left-radius:8px; color:#1d4ed8; font-size:9px;
-  font-weight:600; padding:3px 9px; white-space:nowrap;
-}}
-.lbl{{font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1.5px;margin-top:6px}}
-.val{{font-size:19px;font-weight:700;color:#111827;line-height:1.2}}
-.d-pos{{font-size:12px;font-weight:600;color:#16a34a}}
-.d-neg{{font-size:12px;font-weight:600;color:#dc2626}}
-.d-neu{{font-size:12px;color:#9ca3af}}
-.sub{{font-size:10px;color:#9ca3af;margin-top:1px}}
-</style></head><body>
-<div class="card">
-  {ribbon}
-  <div class="lbl">{label}</div>
-  <div class="val">{value}</div>
-  {dlt}
-  {sub_html}
-</div></body></html>"""
-    components.html(html, height=120)
+    st.markdown(f"""
+    <div style="
+        background:#ffffff; border:1px solid #e2e5e9; border-radius:12px;
+        padding:16px 14px 14px; text-align:center; min-height:112px;
+        display:flex; flex-direction:column; justify-content:center; gap:3px;
+        box-shadow:0 1px 3px rgba(0,0,0,0.05); position:relative; overflow:hidden;
+        margin-bottom:8px;
+    ">
+        {ribbon}
+        <div style="font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1.5px;margin-top:4px">{label}</div>
+        <div style="font-size:19px;font-weight:700;color:#111827;line-height:1.2">{value}</div>
+        {delta_html}
+        {sub_html}
+    </div>
+    """, unsafe_allow_html=True)
 
 # ─── CHART FACTORIES ──────────────────────────────────────────────────────────
 def _apply_range(fig, df, suffix="", pad_pct=0.08):
@@ -524,107 +502,60 @@ def bar_fig(df, title, suffix="", height=260, interactive=False):
 # ─── SIDEBAR ─────────────────────────────────────────────────────────────────
 with st.sidebar:
     if collapsed:
-        # ── MODO COLAPSADO (64px) ─────────────────────────────────────────
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
-        # Botão toggle: visível, centrado
-        st.markdown(
-            "<div class='sb-toggle-btn' style='display:flex;justify-content:center;padding:4px 8px'>",
-            unsafe_allow_html=True,
-        )
-        if st.button("›", key="sb_toggle"):
+        st.markdown("<div class='sb-toggle-btn' style='display:flex;justify-content:center;padding:4px 8px'>", unsafe_allow_html=True)
+        if st.button("›", key="sb_expand"):
             st.session_state.sb_collapsed = False
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:1px;background:#e8eaed;margin:8px 6px'></div>", unsafe_allow_html=True)
 
-        st.markdown(
-            "<div style='height:1px;background:#e8eaed;margin:8px 6px'></div>",
-            unsafe_allow_html=True,
-        )
-
-        # Ícones de navegação centralizados
         for key in NAV_KEYS:
             is_active = st.session_state.pagina == key
-            icon      = NAV_ICONS[key]
-            btn_type  = "primary" if is_active else "secondary"
-            # Centraliza o ícone com padding
-            st.markdown(
-                "<div style='display:flex;justify-content:center;padding:0 4px'>",
-                unsafe_allow_html=True,
-            )
-            if st.button(icon, key=f"nav_{key}", type=btn_type,
+            st.markdown("<div style='display:flex;justify-content:center;padding:0 4px'>", unsafe_allow_html=True)
+            if st.button(NAV_ICONS[key], key=f"nav_c_{key}",
+                         type="primary" if is_active else "secondary",
                          use_container_width=True, help=key):
                 st.session_state.pagina = key
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # CSS extra para modo colapsado: centralizar texto dos botões
-        st.markdown("""
-        <style>
-        section[data-testid="stSidebar"] .stButton > button {
-            justify-content: center !important;
-            padding: 9px 0 !important;
-            font-size: 17px !important;
-        }
-        section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] {
-            padding: 9px 0 !important;
-            border-left: none !important;
-            border-radius: 8px !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
     else:
-        # ── MODO EXPANDIDO (220px) ────────────────────────────────────────
-        # Linha de header: logo + botão collapse
         st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-
         col_logo, col_btn = st.columns([5, 2])
         with col_logo:
             st.markdown(
                 "<div style='padding:14px 0 8px 18px'>"
-                "<div style='font-size:9px;font-weight:700;color:#d1d5db;"
-                "letter-spacing:3px;text-transform:uppercase;margin-bottom:3px'>BR</div>"
-                "<div style='font-size:15px;font-weight:700;color:#111827;"
-                "letter-spacing:-0.3px'>Macro Brasil</div></div>",
+                "<div style='font-size:9px;font-weight:700;color:#d1d5db;letter-spacing:3px;text-transform:uppercase;margin-bottom:3px'>BR</div>"
+                "<div style='font-size:15px;font-weight:700;color:#111827;letter-spacing:-0.3px'>Macro Brasil</div></div>",
                 unsafe_allow_html=True,
             )
         with col_btn:
             st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
             st.markdown("<div class='sb-toggle-btn'>", unsafe_allow_html=True)
-            if st.button("‹", key="sb_toggle"):
+            if st.button("‹", key="sb_collapse"):
                 st.session_state.sb_collapsed = True
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
+        st.markdown("<div style='height:1px;background:#e8eaed;margin:2px 0 6px 0'></div>", unsafe_allow_html=True)
         st.markdown(
-            "<div style='height:1px;background:#e8eaed;margin:2px 0 6px 0'></div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "<div style='font-size:9px;font-weight:700;color:#9ca3af;"
-            "text-transform:uppercase;letter-spacing:2px;"
-            "padding:4px 18px 8px 18px'>Navegação</div>",
+            "<div style='font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:2px;padding:4px 18px 8px 18px'>Navegação</div>",
             unsafe_allow_html=True,
         )
 
         for key in NAV_KEYS:
             is_active = st.session_state.pagina == key
-            icon      = NAV_ICONS[key]
-            btn_type  = "primary" if is_active else "secondary"
-            label     = f"{icon}   {key}"
             st.markdown("<div style='padding:0 6px'>", unsafe_allow_html=True)
-            if st.button(label, key=f"nav_{key}", type=btn_type, use_container_width=True):
+            if st.button(f"{NAV_ICONS[key]}   {key}", key=f"nav_e_{key}",
+                         type="primary" if is_active else "secondary",
+                         use_container_width=True):
                 st.session_state.pagina = key
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # Rodapé
         st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
-        st.markdown(
-            "<div style='height:1px;background:#e8eaed;margin:0 0 8px 0'></div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown("<div style='height:1px;background:#e8eaed;margin:0 0 8px 0'></div>", unsafe_allow_html=True)
         st.markdown(
             "<div style='font-size:9px;color:#d1d5db;line-height:1.9;padding:0 18px 16px 18px'>"
             "Fontes: BCB/SGS · Yahoo Finance<br>"
@@ -690,29 +621,31 @@ if pagina == "Início":
     c4, c5, c6 = st.columns(3)
     with c4:
         if not df_sel.empty:
-            v, ref = df_sel["valor"].iloc[-1], df_sel["data"].iloc[-1].strftime("%b/%Y")
+            v   = df_sel["valor"].iloc[-1]
+            ref = df_sel["data"].iloc[-1].strftime("%b/%Y")
             kpi("Selic", f"{fmt(v)}% a.a.", sub=f"Ref: {ref}")
         else:
             kpi("Selic", "—", sub="BCB indisponível")
     with c5:
         if not df_ipca.empty:
-            v, ref = df_ipca["valor"].iloc[-1], df_ipca["data"].iloc[-1].strftime("%b/%Y")
-            delta  = (df_ipca["valor"].iloc[-1]-df_ipca["valor"].iloc[-2]) if len(df_ipca)>=2 else None
+            v     = df_ipca["valor"].iloc[-1]
+            ref   = df_ipca["data"].iloc[-1].strftime("%b/%Y")
+            delta = (df_ipca["valor"].iloc[-1] - df_ipca["valor"].iloc[-2]) if len(df_ipca) >= 2 else None
             kpi("IPCA", f"{fmt(v)}% mês",
                 chg_p=float(delta) if delta is not None else None, sub=f"Ref: {ref}")
         else:
             kpi("IPCA", "—", sub="BCB indisponível")
     with c6:
         if not df_des.empty:
-            v, ref = df_des["valor"].iloc[-1], df_des["data"].iloc[-1].strftime("%b/%Y")
+            v   = df_des["valor"].iloc[-1]
+            ref = df_des["data"].iloc[-1].strftime("%b/%Y")
             kpi("Desemprego (PNAD)", f"{fmt(v)}%", sub=f"Ref: {ref}")
         else:
             kpi("Desemprego (PNAD)", "—", sub="BCB indisponível")
 
     st.markdown(
         '<div class="sec-title">Histórico — 12 meses'
-        '<span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;'
-        'letter-spacing:0;margin-left:4px">→ série completa em Gráficos</span></div>',
+        '<span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px">→ série completa em Gráficos</span></div>',
         unsafe_allow_html=True,
     )
     ca, cb = st.columns(2)
@@ -755,8 +688,7 @@ if pagina == "Início":
         else: st.warning("⚠️ Desemprego: indisponível.")
 
     st.markdown(
-        "<div style='text-align:center;color:#d1d5db;font-size:10px;"
-        "margin-top:20px;margin-bottom:8px'>"
+        "<div style='text-align:center;color:#d1d5db;font-size:10px;margin-top:20px;margin-bottom:8px'>"
         "Yahoo Finance (↻60s) • BCB/SGS (↻1h)</div>",
         unsafe_allow_html=True,
     )
@@ -785,8 +717,7 @@ elif pagina == "Mercados Globais":
 
     for grupo, ativos in grupos.items():
         st.markdown(
-            f'<div class="sec-title">{grupo}'
-            '<span class="badge-live">↻ 60s</span></div>',
+            f'<div class="sec-title">{grupo}<span class="badge-live">↻ 60s</span></div>',
             unsafe_allow_html=True,
         )
         cols = st.columns(len(ativos))
