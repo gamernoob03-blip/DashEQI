@@ -13,7 +13,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.filterwarnings("ignore", message="Unverified HTTPS")
 
 st.set_page_config(page_title="Macro Brasil", page_icon="🇧🇷",
-                   layout="wide", initial_sidebar_state="expanded")
+                   layout="wide", initial_sidebar_state="expanded",
+                   menu_items={})
 
 TZ_BRT = ZoneInfo("America/Sao_Paulo")
 def now_brt(): return datetime.now(TZ_BRT)
@@ -92,59 +93,15 @@ footer,#MainMenu,header{visibility:hidden!important}
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"]{color:#1a2035!important;border-bottom:2px solid #1a2035!important;font-weight:600!important}
 div[data-testid="stExpander"]{background:#fff!important;border:1px solid #e8eaed!important;border-radius:10px!important}
 
-/* ── Sidebar: largura fixa, sem redimensionamento ── */
+/* ── Sidebar: largura fixa, sem colapso, sem resizer ── */
 section[data-testid="stSidebar"]{
     min-width:260px!important;
     max-width:260px!important;
     width:260px!important;
 }
-/* Oculta o handle de arrastar a sidebar */
-[data-testid="stSidebarResizer"]{display:none!important}
-
-/* ── Botão colapso: esconde texto Material Icons, substitui por ‹ › ── */
-[data-testid="stSidebarCollapseButton"],
-[data-testid="stSidebarCollapsedControl"]{
-    position:fixed!important;
-    top:12px!important;
-    z-index:999!important;
-}
-[data-testid="stSidebarCollapseButton"]  { left:268px!important; }
-[data-testid="stSidebarCollapsedControl"]{ left:8px!important; }
-
-[data-testid="stSidebarCollapseButton"] button,
-[data-testid="stSidebarCollapsedControl"] button{
-    width:28px!important; height:28px!important;
-    padding:0!important; overflow:hidden!important;
-    border:1px solid #e2e8f0!important;
-    border-radius:6px!important;
-    background:#ffffff!important;
-    box-shadow:0 1px 3px rgba(0,0,0,.08)!important;
-    position:relative!important;
-}
-/* Esconde o texto/ícone nativo dentro do botão */
-[data-testid="stSidebarCollapseButton"] button *,
-[data-testid="stSidebarCollapsedControl"] button *{
-    font-size:0!important;
-    color:transparent!important;
-    fill:transparent!important;
-}
-/* Injeta seta via pseudo-elemento */
-[data-testid="stSidebarCollapseButton"] button::after{
-    content:"‹";
-    font-size:18px!important;
-    color:#6b7280!important;
-    position:absolute; top:50%; left:50%;
-    transform:translate(-50%,-50%);
-    line-height:1;
-}
-[data-testid="stSidebarCollapsedControl"] button::after{
-    content:"›";
-    font-size:18px!important;
-    color:#6b7280!important;
-    position:absolute; top:50%; left:50%;
-    transform:translate(-50%,-50%);
-    line-height:1;
-}
+[data-testid="stSidebarResizer"]      { display:none!important }
+[data-testid="stSidebarCollapseButton"]   { display:none!important }
+[data-testid="stSidebarCollapsedControl"] { display:none!important }
 </style>""", unsafe_allow_html=True)
 
 # ── Helpers UI ────────────────────────────────────────────────────────────────
