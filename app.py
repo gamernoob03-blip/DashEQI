@@ -24,7 +24,7 @@ BCB_BASE   = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{c}/dados"
 YAHOO_SNAP = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1d&range=5d"
 YAHOO_HIST = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1d&range={y}y"
 HDRS       = {"User-Agent":"Mozilla/5.0 Chrome/120.0.0.0 Safari/537.36","Accept":"application/json"}
-CHART_CFG  = {"displayModeBar": False, "scrollZoom": False}
+CHART_CFG  = {"displayModeBar": False, "scrollZoom": False, "staticPlot": False, "responsive": True}
 
 SGS = {
     "Selic":       (432,   "% a.a.",  "Mensal",     "line"),
@@ -90,7 +90,14 @@ section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{backgrou
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"]{color:#1a2035!important;border-bottom:2px solid #1a2035!important;font-weight:600!important}
 div[data-testid="stExpander"]{background:#fff!important;border:1px solid #e8eaed!important;border-radius:10px!important}
 /* Containers dos gráficos Plotly */
-[data-testid="stPlotlyChart"]>div{background:#ffffff!important;border:1px solid #e2e5e9!important;border-radius:12px!important;padding:0!important;overflow:hidden!important;box-shadow:0 1px 3px rgba(0,0,0,.05)!important}
+[data-testid="stPlotlyChart"]>div{background:#ffffff!important;border:1px solid #e2e5e9!important;border-radius:12px!important;padding:0!important;overflow:visible!important;box-shadow:0 1px 3px rgba(0,0,0,.05)!important}
+/* Remove ALL scrollbars inside chart containers */
+[data-testid="stPlotlyChart"] iframe{overflow:hidden!important;display:block!important}
+[data-testid="stPlotlyChart"] .js-plotly-plot{overflow:hidden!important}
+[data-testid="stPlotlyChart"] .main-svg{overflow:hidden!important}
+.plotly-graph-div,.js-plotly-plot{overflow:hidden!important}
+/* Kill the outer stPlotlyChart div scrollbar */
+[data-testid="stPlotlyChart"]{overflow:hidden!important}
 
 /* ── Sidebar: largura fixa, sem colapso, sem resizer ── */
 section[data-testid="stSidebar"]{
