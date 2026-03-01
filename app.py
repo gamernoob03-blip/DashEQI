@@ -70,13 +70,7 @@ st.markdown("""<style>
 .main .block-container{padding-top:0!important;padding-bottom:2rem;max-width:1400px}
 footer,#MainMenu,header{visibility:hidden!important}
 [data-testid="stToolbar"]{display:none!important}
-[data-testid="stMetric"]{background:#fff!important;border:1px solid #e2e5e9!important;border-radius:12px!important;padding:16px!important;box-shadow:0 1px 3px rgba(0,0,0,.05)!important;text-align:center!important}
-[data-testid="stMetricLabel"]>div{justify-content:center!important}
-[data-testid="stMetricLabel"] p{font-size:10px!important;font-weight:700!important;color:#6b7280!important;text-transform:uppercase!important;letter-spacing:1.5px!important}
-[data-testid="stMetricValue"]>div{justify-content:center!important}
-[data-testid="stMetricValue"] p{font-size:22px!important;font-weight:700!important;color:#111827!important}
-[data-testid="stMetricDelta"]>div{justify-content:center!important}
-[data-testid="stMetricDelta"] p{font-size:12px!important;font-weight:600!important;color:#6b7280!important}
+/* kpi_card usa HTML puro — não precisa de CSS para stMetric */
 [data-testid="stCaptionContainer"] p{font-size:10px!important;color:#9ca3af!important;text-align:center!important;margin:0!important}
 .page-top{background:#fff;border-bottom:1px solid #e8eaed;padding:15px 28px;margin:0 -3rem 22px -3rem;display:flex;align-items:center;justify-content:space-between}
 .page-top h1{font-size:16px;font-weight:600;color:#111827;margin:0}
@@ -123,20 +117,28 @@ def page_header(title):
 
 def kpi_card(label, value, chg_p=None, sub="", invert=False, d=None):
     d = d or {}
-    cd, ms = d.get("close_date"), d.get("market","")
-    delta = f"{'▲' if chg_p>=0 else '▼'} {abs(chg_p):.2f}%" if chg_p is not None else None
-    st.metric(label=label, value=value, delta=delta, delta_color="off")
-    if sub: st.caption(sub)
-    # Banner amarelo para dados não atualizados (Yahoo Finance)
-    if d.get("is_closed") and cd:
-        today_str = now_brt().strftime("%d/%m/%Y")
-        if cd != today_str:
-            st.markdown(
-                f"<div style='background:#fef9c3;border:1px solid #fde047;border-radius:6px;"
-                f"font-size:9px;font-weight:600;color:#854d0e;padding:3px 8px;margin-top:4px;"
-                f"text-align:center'>Ref. {cd}</div>",
-                unsafe_allow_html=True,
-            )
+    cd = d.get("close_date")
+    if chg_p is not None:
+        up    = chg_p >= 0
+        arrow = "\u25b2" if up else "\u25bc"
+        color = "#16a34a" if up else "#dc2626"
+        delta_html = f"<div style='color:{color};font-size:12px;font-weight:600;margin-top:4px'>{arrow} {abs(chg_p):.2f}%</div>"
+    else:
+        delta_html = ""
+    sub_html    = f"<div style='font-size:10px;color:#9ca3af;margin-top:6px'>{sub}</div>" if sub else ""
+    banner_html = (f"<div style='background:#fef9c3;border:1px solid #fde047;border-radius:6px;"
+                   f"font-size:9px;font-weight:600;color:#854d0e;padding:3px 8px;margin-top:8px;"
+                   f"text-align:center'>\u26a0 Ref. {cd}</div>") if cd else ""
+    card = (
+        "<div style='background:#ffffff;border:1px solid #e2e5e9;border-radius:12px;"
+        "padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.05);text-align:center'>"
+        f"<div style='font-size:10px;font-weight:700;color:#6b7280;"
+        f"text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px'>{label}</div>"
+        f"<div style='font-size:22px;font-weight:700;color:#111827'>{value}</div>"
+        f"{delta_html}{sub_html}{banner_html}"
+        "</div>"
+    )
+    st.markdown(card, unsafe_allow_html=True)
 
 # ── Helpers Plotly ────────────────────────────────────────────────────────────
 _B = dict(paper_bgcolor="#fff",plot_bgcolor="#fff",font_color="#6b7280",font_family="Inter",
