@@ -124,12 +124,19 @@ def page_header(title):
 def kpi_card(label, value, chg_p=None, sub="", invert=False, d=None):
     d = d or {}
     cd, ms = d.get("close_date"), d.get("market","")
-    if d.get("is_closed") and cd:   st.caption(f"🕐 Fechamento {cd}")
-    elif d.get("is_closed"):        st.caption("🕐 Último fechamento")
-    elif d.get("is_extended"):      st.caption(f"⏳ {'Pré' if 'PRE' in ms else 'Pós'}-mercado")
     delta = f"{'▲' if chg_p>=0 else '▼'} {abs(chg_p):.2f}%" if chg_p is not None else None
-    st.metric(label=label, value=value, delta=delta, delta_color="off", help=sub or None)
+    st.metric(label=label, value=value, delta=delta, delta_color="off")
     if sub: st.caption(sub)
+    # Banner amarelo para dados não atualizados (Yahoo Finance)
+    if d.get("is_closed") and cd:
+        today_str = now_brt().strftime("%d/%m/%Y")
+        if cd != today_str:
+            st.markdown(
+                f"<div style='background:#fef9c3;border:1px solid #fde047;border-radius:6px;"
+                f"font-size:9px;font-weight:600;color:#854d0e;padding:3px 8px;margin-top:4px;"
+                f"text-align:center'>Ref. {cd}</div>",
+                unsafe_allow_html=True,
+            )
 
 # ── Helpers Plotly ────────────────────────────────────────────────────────────
 _B = dict(paper_bgcolor="#fff",plot_bgcolor="#fff",font_color="#6b7280",font_family="Inter",
@@ -292,8 +299,12 @@ if st.session_state.pagina == "Início":
     sec_title("Indicadores Econômicos","↻ diário","badge-daily")
     c4,c5,c6=st.columns(3)
     with c4:
-        kpi_card("Selic",f"{fmt(dsel['valor'].iloc[-1])}% a.a." if not dsel.empty else "—",
-                 sub=f"Ref: {dsel['data'].iloc[-1].strftime('%b/%Y')}" if not dsel.empty else "BCB indisponível")
+        if not dsel.empty:
+            vs = dsel["valor"].iloc[-1]
+            ds = float(vs - dsel["valor"].iloc[-2]) if len(dsel)>=2 else None
+            kpi_card("Selic", f"{fmt(vs)}% a.a.", chg_p=ds,
+                     sub=f"Ref: {dsel['data'].iloc[-1].strftime('%b/%Y')}")
+        else: kpi_card("Selic","—",sub="BCB indisponível")
     with c5:
         if not dipca.empty:
             v=dipca["valor"].iloc[-1]
@@ -301,8 +312,12 @@ if st.session_state.pagina == "Início":
             kpi_card("IPCA",f"{fmt(v)}% mês",chg_p=d2,sub=f"Ref: {dipca['data'].iloc[-1].strftime('%b/%Y')}")
         else: kpi_card("IPCA","—",sub="BCB indisponível")
     with c6:
-        kpi_card("Desemprego (PNAD)",f"{fmt(ddes['valor'].iloc[-1])}%" if not ddes.empty else "—",
-                 sub=f"Ref: {ddes['data'].iloc[-1].strftime('%b/%Y')}" if not ddes.empty else "BCB indisponível")
+        if not ddes.empty:
+            vd = ddes["valor"].iloc[-1]
+            dd = float(vd - ddes["valor"].iloc[-2]) if len(ddes)>=2 else None
+            kpi_card("Desemprego (PNAD)", f"{fmt(vd)}%", chg_p=dd,
+                     sub=f"Ref: {ddes['data'].iloc[-1].strftime('%b/%Y')}")
+        else: kpi_card("Desemprego (PNAD)","—",sub="BCB indisponível")
 
     st.markdown('<div class="sec-title">Histórico — 12 meses <span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px">→ série completa em Gráficos</span></div>',unsafe_allow_html=True)
     ca,cb=st.columns(2)
