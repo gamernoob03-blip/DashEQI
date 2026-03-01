@@ -4,10 +4,6 @@ primaryColor             = "#1a2035"
 backgroundColor          = "#f0f2f5"
 secondaryBackgroundColor = "#ffffff"
 textColor                = "#111827"
-font                     = "sans serif"
-widgetBackgroundColor    = "#ffffff"
-widgetBorderColor        = "#e2e8f0"
-skeletonBackgroundColor  = "#e8eaed"
 
 [server]
 headless   = true
