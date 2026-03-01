@@ -1,5 +1,5 @@
 """
-Dashboard Macro Brasil — arquivo único, sem dependências locais
+EQI Dashboard Macro — arquivo único, sem dependências locais
 """
 import sys, os, warnings, time
 import requests, urllib3
@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.filterwarnings("ignore", message="Unverified HTTPS")
 
-st.set_page_config(page_title="Macro Brasil", page_icon="🇧🇷",
+st.set_page_config(page_title="EQI Dashboard Macro", page_icon="🇧🇷",
                    layout="wide", initial_sidebar_state="expanded",
                    menu_items={})
 
@@ -80,12 +80,17 @@ footer,#MainMenu,header{visibility:hidden!important}
 .badge-daily{display:inline-block;background:#f5f3ff;border:1px solid #ddd6fe;color:#7c3aed;font-size:9px;font-weight:600;padding:2px 8px;border-radius:20px}
 .main .stButton>button{background:#1a2035!important;color:#fff!important;border:none!important;border-radius:7px!important;font-weight:600!important;font-size:13px!important;padding:8px 18px!important}
 .main .stButton>button:hover{background:#2d3a56!important}
+/* Botão ativo na sidebar */
+section[data-testid="stSidebar"] .stButton>button[kind="primary"]{background:#004031!important}
+section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{background:#005a45!important}
 .stDownloadButton>button{background:#fff!important;color:#374151!important;border:1px solid #e2e8f0!important;border-radius:7px!important}
 [data-testid="stSelectbox"]>div>div{background:#fff!important;border:1px solid #e2e8f0!important;border-radius:7px!important}
 [data-testid="stTabs"] [data-testid="stTabsTabList"]{background:transparent!important;border-bottom:1px solid #e8eaed!important}
 [data-testid="stTabs"] button[role="tab"]{font-size:13px!important;color:#6b7280!important;padding:8px 20px!important;border:none!important;border-bottom:2px solid transparent!important;background:transparent!important}
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"]{color:#1a2035!important;border-bottom:2px solid #1a2035!important;font-weight:600!important}
 div[data-testid="stExpander"]{background:#fff!important;border:1px solid #e8eaed!important;border-radius:10px!important}
+/* Containers dos gráficos Plotly */
+[data-testid="stPlotlyChart"]>div{background:#ffffff!important;border:1px solid #e2e5e9!important;border-radius:12px!important;padding:12px!important;box-shadow:0 1px 3px rgba(0,0,0,.05)!important}
 
 /* ── Sidebar: largura fixa, sem colapso, sem resizer ── */
 section[data-testid="stSidebar"]{
@@ -113,7 +118,6 @@ def sec_title(txt, badge="", cls="badge-live"):
 
 def page_header(title):
     ts = now_brt().strftime("%d/%m/%Y %H:%M")
-    st.markdown(f"<div class='page-top'><h1>{title}</h1><div class='ts'>Atualizado<br><strong style='color:#374151'>{ts} (Brasília)</strong></div></div>", unsafe_allow_html=True)
 
 def kpi_card(label, value, chg_p=None, sub="", invert=False, d=None):
     d = d or {}
@@ -321,11 +325,9 @@ def get_hist(sym, years=5):
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("<div style='padding:16px 0 4px 4px'>"
-                "<span style='font-size:9px;font-weight:700;color:#aaa;letter-spacing:3px'>BR</span>"
-                "<span style='font-size:16px;font-weight:700;color:#111827;margin-left:6px'>Macro Brasil</span>"
+    st.markdown("<div style='padding:20px 4px 12px 4px'>"
+                "<span style='font-size:24px;font-weight:900;color:#004031;letter-spacing:-0.5px'>EQI</span>"
                 "</div>", unsafe_allow_html=True)
-    st.caption(f"🕐 {now_brt().strftime('%d/%m/%Y  %H:%M')} (Brasília)")
     st.divider()
     for icon, label in NAV:
         if st.button(f"{icon}  {label}", key=f"nav_{label}",
@@ -341,7 +343,7 @@ with st.sidebar:
 # INÍCIO
 # ══════════════════════════════════════════════════════════════════════════════
 if st.session_state.pagina == "Início":
-    page_header("Dashboard Macro Brasil")
+    page_header("EQI Dashboard Macro")
     with st.spinner("Carregando..."):
         ibov=get_quote("^BVSP"); usd=get_quote("USDBRL=X"); eur=get_quote("EURBRL=X")
         _hoje  = datetime.today()
