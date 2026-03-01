@@ -91,6 +91,40 @@ footer,#MainMenu,header{visibility:hidden!important}
 [data-testid="stTabs"] button[role="tab"]{font-size:13px!important;color:#6b7280!important;padding:8px 20px!important;border:none!important;border-bottom:2px solid transparent!important;background:transparent!important}
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"]{color:#1a2035!important;border-bottom:2px solid #1a2035!important;font-weight:600!important}
 div[data-testid="stExpander"]{background:#fff!important;border:1px solid #e8eaed!important;border-radius:10px!important}
+
+/* ── Sidebar: largura fixa, sem redimensionamento ── */
+section[data-testid="stSidebar"]{
+    min-width:260px!important;
+    max-width:260px!important;
+    width:260px!important;
+}
+/* Oculta o handle de arrastar a sidebar */
+[data-testid="stSidebarResizer"]{display:none!important}
+
+/* Botão nativo de colapso da sidebar — esconde o texto, mantém funcional */
+[data-testid="stSidebarCollapseButton"] button{
+    background:transparent!important;
+    border:1px solid #e2e8f0!important;
+    border-radius:6px!important;
+    width:28px!important;
+    height:28px!important;
+    font-size:0!important;        /* esconde texto "keyboard_double" */
+    padding:0!important;
+    position:relative!important;
+}
+/* Recoloca um ícone legível via pseudo-elemento */
+[data-testid="stSidebarCollapseButton"] button::after{
+    content:"‹";
+    font-size:16px!important;
+    color:#6b7280!important;
+    position:absolute;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+}
+/* Quando sidebar está fechada, inverte a seta */
+[data-testid="stSidebarCollapsedControl"] button::after{
+    content:"›"!important;
+}
 </style>""", unsafe_allow_html=True)
 
 # ── Helpers UI ────────────────────────────────────────────────────────────────
