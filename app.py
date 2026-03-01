@@ -90,7 +90,7 @@ section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{backgrou
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"]{color:#1a2035!important;border-bottom:2px solid #1a2035!important;font-weight:600!important}
 div[data-testid="stExpander"]{background:#fff!important;border:1px solid #e8eaed!important;border-radius:10px!important}
 /* Containers dos gráficos Plotly */
-[data-testid="stPlotlyChart"]>div{background:#ffffff!important;border:1px solid #e2e5e9!important;border-radius:12px!important;padding:12px!important;box-shadow:0 1px 3px rgba(0,0,0,.05)!important}
+[data-testid="stPlotlyChart"]>div{background:#ffffff!important;border:1px solid #e2e5e9!important;border-radius:12px!important;padding:0!important;overflow:hidden!important;box-shadow:0 1px 3px rgba(0,0,0,.05)!important}
 
 /* ── Sidebar: largura fixa, sem colapso, sem resizer ── */
 section[data-testid="stSidebar"]{
@@ -146,7 +146,7 @@ def kpi_card(label, value, chg_p=None, sub="", invert=False, d=None):
 
 # ── Helpers Plotly ────────────────────────────────────────────────────────────
 _B = dict(paper_bgcolor="#fff",plot_bgcolor="#fff",font_color="#6b7280",font_family="Inter",
-          margin=dict(l=0,r=4,t=36,b=0),
+          margin=dict(l=52,r=16,t=40,b=36),
           xaxis=dict(gridcolor="#f1f5f9",showline=False,tickfont=dict(size=10,color="#9ca3af"),zeroline=False,fixedrange=True),
           yaxis=dict(gridcolor="#f1f5f9",showline=False,tickfont=dict(size=10,color="#9ca3af"),zeroline=False,fixedrange=True),
           title_font=dict(color="#374151",size=12,family="Inter"),
