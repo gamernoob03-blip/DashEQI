@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 import sidebar
-from pages import inicio, mercados, graficos, exportar
+from views import inicio, mercados, graficos, exportar
 
 sidebar.init_state()
 
