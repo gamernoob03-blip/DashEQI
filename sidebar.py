@@ -1,5 +1,5 @@
 """
-sidebar.py — Menu lateral
+sidebar.py — Menu lateral com ícones
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -9,11 +9,14 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 TZ_BRT = ZoneInfo("America/Sao_Paulo")
-NAV_PAGES = ["Início", "Mercados Globais", "Gráficos", "Exportar"]
 
-def now_brt() -> datetime:
-    """Retorna hora atual no fuso de Brasília."""
-    return datetime.now(TZ_BRT)
+# (ícone, label, chave)
+NAV_ITEMS = [
+    ("⌂",  "Início",           "Início"),
+    ("◎",  "Mercados Globais", "Mercados Globais"),
+    ("⌇",  "Gráficos",        "Gráficos"),
+    ("↓",  "Exportar",        "Exportar"),
+]
 
 def init_state():
     if "pagina" not in st.session_state:
@@ -21,19 +24,27 @@ def init_state():
 
 def render():
     with st.sidebar:
-        st.markdown("### 🇧🇷 Macro Brasil")
-        st.caption(f"🕐 {now_brt().strftime('%d/%m/%Y %H:%M')} (Brasília)")
+        # Logo e horário
+        st.markdown(
+            "<div style='padding:16px 0 4px 4px'>"
+            "<span style='font-size:9px;font-weight:700;color:#aaa;letter-spacing:3px'>BR</span>"
+            "<span style='font-size:16px;font-weight:700;color:#111827;margin-left:6px'>Macro Brasil</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        st.caption(f"🕐 {datetime.now(TZ_BRT).strftime('%d/%m/%Y  %H:%M')} (Brasília)")
         st.divider()
 
-        for page in NAV_PAGES:
-            is_active = st.session_state.pagina == page
+        # Botões de navegação com ícone
+        for icon, label, key in NAV_ITEMS:
+            is_active = st.session_state.pagina == key
             if st.button(
-                page,
-                key=f"nav_{page}",
+                f"{icon}  {label}",
+                key=f"nav_{key}",
                 type="primary" if is_active else "secondary",
-                use_container_width=True,   # CORRETO para st.button
+                use_container_width=True,
             ):
-                st.session_state.pagina = page
+                st.session_state.pagina = key
                 st.rerun()
 
         st.divider()
