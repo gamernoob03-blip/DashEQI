@@ -101,29 +101,49 @@ section[data-testid="stSidebar"]{
 /* Oculta o handle de arrastar a sidebar */
 [data-testid="stSidebarResizer"]{display:none!important}
 
-/* Botão nativo de colapso da sidebar — esconde o texto, mantém funcional */
-[data-testid="stSidebarCollapseButton"] button{
-    background:transparent!important;
+/* ── Botão colapso: esconde texto Material Icons, substitui por ‹ › ── */
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebarCollapsedControl"]{
+    position:fixed!important;
+    top:12px!important;
+    z-index:999!important;
+}
+[data-testid="stSidebarCollapseButton"]  { left:268px!important; }
+[data-testid="stSidebarCollapsedControl"]{ left:8px!important; }
+
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stSidebarCollapsedControl"] button{
+    width:28px!important; height:28px!important;
+    padding:0!important; overflow:hidden!important;
     border:1px solid #e2e8f0!important;
     border-radius:6px!important;
-    width:28px!important;
-    height:28px!important;
-    font-size:0!important;        /* esconde texto "keyboard_double" */
-    padding:0!important;
+    background:#ffffff!important;
+    box-shadow:0 1px 3px rgba(0,0,0,.08)!important;
     position:relative!important;
 }
-/* Recoloca um ícone legível via pseudo-elemento */
+/* Esconde o texto/ícone nativo dentro do botão */
+[data-testid="stSidebarCollapseButton"] button *,
+[data-testid="stSidebarCollapsedControl"] button *{
+    font-size:0!important;
+    color:transparent!important;
+    fill:transparent!important;
+}
+/* Injeta seta via pseudo-elemento */
 [data-testid="stSidebarCollapseButton"] button::after{
     content:"‹";
-    font-size:16px!important;
+    font-size:18px!important;
     color:#6b7280!important;
-    position:absolute;
-    top:50%; left:50%;
+    position:absolute; top:50%; left:50%;
     transform:translate(-50%,-50%);
+    line-height:1;
 }
-/* Quando sidebar está fechada, inverte a seta */
 [data-testid="stSidebarCollapsedControl"] button::after{
-    content:"›"!important;
+    content:"›";
+    font-size:18px!important;
+    color:#6b7280!important;
+    position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    line-height:1;
 }
 </style>""", unsafe_allow_html=True)
 
