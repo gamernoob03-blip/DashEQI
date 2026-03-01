@@ -175,7 +175,7 @@ def line_fig(df, title, color="#1a2035", fill=True, suffix="", height=260, inter
         fill="tozeroy" if fill else "none",fillcolor=hex_rgba(color,.07),
         hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.2f}}{suffix}</b><extra></extra>"))
     fig.update_layout(**(_I if inter else _B),title=title,height=height)
-    return fig if inter else _rng(fig,df,suffix)
+    return _rng(fig,df,suffix) if not df.empty else fig
 
 def bar_fig(df, title, suffix="", height=260, inter=False):
     fig = go.Figure()
@@ -183,7 +183,7 @@ def bar_fig(df, title, suffix="", height=260, inter=False):
         marker_color=["#16a34a" if v>=0 else "#dc2626" for v in df["valor"]],marker_line_width=0,
         hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.4f}}{suffix}</b><extra></extra>"))
     fig.update_layout(**(_I if inter else _B),title=title,height=height)
-    return fig if inter else _rng(fig,df,suffix,.15)
+    return _rng(fig,df,suffix,.15) if not df.empty else fig
 
 # ── Data BCB ──────────────────────────────────────────────────────────────────
 def _parse(v):
@@ -464,7 +464,7 @@ elif st.session_state.pagina == "Gráficos":
             st.warning("⚠️ API BCB temporariamente indisponível.")
         else:
             dmin=df_f["data"].min().date(); dmax=df_f["data"].max().date()
-            ddef=max(dmin,(df_f["data"].max()-pd.DateOffset(months=12)).date())
+            ddef=dmin  # carrega série completa por padrão
             st.markdown(f"<div style='font-size:11px;color:#6b7280;margin:6px 0 14px'>Disponível: <strong>{dmin.strftime('%d/%m/%Y')}</strong> → <strong>{dmax.strftime('%d/%m/%Y')}</strong> · {len(df_f)} obs.</div>",unsafe_allow_html=True)
             c2,c3,c4=st.columns([2,2,1])
             with c2: d_ini=st.date_input("De",value=ddef,min_value=dmin,max_value=dmax,key="gini")
