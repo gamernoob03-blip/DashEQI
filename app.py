@@ -459,29 +459,47 @@ elif st.session_state.pagina == "Gráficos":
         col1,_=st.columns([2,3])
         with col1: ind=st.selectbox("Indicador",list(SGS.keys()),key="gind")
         cod,unit,freq,tipo=SGS[ind]
+        # Sempre carrega série COMPLETA — filtro só afeta exibição visual do gráfico
         with st.spinner(f"Carregando {ind}..."): df_f=get_bcb_full(cod)
         if df_f.empty:
             st.warning("⚠️ API BCB temporariamente indisponível.")
         else:
             dmin=df_f["data"].min().date(); dmax=df_f["data"].max().date()
-            ddef=dmin  # carrega série completa por padrão
-            st.markdown(f"<div style='font-size:11px;color:#6b7280;margin:6px 0 14px'>Disponível: <strong>{dmin.strftime('%d/%m/%Y')}</strong> → <strong>{dmax.strftime('%d/%m/%Y')}</strong> · {len(df_f)} obs.</div>",unsafe_allow_html=True)
-            c2,c3,c4=st.columns([2,2,1])
-            with c2: d_ini=st.date_input("De",value=ddef,min_value=dmin,max_value=dmax,key="gini")
-            with c3: d_fim=st.date_input("Até",value=dmax,min_value=dmin,max_value=dmax,key="gfim")
-            with c4:
-                st.markdown("<div style='height:26px'></div>",unsafe_allow_html=True)
-                if st.button("Série completa",key="greset"):
-                    st.session_state["gini"]=dmin; st.session_state["gfim"]=dmax; st.rerun()
+            st.markdown(
+                f"<div style='font-size:11px;color:#6b7280;margin:6px 0 14px'>"
+                f"Disponível: <strong>{dmin.strftime('%d/%m/%Y')}</strong> → "
+                f"<strong>{dmax.strftime('%d/%m/%Y')}</strong> · {len(df_f)} obs. · "
+                f"<em>Série completa carregada — use os filtros para zoom inicial</em></div>",
+                unsafe_allow_html=True,
+            )
+            c2,c3=st.columns(2)
+            with c2: d_ini=st.date_input("Exibir de",value=dmin,min_value=dmin,max_value=dmax,key="gini")
+            with c3: d_fim=st.date_input("Exibir até",value=dmax,min_value=dmin,max_value=dmax,key="gfim")
+
             if d_ini<d_fim:
-                mask=(df_f["data"].dt.date>=d_ini)&(df_f["data"].dt.date<=d_fim)
-                dfg=df_f[mask].copy()
-                if not dfg.empty:
-                    st.success(f"✅ {len(dfg)} obs. · {ind} ({unit}) · {freq}")
-                    fig=bar_fig(dfg,f"{ind} ({unit})",suffix=f" {unit}",height=420,inter=True) if tipo=="bar" else line_fig(dfg,f"{ind} ({unit})","#1a2035",suffix=f" {unit}",height=420,inter=True)
-                    st.plotly_chart(fig,use_container_width=True,config={**CHART_CFG,"scrollZoom":True})
-                    dlo=dfg.copy(); dlo["data"]=dlo["data"].dt.strftime("%d/%m/%Y")
-                    st.download_button(f"💾 Baixar CSV ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ind.replace(' ','_')}_{d_ini}_{d_fim}.csv",mime="text/csv")
+                # Filtra só para definir o range inicial do eixo X — dados completos no gráfico
+                x_ini = str(d_ini)
+                x_fim = str(d_fim)
+                st.success(f"✅ {len(df_f)} obs. carregadas · {ind} ({unit}) · {freq}")
+
+                # Gráfico com série COMPLETA mas range inicial = datas selecionadas
+                if tipo == "bar":
+                    fig = bar_fig(df_f, f"{ind} ({unit})", suffix=f" {unit}", height=440, inter=True)
+                else:
+                    fig = line_fig(df_f, f"{ind} ({unit})", "#1a2035", suffix=f" {unit}", height=440, inter=True)
+
+                # Aplica zoom inicial sem cortar os dados
+                fig.update_xaxes(range=[x_ini, x_fim])
+
+                st.plotly_chart(fig, use_container_width=True, config={**CHART_CFG, "scrollZoom": True})
+
+                dlo=df_f.copy(); dlo["data"]=dlo["data"].dt.strftime("%d/%m/%Y")
+                st.download_button(
+                    f"💾 Baixar CSV completo ({len(dlo)} linhas)",
+                    data=dlo.to_csv(index=False).encode("utf-8-sig"),
+                    file_name=f"{ind.replace(' ','_')}_completo.csv",
+                    mime="text/csv",
+                )
     with t2:
         co1,co2=st.columns([2,1])
         with co1: ativo=st.selectbox("Ativo",list(GLOBAL.keys()),key="gativo")
