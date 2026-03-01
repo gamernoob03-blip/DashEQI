@@ -472,8 +472,11 @@ elif st.session_state.pagina == "Gráficos":
                 f"<em>Série completa carregada — use os filtros para zoom inicial</em></div>",
                 unsafe_allow_html=True,
             )
+            # Default: últimos 24 meses
+            from datetime import date
+            _d24 = max(dmin, date(dmax.year - 2, dmax.month, dmax.day))
             c2,c3=st.columns(2)
-            with c2: d_ini=st.date_input("Exibir de",value=dmin,min_value=dmin,max_value=dmax,key="gini")
+            with c2: d_ini=st.date_input("Exibir de",value=_d24,min_value=dmin,max_value=dmax,key="gini")
             with c3: d_fim=st.date_input("Exibir até",value=dmax,min_value=dmin,max_value=dmax,key="gfim")
 
             if d_ini<d_fim:
@@ -494,7 +497,7 @@ elif st.session_state.pagina == "Gráficos":
                 st.plotly_chart(fig, use_container_width=True, config={
                     "displayModeBar": True,
                     "scrollZoom": True,
-                    "modeBarButtonsToRemove": ["select2d","lasso2d","autoScale2d"],
+                    "modeBarButtonsToRemove": ["select2d","lasso2d"],
                     "modeBarButtonsToAdd": ["hoverclosest","hovercompare"],
                     "displaylogo": False,
                     "toImageButtonOptions": {"format":"png","filename":f"{ind}","scale":2},
@@ -519,7 +522,7 @@ elif st.session_state.pagina == "Gráficos":
                 use_container_width=True, config={
                     "displayModeBar": True,
                     "scrollZoom": True,
-                    "modeBarButtonsToRemove": ["select2d","lasso2d","autoScale2d"],
+                    "modeBarButtonsToRemove": ["select2d","lasso2d"],
                     "displaylogo": False,
                     "toImageButtonOptions": {"format":"png","filename":f"{ativo}","scale":2},
                 })
