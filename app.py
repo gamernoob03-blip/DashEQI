@@ -2,7 +2,15 @@
 app.py — Ponto de entrada
 """
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# ── Caminhos absolutos ────────────────────────────────────────────────────────
+_ROOT  = os.path.dirname(os.path.abspath(__file__))
+_VIEWS = os.path.join(_ROOT, "views")
+
+# Garante que raiz e views/ estejam no path ANTES de qualquer import
+for _p in [_ROOT, _VIEWS]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import streamlit as st
 
@@ -13,11 +21,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Imports locais (depois de set_page_config)
 import sidebar
-import importlib, sys, os
-_views = os.path.join(os.path.dirname(os.path.abspath(__file__)), "views")
-sys.path.insert(0, _views)
-import inicio, mercados, graficos, exportar
+import inicio
+import mercados
+import graficos
+import exportar
 
 sidebar.init_state()
 
@@ -27,7 +36,6 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 *, html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 
-/* Layout */
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
     background: #f0f2f5 !important;
 }
@@ -36,84 +44,56 @@ st.markdown("""
     padding-bottom: 2rem;
     max-width: 1400px;
 }
-footer, #MainMenu, header   { visibility: hidden !important; }
+footer, #MainMenu, header { visibility: hidden !important; }
 [data-testid="stToolbar"]   { display: none !important; }
 
-/* st.metric como KPI card */
 [data-testid="stMetric"] {
-    background:    #ffffff !important;
-    border:        1px solid #e2e5e9 !important;
-    border-radius: 12px !important;
-    padding:       16px !important;
-    box-shadow:    0 1px 3px rgba(0,0,0,0.05) !important;
-    text-align:    center !important;
+    background: #ffffff !important; border: 1px solid #e2e5e9 !important;
+    border-radius: 12px !important; padding: 16px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important; text-align: center !important;
 }
 [data-testid="stMetricLabel"] > div { justify-content: center !important; }
 [data-testid="stMetricLabel"] p {
-    font-size:      10px !important;
-    font-weight:    700 !important;
-    color:          #6b7280 !important;
-    text-transform: uppercase !important;
+    font-size: 10px !important; font-weight: 700 !important;
+    color: #6b7280 !important; text-transform: uppercase !important;
     letter-spacing: 1.5px !important;
 }
 [data-testid="stMetricValue"] > div { justify-content: center !important; }
 [data-testid="stMetricValue"] p {
-    font-size:   22px !important;
-    font-weight: 700 !important;
-    color:       #111827 !important;
+    font-size: 22px !important; font-weight: 700 !important; color: #111827 !important;
 }
 [data-testid="stMetricDelta"] > div { justify-content: center !important; }
 [data-testid="stMetricDelta"] p {
-    font-size:   12px !important;
-    font-weight: 600 !important;
-    color:       #6b7280 !important;
+    font-size: 12px !important; font-weight: 600 !important; color: #6b7280 !important;
 }
 [data-testid="stCaptionContainer"] p {
-    font-size:  10px !important;
-    color:      #9ca3af !important;
-    text-align: center !important;
-    margin:     0 !important;
+    font-size: 10px !important; color: #9ca3af !important;
+    text-align: center !important; margin: 0 !important;
 }
-
-/* Cabeçalho de página */
 .page-top {
-    background:      #ffffff;
-    border-bottom:   1px solid #e8eaed;
-    padding:         15px 28px;
-    margin:          0 -3rem 22px -3rem;
-    display:         flex;
-    align-items:     center;
-    justify-content: space-between;
+    background: #ffffff; border-bottom: 1px solid #e8eaed;
+    padding: 15px 28px; margin: 0 -3rem 22px -3rem;
+    display: flex; align-items: center; justify-content: space-between;
 }
 .page-top h1 { font-size: 16px; font-weight: 600; color: #111827; margin: 0; }
 .page-top .ts { font-size: 11px; color: #6b7280; text-align: right; line-height: 1.5; }
-
-/* Títulos de seção */
 .sec-title {
-    font-size:      10px;
-    font-weight:    700;
-    color:          #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin:         20px 0 12px 0;
-    padding-bottom: 8px;
-    border-bottom:  1px solid #e2e5e9;
-    display:        flex;
-    align-items:    center;
-    gap:            8px;
+    font-size: 10px; font-weight: 700; color: #6b7280;
+    text-transform: uppercase; letter-spacing: 2px;
+    margin: 20px 0 12px 0; padding-bottom: 8px;
+    border-bottom: 1px solid #e2e5e9;
+    display: flex; align-items: center; gap: 8px;
 }
 .badge-live {
     display: inline-block; background: #f0fdf4; border: 1px solid #bbf7d0;
-    color: #16a34a; font-size: 9px; font-weight: 600; padding: 2px 8px;
-    border-radius: 20px;
+    color: #16a34a; font-size: 9px; font-weight: 600;
+    padding: 2px 8px; border-radius: 20px;
 }
 .badge-daily {
     display: inline-block; background: #f5f3ff; border: 1px solid #ddd6fe;
-    color: #7c3aed; font-size: 9px; font-weight: 600; padding: 2px 8px;
-    border-radius: 20px;
+    color: #7c3aed; font-size: 9px; font-weight: 600;
+    padding: 2px 8px; border-radius: 20px;
 }
-
-/* Botões principais */
 .main .stButton > button {
     background: #1a2035 !important; color: #ffffff !important;
     border: none !important; border-radius: 7px !important;
@@ -124,16 +104,11 @@ footer, #MainMenu, header   { visibility: hidden !important; }
 .stDownloadButton > button {
     background: #ffffff !important; color: #374151 !important;
     border: 1px solid #e2e8f0 !important; border-radius: 7px !important;
-    font-weight: 500 !important; font-size: 12px !important;
 }
-
-/* Selectboxes */
 [data-testid="stSelectbox"] > div > div {
     background: #ffffff !important; border: 1px solid #e2e8f0 !important;
     border-radius: 7px !important; color: #111827 !important;
 }
-
-/* Tabs */
 [data-testid="stTabs"] [data-testid="stTabsTabList"] {
     background: transparent !important; border-bottom: 1px solid #e8eaed !important;
 }
@@ -146,8 +121,6 @@ footer, #MainMenu, header   { visibility: hidden !important; }
     color: #1a2035 !important; border-bottom: 2px solid #1a2035 !important;
     font-weight: 600 !important;
 }
-
-/* Expander */
 div[data-testid="stExpander"] {
     background: #ffffff !important; border: 1px solid #e8eaed !important;
     border-radius: 10px !important;
