@@ -6,6 +6,8 @@ Cotações em tempo real e histórico de 2 anos para ativos internacionais.
 import streamlit as st
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
+TZ_BRT = ZoneInfo("America/Sao_Paulo")
 
 from data import get_quote, get_hist, GLOBAL
 from ui   import kpi_card, line_fig, section_title, CHART_CFG, fmt
@@ -34,7 +36,7 @@ def render():
     st.markdown(
         f"<div class='page-top'><h1>Mercados Globais</h1>"
         f"<div class='ts'>Atualizado<br>"
-        f"<strong style='color:#374151'>{datetime.now().strftime('%d/%m/%Y %H:%M')}</strong>"
+        f"<strong style='color:#374151'>{datetime.now(TZ_BRT).strftime('%d/%m/%Y %H:%M')}</strong>"
         f"</div></div>",
         unsafe_allow_html=True,
     )
