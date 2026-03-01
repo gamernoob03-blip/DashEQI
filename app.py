@@ -491,7 +491,14 @@ elif st.session_state.pagina == "Gráficos":
                 # Aplica zoom inicial sem cortar os dados
                 fig.update_xaxes(range=[x_ini, x_fim])
 
-                st.plotly_chart(fig, use_container_width=True, config={**CHART_CFG, "scrollZoom": True})
+                st.plotly_chart(fig, use_container_width=True, config={
+                    "displayModeBar": True,
+                    "scrollZoom": True,
+                    "modeBarButtonsToRemove": ["select2d","lasso2d","autoScale2d"],
+                    "modeBarButtonsToAdd": ["hoverclosest","hovercompare"],
+                    "displaylogo": False,
+                    "toImageButtonOptions": {"format":"png","filename":f"{ind}","scale":2},
+                })
 
                 dlo=df_f.copy(); dlo["data"]=dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(
@@ -508,7 +515,14 @@ elif st.session_state.pagina == "Gráficos":
         with st.spinner(f"Carregando {ativo}..."): dfg=get_hist(sym,anos)
         if not dfg.empty:
             st.success(f"✅ {len(dfg)} obs. · {ativo}")
-            st.plotly_chart(line_fig(dfg,f"{ativo} — {anos} ano(s)","#1a2035",suffix=f" {unit}",height=420,inter=True),use_container_width=True,config={**CHART_CFG,"scrollZoom":True})
+            st.plotly_chart(line_fig(dfg,f"{ativo} — {anos} ano(s)","#1a2035",suffix=f" {unit}",height=420,inter=True),
+                use_container_width=True, config={
+                    "displayModeBar": True,
+                    "scrollZoom": True,
+                    "modeBarButtonsToRemove": ["select2d","lasso2d","autoScale2d"],
+                    "displaylogo": False,
+                    "toImageButtonOptions": {"format":"png","filename":f"{ativo}","scale":2},
+                })
             dlo=dfg.copy(); dlo["data"]=dlo["data"].dt.strftime("%d/%m/%Y")
             st.download_button(f"💾 Baixar CSV ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ativo.replace(' ','_')}_{anos}a.csv",mime="text/csv")
         else: st.warning("Sem dados disponíveis.")
