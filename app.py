@@ -184,7 +184,7 @@ def line_fig(df, title, color="#1a2035", fill=True, suffix="", height=260, inter
             rangeselector=dict(
                 bgcolor="#f8fafc", bordercolor="#e2e5e9", borderwidth=1,
                 font=dict(size=11, color="#374151"),
-                activecolor="#004031",
+                activecolor="#e6f0ed",  # fundo verde claro, texto escuro permanece legível
                 x=1.0, xanchor="right",   # alinha à direita, abaixo do modebar
                 y=1.0, yanchor="bottom",
                 buttons=[
@@ -212,7 +212,7 @@ def bar_fig(df, title, suffix="", height=260, inter=False):
             rangeselector=dict(
                 bgcolor="#f8fafc", bordercolor="#e2e5e9", borderwidth=1,
                 font=dict(size=11, color="#374151"),
-                activecolor="#004031",
+                activecolor="#e6f0ed",  # fundo verde claro, texto escuro permanece legível
                 x=1.0, xanchor="right",
                 y=1.0, yanchor="bottom",
                 buttons=[
@@ -499,59 +499,97 @@ elif st.session_state.pagina == "Gráficos":
     page_header("Gráficos")
     t1,t2=st.tabs(["BCB — Indicadores Brasil","Yahoo Finance — Ativos Globais"])
     with t1:
-        col1,_=st.columns([2,3])
-        with col1: ind=st.selectbox("Indicador",list(SGS.keys()),key="gind")
-        cod,unit,freq,tipo=SGS[ind]
-        # Sempre carrega série COMPLETA — filtro só afeta exibição visual do gráfico
-        with st.spinner(f"Carregando {ind}..."): df_f=get_bcb_full(cod)
+        # Opções de transformação por indicador
+        PERIODOS = {
+            "Selic":       ["Original"],
+            "IPCA":        ["Mensal (original)","Acumulado 12M","Acumulado no ano"],
+            "IBC-Br":      ["Nível (original)","Var. mensal (m/m)","Var. trimestral (t/t)","Var. anual (a/a)"],
+            "Dólar PTAX":  ["Original"],
+            "PIB":         ["Var. trimestral (original)","Var. anual (a/a)","Acumulado 4 trimestres"],
+            "Desemprego":  ["Original"],
+            "IGP-M":       ["Mensal (original)","Acumulado 12M"],
+            "IPCA-15":     ["Mensal (original)","Acumulado 12M"],
+            "Exportações": ["Original","Var. mensal (m/m)","Var. anual (a/a)"],
+            "Importações": ["Original","Var. mensal (m/m)","Var. anual (a/a)"],
+            "Dívida/PIB":  ["Original","Var. mensal (m/m)"],
+        }
+
+        def aplicar_periodo(df, periodo, ind_nome):
+            df = df.copy().sort_values("data").reset_index(drop=True)
+            if periodo == "Original" or periodo == "Mensal (original)" or periodo == "Var. trimestral (original)" or periodo == "Nível (original)":
+                return df, df.attrs.get("unit","")
+            elif periodo == "Acumulado 12M":
+                df["valor"] = df["valor"].rolling(12).sum()
+                return df.dropna(), "% acum. 12M"
+            elif periodo == "Acumulado no ano":
+                df["valor"] = df.groupby(df["data"].dt.year)["valor"].cumsum()
+                return df, "% acum. ano"
+            elif periodo == "Var. mensal (m/m)":
+                df["valor"] = df["valor"].pct_change(1) * 100
+                return df.dropna(), "% m/m"
+            elif periodo == "Var. trimestral (t/t)":
+                df["valor"] = df["valor"].pct_change(3) * 100
+                return df.dropna(), "% t/t"
+            elif periodo == "Var. anual (a/a)":
+                df["valor"] = df["valor"].pct_change(12) * 100
+                return df.dropna(), "% a/a"
+            elif periodo == "Acumulado 4 trimestres":
+                df["valor"] = df["valor"].rolling(4).sum()
+                return df.dropna(), "% acum. 4 tri"
+            return df, ""
+
+        col1, col2 = st.columns([2, 2])
+        with col1: ind = st.selectbox("Indicador", list(SGS.keys()), key="gind")
+        opts = PERIODOS.get(ind, ["Original"])
+        with col2:
+            periodo = st.selectbox("Período / Transformação", opts, key="gperiodo") if len(opts) > 1 else opts[0]
+
+        cod, unit, freq, tipo = SGS[ind]
+        with st.spinner(f"Carregando {ind}..."): df_f = get_bcb_full(cod)
         if df_f.empty:
             st.warning("⚠️ API BCB temporariamente indisponível.")
         else:
-            dmin=df_f["data"].min().date(); dmax=df_f["data"].max().date()
+            # Aplica transformação
+            df_t, unit_t = aplicar_periodo(df_f, periodo, ind)
+            if not unit_t: unit_t = unit
+            label_t = f"{ind} — {periodo}" if periodo not in ("Original","Mensal (original)","Nível (original)","Var. trimestral (original)") else f"{ind} ({unit_t})"
+
+            dmin = df_t["data"].min().date(); dmax = df_t["data"].max().date()
             st.markdown(
                 f"<div style='font-size:11px;color:#6b7280;margin:6px 0 14px'>"
                 f"Disponível: <strong>{dmin.strftime('%d/%m/%Y')}</strong> → "
-                f"<strong>{dmax.strftime('%d/%m/%Y')}</strong> · {len(df_f)} obs. · "
-                f"<em>Série completa carregada — use os filtros para zoom inicial</em></div>",
+                f"<strong>{dmax.strftime('%d/%m/%Y')}</strong> · {len(df_t)} obs. · "
+                f"<em>Série completa carregada</em></div>",
                 unsafe_allow_html=True,
             )
-            # Default: últimos 24 meses
-            from datetime import date
-            _d24 = max(dmin, date(dmax.year - 2, dmax.month, dmax.day))
-            c2,c3=st.columns(2)
-            with c2: d_ini=st.date_input("Exibir de",value=_d24,min_value=dmin,max_value=dmax,key="gini")
-            with c3: d_fim=st.date_input("Exibir até",value=dmax,min_value=dmin,max_value=dmax,key="gfim")
+            from datetime import date as _date
+            _d24 = max(dmin, _date(dmax.year - 2, dmax.month, dmax.day))
+            c2, c3 = st.columns(2)
+            with c2: d_ini = st.date_input("Exibir de", value=_d24, min_value=dmin, max_value=dmax, key="gini")
+            with c3: d_fim = st.date_input("Exibir até", value=dmax, min_value=dmin, max_value=dmax, key="gfim")
 
-            if d_ini<d_fim:
-                # Filtra só para definir o range inicial do eixo X — dados completos no gráfico
-                x_ini = str(d_ini)
-                x_fim = str(d_fim)
-                st.success(f"✅ {len(df_f)} obs. carregadas · {ind} ({unit}) · {freq}")
-
-                # Gráfico com série COMPLETA mas range inicial = datas selecionadas
-                if tipo == "bar":
-                    fig = bar_fig(df_f, f"{ind} ({unit})", suffix=f" {unit}", height=440, inter=True)
+            if d_ini < d_fim:
+                st.success(f"✅ {len(df_t)} obs. · {label_t} · {freq}")
+                # Decide bar or line based on tipo AND transformação
+                use_bar = (tipo == "bar") and (periodo in ("Original","Mensal (original)","Var. trimestral (original)"))
+                if use_bar:
+                    fig = bar_fig(df_t, label_t, suffix=f" {unit_t}", height=440, inter=True)
                 else:
-                    fig = line_fig(df_f, f"{ind} ({unit})", "#1a2035", suffix=f" {unit}", height=440, inter=True)
-
-                # Aplica zoom inicial sem cortar os dados
-                fig.update_xaxes(range=[x_ini, x_fim])
-
+                    fig = line_fig(df_t, label_t, "#004031", suffix=f" {unit_t}", height=440, inter=True)
+                fig.update_xaxes(range=[str(d_ini), str(d_fim)])
                 st.plotly_chart(fig, use_container_width=True, config={
                     "displayModeBar": True,
                     "scrollZoom": True,
                     "modeBarButtonsToRemove": ["select2d","lasso2d","autoScale2d","resetScale2d"],
                     "modeBarButtonsToAdd": ["zoomIn2d","zoomOut2d"],
-                    "modeBarButtonsToAdd": ["hoverclosest","hovercompare"],
                     "displaylogo": False,
-                    "toImageButtonOptions": {"format":"png","filename":f"{ind}","scale":2},
+                    "toImageButtonOptions": {"format":"png","filename":f"{ind}_{periodo}","scale":2},
                 })
-
-                dlo=df_f.copy(); dlo["data"]=dlo["data"].dt.strftime("%d/%m/%Y")
+                dlo = df_t.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(
-                    f"💾 Baixar CSV completo ({len(dlo)} linhas)",
+                    f"💾 Baixar CSV ({len(dlo)} linhas)",
                     data=dlo.to_csv(index=False).encode("utf-8-sig"),
-                    file_name=f"{ind.replace(' ','_')}_completo.csv",
+                    file_name=f"{ind.replace(' ','_')}_{periodo.replace(' ','_')}.csv",
                     mime="text/csv",
                 )
     with t2:
