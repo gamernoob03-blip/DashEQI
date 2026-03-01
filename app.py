@@ -14,7 +14,10 @@ st.set_page_config(
 )
 
 import sidebar
-from views import inicio, mercados, graficos, exportar
+import importlib, sys, os
+_views = os.path.join(os.path.dirname(os.path.abspath(__file__)), "views")
+sys.path.insert(0, _views)
+import inicio, mercados, graficos, exportar
 
 sidebar.init_state()
 
