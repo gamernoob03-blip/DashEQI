@@ -180,37 +180,13 @@ def line_fig(df, title, color="#1a2035", fill=True, suffix="", height=260, inter
     fig.update_layout(**(_I if inter else _B),title=title,height=height)
     if inter:
         fig.update_xaxes(
-            rangeslider=dict(visible=True, thickness=0.06, bgcolor="#f1f5f9"),
+            rangeslider=dict(visible=True, thickness=0.05, bgcolor="#f1f5f9"),
             rangeselector=dict(
-                bgcolor="#ffffff", bordercolor="#e2e5e9", borderwidth=1,
+                bgcolor="#f8fafc", bordercolor="#e2e5e9", borderwidth=1,
                 font=dict(size=11, color="#374151"),
                 activecolor="#004031",
-                buttons=[
-                    dict(count=6,  label="6M",  step="month", stepmode="backward"),
-                    dict(count=1,  label="1A",  step="year",  stepmode="backward"),
-                    dict(count=2,  label="2A",  step="year",  stepmode="backward"),
-                    dict(count=5,  label="5A",  step="year",  stepmode="backward"),
-                    dict(step="all", label="Tudo"),
-                ],
-            ),
-        )
-        fig.update_yaxes(fixedrange=False)  # Y: drag on axis label to rescale
-        fig.update_layout(height=height+40)  # extra space for rangeslider
-    return _rng(fig,df,suffix) if not df.empty else fig
-
-def bar_fig(df, title, suffix="", height=260, inter=False):
-    fig = go.Figure()
-    fig.add_trace(go.Bar(x=df["data"],y=df["valor"],
-        marker_color=["#16a34a" if v>=0 else "#dc2626" for v in df["valor"]],marker_line_width=0,
-        hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.4f}}{suffix}</b><extra></extra>"))
-    fig.update_layout(**(_I if inter else _B),title=title,height=height)
-    if inter:
-        fig.update_xaxes(
-            rangeslider=dict(visible=True, thickness=0.06, bgcolor="#f1f5f9"),
-            rangeselector=dict(
-                bgcolor="#ffffff", bordercolor="#e2e5e9", borderwidth=1,
-                font=dict(size=11, color="#374151"),
-                activecolor="#004031",
+                x=1.0, xanchor="right",   # alinha à direita, abaixo do modebar
+                y=1.0, yanchor="bottom",
                 buttons=[
                     dict(count=6,  label="6M",  step="month", stepmode="backward"),
                     dict(count=1,  label="1A",  step="year",  stepmode="backward"),
@@ -221,7 +197,35 @@ def bar_fig(df, title, suffix="", height=260, inter=False):
             ),
         )
         fig.update_yaxes(fixedrange=False)
-        fig.update_layout(height=height+40)
+        fig.update_layout(height=height+40, margin=dict(t=72))  # espaço para rangeselector
+    return _rng(fig,df,suffix) if not df.empty else fig
+
+def bar_fig(df, title, suffix="", height=260, inter=False):
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=df["data"],y=df["valor"],
+        marker_color=["#16a34a" if v>=0 else "#dc2626" for v in df["valor"]],marker_line_width=0,
+        hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.4f}}{suffix}</b><extra></extra>"))
+    fig.update_layout(**(_I if inter else _B),title=title,height=height)
+    if inter:
+        fig.update_xaxes(
+            rangeslider=dict(visible=True, thickness=0.05, bgcolor="#f1f5f9"),
+            rangeselector=dict(
+                bgcolor="#f8fafc", bordercolor="#e2e5e9", borderwidth=1,
+                font=dict(size=11, color="#374151"),
+                activecolor="#004031",
+                x=1.0, xanchor="right",
+                y=1.0, yanchor="bottom",
+                buttons=[
+                    dict(count=6,  label="6M",  step="month", stepmode="backward"),
+                    dict(count=1,  label="1A",  step="year",  stepmode="backward"),
+                    dict(count=2,  label="2A",  step="year",  stepmode="backward"),
+                    dict(count=5,  label="5A",  step="year",  stepmode="backward"),
+                    dict(step="all", label="Tudo"),
+                ],
+            ),
+        )
+        fig.update_yaxes(fixedrange=False)
+        fig.update_layout(height=height+40, margin=dict(t=72))
     return _rng(fig,df,suffix,.15) if not df.empty else fig
 
 # ── Data BCB ──────────────────────────────────────────────────────────────────
@@ -536,8 +540,8 @@ elif st.session_state.pagina == "Gráficos":
                 st.plotly_chart(fig, use_container_width=True, config={
                     "displayModeBar": True,
                     "scrollZoom": True,
-                    "modeBarButtonsToRemove": ["select2d","lasso2d"],
-                    "modeBarButtonsToAdd": ["zoomIn2d","zoomOut2d","autoScale2d"],
+                    "modeBarButtonsToRemove": ["select2d","lasso2d","autoScale2d","resetScale2d"],
+                    "modeBarButtonsToAdd": ["zoomIn2d","zoomOut2d"],
                     "modeBarButtonsToAdd": ["hoverclosest","hovercompare"],
                     "displaylogo": False,
                     "toImageButtonOptions": {"format":"png","filename":f"{ind}","scale":2},
@@ -562,8 +566,8 @@ elif st.session_state.pagina == "Gráficos":
                 use_container_width=True, config={
                     "displayModeBar": True,
                     "scrollZoom": True,
-                    "modeBarButtonsToRemove": ["select2d","lasso2d"],
-                    "modeBarButtonsToAdd": ["zoomIn2d","zoomOut2d","autoScale2d"],
+                    "modeBarButtonsToRemove": ["select2d","lasso2d","autoScale2d","resetScale2d"],
+                    "modeBarButtonsToAdd": ["zoomIn2d","zoomOut2d"],
                     "displaylogo": False,
                     "toImageButtonOptions": {"format":"png","filename":f"{ativo}","scale":2},
                 })
