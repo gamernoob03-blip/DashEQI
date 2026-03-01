@@ -5,6 +5,8 @@ Exibe os KPI cards principais e gráficos históricos de 12 meses.
 
 import streamlit as st
 from datetime import datetime
+from zoneinfo import ZoneInfo
+TZ_BRT = ZoneInfo("America/Sao_Paulo")
 
 from data import get_quote, get_bcb, SGS, GLOBAL
 from ui   import kpi_card, line_fig, bar_fig, section_title, CHART_CFG, fmt
@@ -16,7 +18,7 @@ def render():
         f"<div class='page-top'>"
         f"<h1>Dashboard Macro Brasil</h1>"
         f"<div class='ts'>Atualizado<br>"
-        f"<strong style='color:#374151'>{datetime.now().strftime('%d/%m/%Y %H:%M')}</strong>"
+        f"<strong style='color:#374151'>{datetime.now(TZ_BRT).strftime('%d/%m/%Y %H:%M')}</strong>"
         f"</div></div>",
         unsafe_allow_html=True,
     )
