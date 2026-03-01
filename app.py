@@ -215,32 +215,105 @@ def get_bcb_full(c):
 def get_bcb_range(c,ini,fim):
     return _build(_fetch(BCB_BASE.format(c=c)+f"?formato=json&dataInicial={ini}&dataFinal={fim}"))
 
-# ── Data Yahoo ────────────────────────────────────────────────────────────────
-@st.cache_data(ttl=60,show_spinner=False)
-def get_quote(sym):
+# ── Data Yahoo / yfinance ────────────────────────────────────────────────────
+def _yf_quote_raw(sym):
+    """Tenta buscar cotação via yfinance (biblioteca) — mais confiável no Streamlit Cloud."""
     try:
-        meta=requests.get(YAHOO_SNAP.format(s=sym),headers=HDRS,timeout=10).json()["chart"]["result"][0]["meta"]
-        ms=meta.get("marketState","CLOSED"); live=ms=="REGULAR"; ext=ms in("PRE","POST","PREPRE","POSTPOST")
-        if live or ext:
-            price=meta.get("regularMarketPrice") or meta.get("previousClose")
-            prev=meta.get("chartPreviousClose") or meta.get("previousClose",price); cd=None
-        else:
-            price=meta.get("previousClose") or meta.get("regularMarketPrice")
-            prev=meta.get("chartPreviousClose") or price
-            rt=meta.get("regularMarketTime"); cd=datetime.fromtimestamp(rt).strftime("%d/%m/%Y") if rt else None
-        if price is None: return {}
-        return {"price":price,"prev":prev,"chg_p":((price-prev)/prev*100) if prev else None,
-                "chg_v":(price-prev) if prev else None,"market":ms,
-                "is_live":live,"is_extended":ext,"is_closed":not(live or ext),"close_date":cd}
-    except: return {}
+        import yfinance as yf
+        tk   = yf.Ticker(sym)
+        hist = tk.history(period="5d", auto_adjust=True)
+        if hist.empty:
+            return None
+        fi    = tk.fast_info
+        price = None
+        try:    price = float(fi.last_price)
+        except: pass
+        if not price:
+            price = float(hist["Close"].iloc[-1])
+        prev = None
+        try:    prev = float(fi.previous_close)
+        except: pass
+        if not prev and len(hist) >= 2:
+            prev = float(hist["Close"].iloc[-2])
+        last_dt   = hist.index[-1]
+        last_date = pd.Timestamp(last_dt).tz_localize(None).date()
+        return {"price": price, "prev": prev, "last_date": last_date}
+    except:
+        return None
 
-@st.cache_data(ttl=3600,show_spinner=False)
-def get_hist(sym,years=5):
+def _http_quote_raw(sym):
+    """Fallback via HTTP direto para Yahoo Finance v7 e v8."""
+    urls = [
+        f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=5d",
+        f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={sym}",
+    ]
+    for url in urls:
+        try:
+            r = requests.get(url, headers=HDRS, timeout=10, verify=False)
+            if r.status_code != 200: continue
+            data = r.json()
+            # v8 chart
+            if "chart" in data:
+                meta  = data["chart"]["result"][0]["meta"]
+                price = meta.get("regularMarketPrice") or meta.get("previousClose")
+                prev  = meta.get("chartPreviousClose") or meta.get("previousClose")
+                rt    = meta.get("regularMarketTime")
+                last_date = datetime.fromtimestamp(rt).date() if rt else None
+                if price: return {"price": float(price), "prev": float(prev) if prev else None, "last_date": last_date}
+            # v7 quote
+            if "quoteResponse" in data:
+                q     = data["quoteResponse"]["result"][0]
+                price = q.get("regularMarketPrice")
+                prev  = q.get("regularMarketPreviousClose")
+                if price: return {"price": float(price), "prev": float(prev) if prev else None, "last_date": now_brt().date()}
+        except:
+            continue
+    return None
+
+@st.cache_data(ttl=60, show_spinner=False)
+def get_quote(sym):
+    raw = _yf_quote_raw(sym) or _http_quote_raw(sym)
+    if not raw or not raw.get("price"):
+        return {}
+    price      = raw["price"]
+    prev       = raw.get("prev") or price
+    last_date  = raw.get("last_date")
+    today_brt  = now_brt().date()
+    is_today   = (last_date == today_brt) if last_date else False
+    cd         = last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None
+    chg_p = ((price - prev) / prev * 100) if (prev and prev != 0) else None
+    chg_v = (price - prev) if prev else None
+    return {"price": price, "prev": prev, "chg_p": chg_p, "chg_v": chg_v,
+            "market": "REGULAR" if is_today else "CLOSED",
+            "is_live": is_today, "is_extended": False,
+            "is_closed": not is_today,
+            "close_date": cd}
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_hist(sym, years=5):
+    # Tenta yfinance primeiro
     try:
-        res=requests.get(YAHOO_HIST.format(s=sym,y=years),headers=HDRS,timeout=12).json()["chart"]["result"][0]
-        df=pd.DataFrame({"data":pd.to_datetime(res["timestamp"],unit="s"),"valor":res["indicators"]["quote"][0]["close"]})
+        import yfinance as yf
+        df = yf.download(sym, period=f"{years}y", auto_adjust=True, progress=False)
+        if not df.empty:
+            if isinstance(df.columns, pd.MultiIndex):
+                closes = df["Close"].iloc[:, 0]
+            else:
+                closes = df["Close"]
+            result = pd.DataFrame({"data": df.index, "valor": closes.values.flatten()})
+            result["data"] = pd.to_datetime(result["data"]).dt.tz_localize(None)
+            return result.dropna().reset_index(drop=True)
+    except: pass
+    # Fallback HTTP
+    try:
+        r   = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range={years}y",
+                           headers=HDRS, timeout=15, verify=False)
+        res = r.json()["chart"]["result"][0]
+        df  = pd.DataFrame({"data": pd.to_datetime(res["timestamp"], unit="s"),
+                            "valor": res["indicators"]["quote"][0]["close"]})
         return df.dropna().reset_index(drop=True)
-    except: return pd.DataFrame(columns=["data","valor"])
+    except:
+        return pd.DataFrame(columns=["data", "valor"])
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
