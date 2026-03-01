@@ -158,7 +158,10 @@ _B = dict(paper_bgcolor="#fff",plot_bgcolor="#fff",font_color="#6b7280",font_fam
           yaxis=dict(gridcolor="#f1f5f9",showline=False,tickfont=dict(size=10,color="#9ca3af"),zeroline=False,fixedrange=True),
           title_font=dict(color="#374151",size=12,family="Inter"),
           hoverlabel=dict(bgcolor="#1a2035",font_size=12,font_color="#e2e8f0"),dragmode=False)
-_I = {**_B,"xaxis":{**_B["xaxis"],"fixedrange":False},"yaxis":{**_B["yaxis"],"fixedrange":False},"dragmode":"pan"}
+_I = {**_B,
+      "xaxis":{**_B["xaxis"],"fixedrange":False},
+      "yaxis":{**_B["yaxis"],"fixedrange":False},
+      "dragmode":"zoom"}  # drag=zoom; shift+drag=pan
 
 def _rng(fig, df, sfx="", pad=0.08):
     if df.empty: return fig
@@ -175,6 +178,24 @@ def line_fig(df, title, color="#1a2035", fill=True, suffix="", height=260, inter
         fill="tozeroy" if fill else "none",fillcolor=hex_rgba(color,.07),
         hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.2f}}{suffix}</b><extra></extra>"))
     fig.update_layout(**(_I if inter else _B),title=title,height=height)
+    if inter:
+        fig.update_xaxes(
+            rangeslider=dict(visible=True, thickness=0.06, bgcolor="#f1f5f9"),
+            rangeselector=dict(
+                bgcolor="#ffffff", bordercolor="#e2e5e9", borderwidth=1,
+                font=dict(size=11, color="#374151"),
+                activecolor="#004031",
+                buttons=[
+                    dict(count=6,  label="6M",  step="month", stepmode="backward"),
+                    dict(count=1,  label="1A",  step="year",  stepmode="backward"),
+                    dict(count=2,  label="2A",  step="year",  stepmode="backward"),
+                    dict(count=5,  label="5A",  step="year",  stepmode="backward"),
+                    dict(step="all", label="Tudo"),
+                ],
+            ),
+        )
+        fig.update_yaxes(fixedrange=False)  # Y: drag on axis label to rescale
+        fig.update_layout(height=height+40)  # extra space for rangeslider
     return _rng(fig,df,suffix) if not df.empty else fig
 
 def bar_fig(df, title, suffix="", height=260, inter=False):
@@ -183,6 +204,24 @@ def bar_fig(df, title, suffix="", height=260, inter=False):
         marker_color=["#16a34a" if v>=0 else "#dc2626" for v in df["valor"]],marker_line_width=0,
         hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.4f}}{suffix}</b><extra></extra>"))
     fig.update_layout(**(_I if inter else _B),title=title,height=height)
+    if inter:
+        fig.update_xaxes(
+            rangeslider=dict(visible=True, thickness=0.06, bgcolor="#f1f5f9"),
+            rangeselector=dict(
+                bgcolor="#ffffff", bordercolor="#e2e5e9", borderwidth=1,
+                font=dict(size=11, color="#374151"),
+                activecolor="#004031",
+                buttons=[
+                    dict(count=6,  label="6M",  step="month", stepmode="backward"),
+                    dict(count=1,  label="1A",  step="year",  stepmode="backward"),
+                    dict(count=2,  label="2A",  step="year",  stepmode="backward"),
+                    dict(count=5,  label="5A",  step="year",  stepmode="backward"),
+                    dict(step="all", label="Tudo"),
+                ],
+            ),
+        )
+        fig.update_yaxes(fixedrange=False)
+        fig.update_layout(height=height+40)
     return _rng(fig,df,suffix,.15) if not df.empty else fig
 
 # ── Data BCB ──────────────────────────────────────────────────────────────────
@@ -498,6 +537,7 @@ elif st.session_state.pagina == "Gráficos":
                     "displayModeBar": True,
                     "scrollZoom": True,
                     "modeBarButtonsToRemove": ["select2d","lasso2d"],
+                    "modeBarButtonsToAdd": ["zoomIn2d","zoomOut2d","autoScale2d"],
                     "modeBarButtonsToAdd": ["hoverclosest","hovercompare"],
                     "displaylogo": False,
                     "toImageButtonOptions": {"format":"png","filename":f"{ind}","scale":2},
@@ -523,6 +563,7 @@ elif st.session_state.pagina == "Gráficos":
                     "displayModeBar": True,
                     "scrollZoom": True,
                     "modeBarButtonsToRemove": ["select2d","lasso2d"],
+                    "modeBarButtonsToAdd": ["zoomIn2d","zoomOut2d","autoScale2d"],
                     "displaylogo": False,
                     "toImageButtonOptions": {"format":"png","filename":f"{ativo}","scale":2},
                 })
