@@ -1,14 +1,20 @@
 """
-data.py — Camada de dados
-Responsável por todas as chamadas às APIs (BCB/SGS e Yahoo Finance)
-e pelo cache dos resultados.
+data.py — Camada de dados (BCB/SGS + Yahoo Finance)
 """
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import warnings
 import requests
+import urllib3
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
 import time
+
+# Silencia warnings de SSL (BCB usa certificado que falha em alguns ambientes)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+warnings.filterwarnings("ignore", message="Unverified HTTPS")
 
 # ─── CONSTANTES ──────────────────────────────────────────────────────────────
 BCB_BASE   = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados"
@@ -24,7 +30,6 @@ HEADERS = {
     "Accept": "application/json",
 }
 
-# Séries BCB/SGS disponíveis: (código, unidade, frequência, tipo de gráfico)
 SGS = {
     "Selic":       (432,   "% a.a.",  "Mensal",     "line"),
     "IPCA":        (433,   "% mês",   "Mensal",     "bar"),
@@ -39,7 +44,6 @@ SGS = {
     "Dívida/PIB":  (4513,  "%",       "Mensal",     "line"),
 }
 
-# Ativos Yahoo Finance: (símbolo, unidade, inverter_cor_delta)
 GLOBAL = {
     "IBOVESPA":        ("^BVSP",    "pts",    False),
     "Dólar (USD/BRL)": ("USDBRL=X", "R$",     True),
@@ -58,9 +62,8 @@ GLOBAL = {
     "Ethereum":        ("ETH-USD",  "US$",    False),
 }
 
-# ─── UTILS ────────────────────────────────────────────────────────────────────
+# ─── UTILS ───────────────────────────────────────────────────────────────────
 def parse_bcb_valor(valor_str):
-    """Converte string de valor BCB (formato pt-BR) para float."""
     if valor_str is None:
         return None
     s = str(valor_str).strip().replace("\xa0", "").replace(" ", "")
@@ -71,9 +74,7 @@ def parse_bcb_valor(valor_str):
     except (ValueError, TypeError):
         return None
 
-
 def _build_df(raw: list) -> pd.DataFrame:
-    """Transforma lista bruta da API BCB em DataFrame padronizado."""
     if not raw:
         return pd.DataFrame(columns=["data", "valor"])
     df = pd.DataFrame(raw)
@@ -84,78 +85,49 @@ def _build_df(raw: list) -> pd.DataFrame:
     df = df.dropna(subset=["data", "valor"]).sort_values("data").reset_index(drop=True)
     return df[["data", "valor"]]
 
-
-# ─── BCB/SGS ──────────────────────────────────────────────────────────────────
+# ─── BCB/SGS ─────────────────────────────────────────────────────────────────
 def _bcb_fetch(url: str) -> list:
-    """Faz requisição à API BCB com retry (3 tentativas)."""
     for attempt in range(3):
         try:
-            kwargs = dict(headers=HEADERS, timeout=20)
-            if attempt == 2:
-                kwargs["verify"] = False  # último recurso: ignorar SSL
-            r = requests.get(url, **kwargs)
+            r = requests.get(url, headers=HEADERS, timeout=20, verify=False)
             if r.status_code != 200:
-                time.sleep(1)
-                continue
+                time.sleep(1); continue
             if "html" in r.headers.get("Content-Type", "").lower():
-                time.sleep(1)
-                continue
+                time.sleep(1); continue
             data = r.json()
-            if isinstance(data, dict):
-                time.sleep(1)
-                continue
             if isinstance(data, list) and len(data) > 0:
                 return data
             time.sleep(0.5)
-        except requests.exceptions.SSLError:
-            if attempt < 2:
-                time.sleep(1)
-                continue
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
             if attempt < 2:
                 time.sleep(1)
-                continue
         except Exception:
             break
     return []
 
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_bcb(codigo: int, ultimos: int) -> pd.DataFrame:
-    """Retorna os últimos N registros de uma série BCB/SGS."""
     url = BCB_BASE.format(codigo=codigo) + f"/ultimos/{ultimos}?formato=json"
     raw = _bcb_fetch(url)
     if not raw:
-        # Fallback: busca por intervalo de datas
         hoje = datetime.today()
         ini  = (hoje - timedelta(days=ultimos * 45)).strftime("%d/%m/%Y")
         fim  = hoje.strftime("%d/%m/%Y")
-        raw  = _bcb_fetch(
-            BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"
-        )
+        raw  = _bcb_fetch(BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}")
     return _build_df(raw)
-
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_bcb_full(codigo: int) -> pd.DataFrame:
-    """Retorna a série histórica completa de um indicador BCB/SGS."""
     return _build_df(_bcb_fetch(BCB_BASE.format(codigo=codigo) + "?formato=json"))
-
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_bcb_range(codigo: int, ini: str, fim: str) -> pd.DataFrame:
-    """Retorna série BCB/SGS filtrada por intervalo de datas (dd/mm/yyyy)."""
-    url = BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"
-    return _build_df(_bcb_fetch(url))
-
+    return _build_df(_bcb_fetch(
+        BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"))
 
 # ─── YAHOO FINANCE ────────────────────────────────────────────────────────────
 @st.cache_data(ttl=60, show_spinner=False)
 def get_quote(symbol: str) -> dict:
-    """
-    Retorna cotação atual de um ativo via Yahoo Finance.
-    Resultado: {price, prev, chg_p, chg_v, market, is_live, is_extended, is_closed, close_date}
-    """
     try:
         r = requests.get(YAHOO_SNAP.format(sym=symbol), headers=HEADERS, timeout=10)
         r.raise_for_status()
@@ -187,7 +159,6 @@ def get_quote(symbol: str) -> dict:
 
         chg_p = ((price - prev) / prev * 100) if (prev and prev != 0) else None
         chg_v = (price - prev) if prev else None
-
         return {
             "price": price, "prev": prev, "chg_p": chg_p, "chg_v": chg_v,
             "market": market_state, "is_live": is_live,
@@ -196,10 +167,8 @@ def get_quote(symbol: str) -> dict:
     except Exception:
         return {}
 
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_hist(symbol: str, years: int = 5) -> pd.DataFrame:
-    """Retorna histórico de fechamento diário de um ativo Yahoo Finance."""
     try:
         r = requests.get(YAHOO_HIST.format(sym=symbol, y=years), headers=HEADERS, timeout=12)
         r.raise_for_status()
