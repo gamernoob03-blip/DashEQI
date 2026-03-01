@@ -3,3 +3,4 @@ requests>=2.31.0
 pandas>=2.0.0
 plotly>=5.18.0
 tzdata
+yfinance>=0.2.36
