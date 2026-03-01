@@ -371,6 +371,30 @@ def get_hist(sym, years=5):
     except:
         return pd.DataFrame(columns=["data", "valor"])
 
+def aplicar_periodo(df, periodo, ind_nome):
+    df = df.copy().sort_values("data").reset_index(drop=True)
+    if periodo == "Original" or periodo == "Mensal (original)" or periodo == "Var. trimestral (original)" or periodo == "Nível (original)":
+        return df, df.attrs.get("unit","")
+    elif periodo == "Acumulado 12M":
+        df["valor"] = df["valor"].rolling(12).sum()
+        return df.dropna(), "% acum. 12M"
+    elif periodo == "Acumulado no ano":
+        df["valor"] = df.groupby(df["data"].dt.year)["valor"].cumsum()
+        return df, "% acum. ano"
+    elif periodo == "Var. mensal (m/m)":
+        df["valor"] = df["valor"].pct_change(1) * 100
+        return df.dropna(), "% m/m"
+    elif periodo == "Var. trimestral (t/t)":
+        df["valor"] = df["valor"].pct_change(3) * 100
+        return df.dropna(), "% t/t"
+    elif periodo == "Var. anual (a/a)":
+        df["valor"] = df["valor"].pct_change(12) * 100
+        return df.dropna(), "% a/a"
+    elif periodo == "Acumulado 4 trimestres":
+        df["valor"] = df["valor"].rolling(4).sum()
+        return df.dropna(), "% acum. 4 tri"
+    return df, ""
+
 # ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
@@ -514,29 +538,7 @@ elif st.session_state.pagina == "Gráficos":
             "Dívida/PIB":  ["Original","Var. mensal (m/m)"],
         }
 
-        def aplicar_periodo(df, periodo, ind_nome):
-            df = df.copy().sort_values("data").reset_index(drop=True)
-            if periodo == "Original" or periodo == "Mensal (original)" or periodo == "Var. trimestral (original)" or periodo == "Nível (original)":
-                return df, df.attrs.get("unit","")
-            elif periodo == "Acumulado 12M":
-                df["valor"] = df["valor"].rolling(12).sum()
-                return df.dropna(), "% acum. 12M"
-            elif periodo == "Acumulado no ano":
-                df["valor"] = df.groupby(df["data"].dt.year)["valor"].cumsum()
-                return df, "% acum. ano"
-            elif periodo == "Var. mensal (m/m)":
-                df["valor"] = df["valor"].pct_change(1) * 100
-                return df.dropna(), "% m/m"
-            elif periodo == "Var. trimestral (t/t)":
-                df["valor"] = df["valor"].pct_change(3) * 100
-                return df.dropna(), "% t/t"
-            elif periodo == "Var. anual (a/a)":
-                df["valor"] = df["valor"].pct_change(12) * 100
-                return df.dropna(), "% a/a"
-            elif periodo == "Acumulado 4 trimestres":
-                df["valor"] = df["valor"].rolling(4).sum()
-                return df.dropna(), "% acum. 4 tri"
-            return df, ""
+        # aplicar_periodo definida no escopo global acima
 
         col1, col2 = st.columns([2, 2])
         with col1: ind = st.selectbox("Indicador", list(SGS.keys()), key="gind")
@@ -618,43 +620,100 @@ elif st.session_state.pagina == "Gráficos":
 # ══════════════════════════════════════════════════════════════════════════════
 else:
     page_header("Exportar Dados")
-    fonte=st.radio("Fonte:",["BCB/SGS — Brasil","Yahoo Finance — Globais"],horizontal=True)
-    st.markdown("<div style='height:10px'></div>",unsafe_allow_html=True)
-    if fonte=="BCB/SGS — Brasil":
-        c1,c2,c3=st.columns([2,1.5,1.5])
-        with c1: ind=st.selectbox("Indicador",list(SGS.keys()),index=1,key="eind")
-        with c2: d_ini=st.date_input("De",value=datetime.today()-timedelta(days=365),key="eini")
-        with c3: d_fim=st.date_input("Até",value=datetime.today(),key="efim")
-        modo=st.radio("Período:",["Usar datas acima","Série completa desde o início"],horizontal=True,key="emodo")
-        if st.button("Gerar CSV",type="primary",key="ebtn"):
-            cod,unit,freq,_=SGS[ind]
-            with st.spinner(f"Buscando {ind}..."):
-                dfe=get_bcb_full(cod) if "completa" in modo else get_bcb_range(cod,d_ini.strftime("%d/%m/%Y"),d_fim.strftime("%d/%m/%Y"))
-            if dfe.empty: st.warning("Nenhum dado encontrado.")
+    fonte = st.radio("Fonte:", ["BCB/SGS — Brasil", "Yahoo Finance — Globais"], horizontal=True)
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
+    if fonte == "BCB/SGS — Brasil":
+        # mesmas opções de período da aba Gráficos
+        _PERIODOS_EXP = {
+            "Selic":       ["Original"],
+            "IPCA":        ["Mensal (original)", "Acumulado 12M", "Acumulado no ano"],
+            "IBC-Br":      ["Nível (original)", "Var. mensal (m/m)", "Var. trimestral (t/t)", "Var. anual (a/a)"],
+            "Dólar PTAX":  ["Original"],
+            "PIB":         ["Var. trimestral (original)", "Var. anual (a/a)", "Acumulado 4 trimestres"],
+            "Desemprego":  ["Original"],
+            "IGP-M":       ["Mensal (original)", "Acumulado 12M"],
+            "IPCA-15":     ["Mensal (original)", "Acumulado 12M"],
+            "Exportações": ["Original", "Var. mensal (m/m)", "Var. anual (a/a)"],
+            "Importações": ["Original", "Var. mensal (m/m)", "Var. anual (a/a)"],
+            "Dívida/PIB":  ["Original", "Var. mensal (m/m)"],
+        }
+
+        c1, c2 = st.columns([2, 2])
+        with c1: ind = st.selectbox("Indicador", list(SGS.keys()), index=1, key="eind")
+        opts_e = _PERIODOS_EXP.get(ind, ["Original"])
+        with c2:
+            periodo_e = st.selectbox("Período / Transformação", opts_e, key="eperiodo") if len(opts_e) > 1 else opts_e[0]
+
+        c3, c4 = st.columns(2)
+        with c3: d_ini = st.date_input("De", value=datetime.today() - timedelta(days=365*5), key="eini")
+        with c4: d_fim = st.date_input("Até", value=datetime.today(), key="efim")
+        modo = st.radio("Dados:", ["Filtrar pelo intervalo acima", "Série completa desde o início"],
+                        horizontal=True, key="emodo")
+
+        if st.button("Gerar CSV", type="primary", key="ebtn"):
+            cod, unit, freq, _ = SGS[ind]
+            with st.spinner(f"Carregando {ind}..."):
+                if "completa" in modo:
+                    dfe = get_bcb_full(cod)
+                else:
+                    dfe = get_bcb_range(cod, d_ini.strftime("%d/%m/%Y"), d_fim.strftime("%d/%m/%Y"))
+
+            if dfe.empty:
+                st.warning("Nenhum dado encontrado.")
             else:
-                dlo=dfe.copy(); dlo["data"]=dlo["data"].dt.strftime("%d/%m/%Y")
-                st.success(f"✅ {len(dlo)} registros — {ind} ({unit})")
-                st.dataframe(dlo.rename(columns={"data":"Data","valor":f"Valor ({unit})"}),use_container_width=True,height=min(380,46+len(dlo)*35))
-                suf="completo" if "completa" in modo else f"{d_ini}_{d_fim}"
-                nome=f"{ind.replace(' ','_')}_{suf}.csv"
-                st.download_button(f"💾 Baixar {nome}",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=nome,mime="text/csv")
+                # Aplica transformação (reutiliza função definida na aba Gráficos)
+                dfe2, unit_t = aplicar_periodo(dfe, periodo_e, ind)
+                if not unit_t: unit_t = unit
+                if dfe2.empty:
+                    st.warning("Transformação resultou em série vazia (poucos dados).")
+                else:
+                    label_e = f"{ind} — {periodo_e}" if periodo_e not in ("Original","Mensal (original)","Nível (original)","Var. trimestral (original)") else ind
+                    dlo = dfe2.copy()
+                    dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
+                    col_val = f"Valor ({unit_t})"
+                    st.success(f"✅ {len(dlo)} registros — {label_e}")
+                    st.dataframe(
+                        dlo.rename(columns={"data": "Data", "valor": col_val}),
+                        use_container_width=True,
+                        height=min(400, 46 + len(dlo) * 35),
+                    )
+                    nome = f"{ind.replace(' ','_')}_{periodo_e.replace(' ','_').replace('/','')}.csv"
+                    st.download_button(
+                        f"💾 Baixar {nome}",
+                        data=dlo.to_csv(index=False).encode("utf-8-sig"),
+                        file_name=nome,
+                        mime="text/csv",
+                    )
+
     else:
-        co1,co2=st.columns([2,1])
-        with co1: ativo=st.selectbox("Ativo",list(GLOBAL.keys()),key="eativo")
-        with co2: anos=st.select_slider("Período (anos)",[1,2,3,5,10],value=5,key="eanos")
-        if st.button("Gerar CSV",type="primary",key="ebtn2"):
-            sym,unit,_=GLOBAL[ativo]
-            with st.spinner(f"Buscando {ativo}..."): dfe=get_hist(sym,anos)
-            if dfe.empty: st.warning("Sem dados disponíveis.")
+        co1, co2 = st.columns([2, 1])
+        with co1: ativo = st.selectbox("Ativo", list(GLOBAL.keys()), key="eativo")
+        with co2: anos = st.select_slider("Período (anos)", [1, 2, 3, 5, 10], value=5, key="eanos")
+        if st.button("Gerar CSV", type="primary", key="ebtn2"):
+            sym, unit, _ = GLOBAL[ativo]
+            with st.spinner(f"Buscando {ativo}..."): dfe = get_hist(sym, anos)
+            if dfe.empty:
+                st.warning("Sem dados disponíveis.")
             else:
-                dlo=dfe.copy(); dlo["data"]=dlo["data"].dt.strftime("%d/%m/%Y")
+                dlo = dfe.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.success(f"✅ {len(dlo)} registros — {ativo}")
-                st.dataframe(dlo.rename(columns={"data":"Data","valor":f"Valor ({unit})"}),use_container_width=True,height=min(380,46+len(dlo)*35))
-                nome=f"{ativo.replace(' ','_')}_{anos}anos.csv"
-                st.download_button(f"💾 Baixar {nome}",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=nome,mime="text/csv")
-    st.markdown("<div style='height:24px'></div>",unsafe_allow_html=True)
+                st.dataframe(
+                    dlo.rename(columns={"data": "Data", "valor": f"Valor ({unit})"}),
+                    use_container_width=True,
+                    height=min(400, 46 + len(dlo) * 35),
+                )
+                nome = f"{ativo.replace(' ','_')}_{anos}anos.csv"
+                st.download_button(
+                    f"💾 Baixar {nome}",
+                    data=dlo.to_csv(index=False).encode("utf-8-sig"),
+                    file_name=nome,
+                    mime="text/csv",
+                )
+
+    st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
     with st.expander("Ver todos os indicadores e ativos disponíveis"):
         st.markdown("**BCB/SGS — Indicadores Brasil**")
-        st.dataframe(pd.DataFrame([{"Indicador":k,"Cód. SGS":v[0],"Unidade":v[1],"Freq.":v[2]} for k,v in SGS.items()]),hide_index=True)
-        st.markdown("<br>**Yahoo Finance — Ativos Globais**",unsafe_allow_html=True)
-        st.dataframe(pd.DataFrame([{"Ativo":k,"Símbolo":v[0],"Unidade":v[1]} for k,v in GLOBAL.items()]),hide_index=True)
+        st.dataframe(pd.DataFrame([{"Indicador": k, "Cód. SGS": v[0], "Unidade": v[1], "Freq.": v[2]} for k, v in SGS.items()]), hide_index=True)
+        st.markdown("<br>**Yahoo Finance — Ativos Globais**", unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame([{"Ativo": k, "Símbolo": v[0], "Unidade": v[1]} for k, v in GLOBAL.items()]), hide_index=True)
