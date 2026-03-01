@@ -262,8 +262,17 @@ if st.session_state.pagina == "Início":
     page_header("Dashboard Macro Brasil")
     with st.spinner("Carregando..."):
         ibov=get_quote("^BVSP"); usd=get_quote("USDBRL=X"); eur=get_quote("EURBRL=X")
-        dsel=get_bcb(432,13); dipca=get_bcb(433,13); dibc=get_bcb(24363,13)
-        dcam=get_bcb(1,50);   dpib=get_bcb(4380,8);  ddes=get_bcb(24369,8)
+        _hoje  = datetime.today()
+        _ini13 = (_hoje - timedelta(days=400)).strftime("%d/%m/%Y")   # ~13 meses
+        _ini30 = (_hoje - timedelta(days=45)).strftime("%d/%m/%Y")    # ~30 dias úteis
+        _ini3a = (_hoje - timedelta(days=3*365)).strftime("%d/%m/%Y") # 3 anos
+        _fim   = _hoje.strftime("%d/%m/%Y")
+        dsel  = get_bcb_range(432,   _ini13, _fim)
+        dipca = get_bcb_range(433,   _ini13, _fim)
+        dibc  = get_bcb_range(24363, _ini13, _fim)
+        dcam  = get_bcb_range(1,     _ini30, _fim)
+        dpib  = get_bcb_range(4380,  _ini3a, _fim)
+        ddes  = get_bcb_range(24369, _ini3a, _fim)
 
     sec_title("Indicadores de Mercado","↻ 60s","badge-live")
     c1,c2,c3=st.columns(3)
