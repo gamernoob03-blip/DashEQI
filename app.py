@@ -1,16 +1,17 @@
 """
 app.py — Ponto de entrada
 """
-import sys, os
+import sys, os, importlib.util
 
-# ── Caminhos absolutos ────────────────────────────────────────────────────────
-_ROOT  = os.path.dirname(os.path.abspath(__file__))
-_VIEWS = os.path.join(_ROOT, "views")
+def _load(name: str, filepath: str):
+    """Carrega um módulo Python a partir do caminho absoluto do arquivo."""
+    spec   = importlib.util.spec_from_file_location(name, filepath)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
-# Garante que raiz e views/ estejam no path ANTES de qualquer import
-for _p in [_ROOT, _VIEWS]:
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 import streamlit as st
 
@@ -21,12 +22,14 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Imports locais (depois de set_page_config)
-import sidebar
-import inicio
-import mercados
-import graficos
-import exportar
+# Carrega módulos pelo caminho absoluto — funciona em qualquer ambiente
+data     = _load("data",     os.path.join(_ROOT, "data.py"))
+ui       = _load("ui",       os.path.join(_ROOT, "ui.py"))
+sidebar  = _load("sidebar",  os.path.join(_ROOT, "sidebar.py"))
+inicio   = _load("inicio",   os.path.join(_ROOT, "views", "inicio.py"))
+mercados = _load("mercados", os.path.join(_ROOT, "views", "mercados.py"))
+graficos = _load("graficos", os.path.join(_ROOT, "views", "graficos.py"))
+exportar = _load("exportar", os.path.join(_ROOT, "views", "exportar.py"))
 
 sidebar.init_state()
 
@@ -40,12 +43,10 @@ st.markdown("""
     background: #f0f2f5 !important;
 }
 .main .block-container {
-    padding-top: 0 !important;
-    padding-bottom: 2rem;
-    max-width: 1400px;
+    padding-top: 0 !important; padding-bottom: 2rem; max-width: 1400px;
 }
 footer, #MainMenu, header { visibility: hidden !important; }
-[data-testid="stToolbar"]   { display: none !important; }
+[data-testid="stToolbar"] { display: none !important; }
 
 [data-testid="stMetric"] {
     background: #ffffff !important; border: 1px solid #e2e5e9 !important;
@@ -54,9 +55,8 @@ footer, #MainMenu, header { visibility: hidden !important; }
 }
 [data-testid="stMetricLabel"] > div { justify-content: center !important; }
 [data-testid="stMetricLabel"] p {
-    font-size: 10px !important; font-weight: 700 !important;
-    color: #6b7280 !important; text-transform: uppercase !important;
-    letter-spacing: 1.5px !important;
+    font-size: 10px !important; font-weight: 700 !important; color: #6b7280 !important;
+    text-transform: uppercase !important; letter-spacing: 1.5px !important;
 }
 [data-testid="stMetricValue"] > div { justify-content: center !important; }
 [data-testid="stMetricValue"] p {
@@ -86,19 +86,16 @@ footer, #MainMenu, header { visibility: hidden !important; }
 }
 .badge-live {
     display: inline-block; background: #f0fdf4; border: 1px solid #bbf7d0;
-    color: #16a34a; font-size: 9px; font-weight: 600;
-    padding: 2px 8px; border-radius: 20px;
+    color: #16a34a; font-size: 9px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
 }
 .badge-daily {
     display: inline-block; background: #f5f3ff; border: 1px solid #ddd6fe;
-    color: #7c3aed; font-size: 9px; font-weight: 600;
-    padding: 2px 8px; border-radius: 20px;
+    color: #7c3aed; font-size: 9px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
 }
 .main .stButton > button {
     background: #1a2035 !important; color: #ffffff !important;
     border: none !important; border-radius: 7px !important;
-    font-weight: 600 !important; font-size: 13px !important;
-    padding: 8px 18px !important;
+    font-weight: 600 !important; font-size: 13px !important; padding: 8px 18px !important;
 }
 .main .stButton > button:hover { background: #2d3a56 !important; }
 .stDownloadButton > button {
@@ -128,7 +125,7 @@ div[data-testid="stExpander"] {
 </style>
 """, unsafe_allow_html=True)
 
-# ─── SIDEBAR + ROTEAMENTO ────────────────────────────────────────────────────
+# ─── SIDEBAR + ROTEAMENTO ─────────────────────────────────────────────────────
 sidebar.render()
 
 pagina = st.session_state.pagina
