@@ -83,11 +83,11 @@ footer,#MainMenu,header{visibility:hidden!important}
 .main .stButton>button{background:#1a2035!important;color:#fff!important;border:none!important;border-radius:7px!important;font-weight:600!important;font-size:13px!important;padding:8px 18px!important}
 .main .stButton>button:hover{background:#2d3a56!important}
 /* Sidebar nav buttons */
-section[data-testid="stSidebar"] .stButton>button{text-align:left!important;letter-spacing:0.3px!important;font-size:13px!important;padding-left:36px!important}
+section[data-testid="stSidebar"] .stButton>button{text-align:left!important;letter-spacing:0.3px!important;font-size:13px!important;padding:6px 14px 6px 36px!important;min-height:0!important;height:36px!important;line-height:1!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]{background:#004031!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{background:#005a45!important}
 /* Remove gap between icon overlay div and button */
-section[data-testid="stSidebar"] .stMarkdown{margin-bottom:-40px!important;position:relative!important;z-index:5!important}
+section[data-testid="stSidebar"] .stMarkdown{margin-bottom:-34px!important;position:relative!important;z-index:5!important}
 .stDownloadButton>button{background:#fff!important;color:#374151!important;border:1px solid #e2e8f0!important;border-radius:7px!important}
 [data-testid="stSelectbox"]>div>div{background:#fff!important;border:1px solid #e2e8f0!important;border-radius:7px!important}
 [data-testid="stTabs"] [data-testid="stTabsTabList"]{background:transparent!important;border-bottom:1px solid #e8eaed!important}
