@@ -56,11 +56,13 @@ GLOBAL = {
     "Bitcoin":         ("BTC-USD",  "US$",    False),
     "Ethereum":        ("ETH-USD",  "US$",    False),
 }
-NAV = [("⌂","Início"),("◎","Mercados Globais"),("⌇","Gráficos"),("↓","Exportar")]
+NAV = ["Início","Mercados Globais","Gráficos","Exportar"]
 
 # ── Session state ─────────────────────────────────────────────────────────────
 if "pagina" not in st.session_state:
     st.session_state.pagina = "Início"
+if "tabela_aberta" not in st.session_state:
+    st.session_state.tabela_aberta = False
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""<style>
@@ -80,22 +82,19 @@ footer,#MainMenu,header{visibility:hidden!important}
 .badge-daily{display:inline-block;background:#f5f3ff;border:1px solid #ddd6fe;color:#7c3aed;font-size:9px;font-weight:600;padding:2px 8px;border-radius:20px}
 .main .stButton>button{background:#1a2035!important;color:#fff!important;border:none!important;border-radius:7px!important;font-weight:600!important;font-size:13px!important;padding:8px 18px!important}
 .main .stButton>button:hover{background:#2d3a56!important}
-/* Botão ativo na sidebar */
+/* Sidebar nav buttons */
+section[data-testid="stSidebar"] .stButton>button{text-align:left!important;letter-spacing:0.3px!important;font-size:13px!important;padding-left:36px!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]{background:#004031!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{background:#005a45!important}
+/* Remove gap between icon overlay div and button */
+section[data-testid="stSidebar"] .stMarkdown{margin-bottom:-40px!important;position:relative!important;z-index:5!important}
 .stDownloadButton>button{background:#fff!important;color:#374151!important;border:1px solid #e2e8f0!important;border-radius:7px!important}
 [data-testid="stSelectbox"]>div>div{background:#fff!important;border:1px solid #e2e8f0!important;border-radius:7px!important}
 [data-testid="stTabs"] [data-testid="stTabsTabList"]{background:transparent!important;border-bottom:1px solid #e8eaed!important}
 [data-testid="stTabs"] button[role="tab"]{font-size:13px!important;color:#6b7280!important;padding:8px 20px!important;border:none!important;border-bottom:2px solid transparent!important;background:transparent!important}
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"]{color:#1a2035!important;border-bottom:2px solid #1a2035!important;font-weight:600!important}
 div[data-testid="stExpander"]{background:#fff!important;border:1px solid #e8eaed!important;border-radius:10px!important}
-/* Expander: esconde ícone Material Icons que renderiza como texto */
-[data-testid="stExpander"] summary{padding:12px 16px!important;font-weight:600!important;font-size:13px!important;color:#374151!important;list-style:none!important}
-[data-testid="stExpander"] summary::-webkit-details-marker{display:none!important}
-/* Esconde TUDO dentro do ícone toggle e injeta seta CSS pura */
-[data-testid="stExpanderToggleIcon"]{width:20px!important;height:20px!important;overflow:hidden!important;position:relative!important;flex-shrink:0!important}
-[data-testid="stExpanderToggleIcon"] *{display:none!important}
-[data-testid="stExpanderToggleIcon"]::before{content:"▾";display:block!important;font-size:16px!important;color:#6b7280!important;line-height:20px!important;text-align:center!important}
+
 /* Containers dos gráficos Plotly */
 [data-testid="stPlotlyChart"]>div{background:#ffffff!important;border:1px solid #e2e5e9!important;border-radius:12px!important;padding:0!important;overflow:visible!important;box-shadow:0 1px 3px rgba(0,0,0,.05)!important}
 /* Remove ALL scrollbars inside chart containers */
@@ -410,9 +409,24 @@ with st.sidebar:
                 "<span style='font-size:24px;font-weight:900;color:#004031;letter-spacing:-0.5px'>EQI</span>"
                 "</div>", unsafe_allow_html=True)
     st.divider()
-    for icon, label in NAV:
-        if st.button(f"{icon}  {label}", key=f"nav_{label}",
-                     type="primary" if st.session_state.pagina==label else "secondary",
+    _SVG_NAV = {
+        "Início":          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>',
+        "Mercados Globais":'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
+        "Gráficos":        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>',
+        "Exportar":        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+    }
+    for label in NAV:
+        svg  = _SVG_NAV.get(label, "")
+        active = st.session_state.pagina == label
+        # Overlay icon on top of button using relative positioning
+        st.markdown(f"""
+        <div style="position:relative;margin-bottom:2px">
+            <div style="position:absolute;left:14px;top:50%;transform:translateY(-50%);
+                        pointer-events:none;z-index:10;display:flex;align-items:center;
+                        color:{'#ffffff' if active else '#374151'}">{svg}</div>
+        </div>""", unsafe_allow_html=True)
+        if st.button(f"      {label}", key=f"nav_{label}",
+                     type="primary" if active else "secondary",
                      use_container_width=True):
             st.session_state.pagina = label
             st.rerun()
@@ -740,42 +754,45 @@ else:
                 )
 
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
-    with st.expander("Ver todos os indicadores e ativos disponíveis"):
-        st.markdown("**BCB/SGS — Indicadores Brasil**")
-        df_sgs = pd.DataFrame([{
-            "Indicador": k,
-            "Cód. SGS": v[0],
-            "Unidade": v[1],
-            "Freq.": v[2],
-            "Transformações disponíveis": ", ".join({
-                "Selic":       ["Original"],
-                "IPCA":        ["Mensal","Acum. 12M","Acum. ano"],
-                "IBC-Br":      ["Nível","m/m","t/t","a/a"],
-                "Dólar PTAX":  ["Original"],
-                "PIB":         ["Trimestral","a/a","Acum. 4 tri"],
-                "Desemprego":  ["Original"],
-                "IGP-M":       ["Mensal","Acum. 12M"],
-                "IPCA-15":     ["Mensal","Acum. 12M"],
-                "Exportações": ["Original","m/m","a/a"],
-                "Importações": ["Original","m/m","a/a"],
-                "Dívida/PIB":  ["Original","m/m"],
-            }.get(k, ["Original"]))
-        } for k, v in SGS.items()])
-        n_sgs = len(df_sgs)
-        st.dataframe(df_sgs, hide_index=True, use_container_width=True,
-                     height=46 + n_sgs * 35)
+    # Toggle manual — evita bug do st.expander com Material Icons
+    lbl = "▲  Ocultar indicadores e ativos" if st.session_state.tabela_aberta else "▼  Ver todos os indicadores e ativos disponíveis"
+    if st.button(lbl, key="btn_tabela", use_container_width=False):
+        st.session_state.tabela_aberta = not st.session_state.tabela_aberta
+        st.rerun()
 
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-        st.markdown("**Yahoo Finance — Ativos Globais**")
-        df_yf = pd.DataFrame([{
-            "Ativo": k,
-            "Símbolo": v[0],
-            "Unidade": v[1],
-            "Tipo": ("Câmbio" if "BRL" in v[0] else
-                     "Índice" if v[0].startswith("^") else
-                     "Commodity" if v[0] in ("BZ=F","CL=F","GC=F","SI=F","HG=F") else
-                     "Cripto")
-        } for k, v in GLOBAL.items()])
-        n_yf = len(df_yf)
-        st.dataframe(df_yf, hide_index=True, use_container_width=True,
-                     height=46 + n_yf * 35)
+    if st.session_state.tabela_aberta:
+        with st.container():
+            st.markdown(
+                "<div style='background:#fff;border:1px solid #e2e5e9;border-radius:12px;padding:20px 24px;margin-top:4px'>",
+                unsafe_allow_html=True,
+            )
+            st.markdown("**BCB/SGS — Indicadores Brasil**")
+            df_sgs = pd.DataFrame([{
+                "Indicador": k,
+                "Cód. SGS": v[0],
+                "Unidade": v[1],
+                "Freq.": v[2],
+                "Transformações disponíveis": ", ".join({
+                    "Selic":       ["Original"],
+                    "IPCA":        ["Mensal","Acum. 12M","Acum. ano"],
+                    "IBC-Br":      ["Nível","m/m","t/t","a/a"],
+                    "Dólar PTAX":  ["Original"],
+                    "PIB":         ["Trimestral","a/a","Acum. 4 tri"],
+                    "Desemprego":  ["Original"],
+                    "IGP-M":       ["Mensal","Acum. 12M"],
+                    "IPCA-15":     ["Mensal","Acum. 12M"],
+                    "Exportações": ["Original","m/m","a/a"],
+                    "Importações": ["Original","m/m","a/a"],
+                    "Dívida/PIB":  ["Original","m/m"],
+                }.get(k, ["Original"]))
+            } for k, v in SGS.items()])
+            st.dataframe(df_sgs, hide_index=True, use_container_width=True, height=46 + len(df_sgs)*35)
+            st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+            st.markdown("**Yahoo Finance — Ativos Globais**")
+            df_yf = pd.DataFrame([{
+                "Ativo": k, "Símbolo": v[0], "Unidade": v[1],
+                "Tipo": ("Câmbio" if "BRL" in v[0] else "Índice" if v[0].startswith("^") else
+                         "Commodity" if v[0] in ("BZ=F","CL=F","GC=F","SI=F","HG=F") else "Cripto")
+            } for k, v in GLOBAL.items()])
+            st.dataframe(df_yf, hide_index=True, use_container_width=True, height=46 + len(df_yf)*35)
+            st.markdown("</div>", unsafe_allow_html=True)
