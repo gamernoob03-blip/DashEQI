@@ -82,13 +82,19 @@ footer,#MainMenu,header{visibility:hidden!important}
 .badge-daily{display:inline-block;background:#f5f3ff;border:1px solid #ddd6fe;color:#7c3aed;font-size:9px;font-weight:600;padding:2px 8px;border-radius:20px}
 .main .stButton>button{background:#1a2035!important;color:#fff!important;border:none!important;border-radius:7px!important;font-weight:600!important;font-size:13px!important;padding:8px 18px!important}
 .main .stButton>button:hover{background:#2d3a56!important}
-/* Sidebar nav buttons */
-section[data-testid="stSidebar"] .stButton>button{text-align:left!important;font-size:13px!important;font-weight:500!important;padding:8px 14px!important;min-height:0!important;height:36px!important;line-height:1!important;border-radius:8px!important;width:100%!important}
+/* Sidebar nav: ícone embutido via ::before */
+section[data-testid="stSidebar"] .stButton button{text-align:left!important;padding:8px 14px 8px 38px!important;min-height:0!important;height:36px!important;line-height:1.2!important;font-size:13px!important;font-weight:500!important;border-radius:8px!important;position:relative!important}
+section[data-testid="stSidebar"] .stButton button::before{content:""!important;position:absolute!important;left:12px!important;top:50%!important;transform:translateY(-50%)!important;width:16px!important;height:16px!important;background-repeat:no-repeat!important;background-size:16px 16px!important;background-position:center!important}
+section[data-testid="stSidebar"] .stButton:nth-of-type(1) button[kind="secondary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjcyODAiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0zIDkuNUwxMiAzbDkgNi41VjIwYTEgMSAwIDAgMS0xIDFINGExIDEgMCAwIDEtMS0xVjkuNXoiLz48cGF0aCBkPSJNOSAyMVYxMmg2djkiLz48L3N2Zz4=")!important}
+section[data-testid="stSidebar"] .stButton:nth-of-type(1) button[kind="primary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0zIDkuNUwxMiAzbDkgNi41VjIwYTEgMSAwIDAgMS0xIDFINGExIDEgMCAwIDEtMS0xVjkuNXoiLz48cGF0aCBkPSJNOSAyMVYxMmg2djkiLz48L3N2Zz4=")!important}
+section[data-testid="stSidebar"] .stButton:nth-of-type(2) button[kind="secondary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjcyODAiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwb2x5bGluZSBwb2ludHM9IjIyIDcgMTMuNSAxNS41IDguNSAxMC41IDIgMTciLz48cG9seWxpbmUgcG9pbnRzPSIxNiA3IDIyIDcgMjIgMTMiLz48L3N2Zz4=")!important}
+section[data-testid="stSidebar"] .stButton:nth-of-type(2) button[kind="primary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwb2x5bGluZSBwb2ludHM9IjIyIDcgMTMuNSAxNS41IDguNSAxMC41IDIgMTciLz48cG9seWxpbmUgcG9pbnRzPSIxNiA3IDIyIDcgMjIgMTMiLz48L3N2Zz4=")!important}
+section[data-testid="stSidebar"] .stButton:nth-of-type(3) button[kind="secondary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjcyODAiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IHg9IjMiIHk9IjEyIiB3aWR0aD0iNCIgaGVpZ2h0PSI5Ii8+PHJlY3QgeD0iMTAiIHk9IjciIHdpZHRoPSI0IiBoZWlnaHQ9IjE0Ii8+PHJlY3QgeD0iMTciIHk9IjMiIHdpZHRoPSI0IiBoZWlnaHQ9IjE4Ii8+PC9zdmc+")!important}
+section[data-testid="stSidebar"] .stButton:nth-of-type(3) button[kind="primary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IHg9IjMiIHk9IjEyIiB3aWR0aD0iNCIgaGVpZ2h0PSI5Ii8+PHJlY3QgeD0iMTAiIHk9IjciIHdpZHRoPSI0IiBoZWlnaHQ9IjE0Ii8+PHJlY3QgeD0iMTciIHk9IjMiIHdpZHRoPSI0IiBoZWlnaHQ9IjE4Ii8+PC9zdmc+")!important}
+section[data-testid="stSidebar"] .stButton:nth-of-type(4) button[kind="secondary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjcyODAiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMSAxNXY0YTIgMiAwIDAgMS0yIDJINWEyIDIgMCAwIDEtMi0ydi00Ii8+PHBvbHlsaW5lIHBvaW50cz0iNyAxMCAxMiAxNSAxNyAxMCIvPjxsaW5lIHgxPSIxMiIgeTE9IjE1IiB4Mj0iMTIiIHkyPSIzIi8+PC9zdmc+")!important}
+section[data-testid="stSidebar"] .stButton:nth-of-type(4) button[kind="primary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMSAxNXY0YTIgMiAwIDAgMS0yIDJINWEyIDIgMCAwIDEtMi0ydi00Ii8+PHBvbHlsaW5lIHBvaW50cz0iNyAxMCAxMiAxNSAxNyAxMCIvPjxsaW5lIHgxPSIxMiIgeTE9IjE1IiB4Mj0iMTIiIHkyPSIzIi8+PC9zdmc+")!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]{background:#004031!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{background:#005a45!important}
-/* Icon cell: center the SVG vertically */
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{gap:0!important;align-items:center!important}
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="stMarkdown"]{display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;margin:0!important}
 .stDownloadButton>button{background:#fff!important;color:#374151!important;border:1px solid #e2e8f0!important;border-radius:7px!important}
 [data-testid="stSelectbox"]>div>div{background:#fff!important;border:1px solid #e2e8f0!important;border-radius:7px!important}
 [data-testid="stTabs"] [data-testid="stTabsTabList"]{background:transparent!important;border-bottom:1px solid #e8eaed!important}
@@ -410,33 +416,12 @@ with st.sidebar:
                 "<span style='font-size:24px;font-weight:900;color:#004031;letter-spacing:-0.5px'>EQI</span>"
                 "</div>", unsafe_allow_html=True)
     st.divider()
-    _SVG_NAV = {
-        "Início":
-            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>',
-        "Mercados Globais":
-            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
-        "Gráficos":
-            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>',
-        "Exportar":
-            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
-    }
     for label in NAV:
-        active = st.session_state.pagina == label
-        icon_color = "#ffffff" if active else "#6b7280"
-        svg = _SVG_NAV.get(label, "").replace("currentColor", icon_color)
-        ci, cb = st.columns([1, 5])
-        with ci:
-            st.markdown(
-                f"<div style='display:flex;align-items:center;justify-content:center;"
-                f"height:36px;width:100%'>{svg}</div>",
-                unsafe_allow_html=True,
-            )
-        with cb:
-            if st.button(label, key=f"nav_{label}",
-                         type="primary" if active else "secondary",
-                         use_container_width=True):
-                st.session_state.pagina = label
-                st.rerun()
+        if st.button(label, key=f"nav_{label}",
+                     type="primary" if st.session_state.pagina == label else "secondary",
+                     use_container_width=True):
+            st.session_state.pagina = label
+            st.rerun()
     st.divider()
     st.caption("Fontes: BCB/SGS · Yahoo Finance")
     st.caption("Mercados ↻60s · BCB ↻1h")
