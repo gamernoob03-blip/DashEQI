@@ -89,6 +89,11 @@ section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{backgrou
 [data-testid="stTabs"] button[role="tab"]{font-size:13px!important;color:#6b7280!important;padding:8px 20px!important;border:none!important;border-bottom:2px solid transparent!important;background:transparent!important}
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"]{color:#1a2035!important;border-bottom:2px solid #1a2035!important;font-weight:600!important}
 div[data-testid="stExpander"]{background:#fff!important;border:1px solid #e8eaed!important;border-radius:10px!important}
+/* Fix expander icon — hide Material Icons text fallback */
+[data-testid="stExpander"] summary svg{display:none!important}
+[data-testid="stExpander"] summary [data-testid="stExpanderToggleIcon"]{font-size:0!important;color:transparent!important}
+[data-testid="stExpander"] summary [data-testid="stExpanderToggleIcon"]::after{content:"▾";font-size:14px!important;color:#6b7280!important}
+[data-testid="stExpander"] summary{padding:12px 16px!important;font-weight:600!important;font-size:13px!important;color:#374151!important}
 /* Containers dos gráficos Plotly */
 [data-testid="stPlotlyChart"]>div{background:#ffffff!important;border:1px solid #e2e5e9!important;border-radius:12px!important;padding:0!important;overflow:visible!important;box-shadow:0 1px 3px rgba(0,0,0,.05)!important}
 /* Remove ALL scrollbars inside chart containers */
@@ -714,6 +719,40 @@ else:
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
     with st.expander("Ver todos os indicadores e ativos disponíveis"):
         st.markdown("**BCB/SGS — Indicadores Brasil**")
-        st.dataframe(pd.DataFrame([{"Indicador": k, "Cód. SGS": v[0], "Unidade": v[1], "Freq.": v[2]} for k, v in SGS.items()]), hide_index=True)
-        st.markdown("<br>**Yahoo Finance — Ativos Globais**", unsafe_allow_html=True)
-        st.dataframe(pd.DataFrame([{"Ativo": k, "Símbolo": v[0], "Unidade": v[1]} for k, v in GLOBAL.items()]), hide_index=True)
+        df_sgs = pd.DataFrame([{
+            "Indicador": k,
+            "Cód. SGS": v[0],
+            "Unidade": v[1],
+            "Freq.": v[2],
+            "Transformações disponíveis": ", ".join({
+                "Selic":       ["Original"],
+                "IPCA":        ["Mensal","Acum. 12M","Acum. ano"],
+                "IBC-Br":      ["Nível","m/m","t/t","a/a"],
+                "Dólar PTAX":  ["Original"],
+                "PIB":         ["Trimestral","a/a","Acum. 4 tri"],
+                "Desemprego":  ["Original"],
+                "IGP-M":       ["Mensal","Acum. 12M"],
+                "IPCA-15":     ["Mensal","Acum. 12M"],
+                "Exportações": ["Original","m/m","a/a"],
+                "Importações": ["Original","m/m","a/a"],
+                "Dívida/PIB":  ["Original","m/m"],
+            }.get(k, ["Original"]))
+        } for k, v in SGS.items()])
+        n_sgs = len(df_sgs)
+        st.dataframe(df_sgs, hide_index=True, use_container_width=True,
+                     height=46 + n_sgs * 35)
+
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        st.markdown("**Yahoo Finance — Ativos Globais**")
+        df_yf = pd.DataFrame([{
+            "Ativo": k,
+            "Símbolo": v[0],
+            "Unidade": v[1],
+            "Tipo": ("Câmbio" if "BRL" in v[0] else
+                     "Índice" if v[0].startswith("^") else
+                     "Commodity" if v[0] in ("BZ=F","CL=F","GC=F","SI=F","HG=F") else
+                     "Cripto")
+        } for k, v in GLOBAL.items()])
+        n_yf = len(df_yf)
+        st.dataframe(df_yf, hide_index=True, use_container_width=True,
+                     height=46 + n_yf * 35)
