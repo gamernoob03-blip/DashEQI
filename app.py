@@ -83,11 +83,12 @@ footer,#MainMenu,header{visibility:hidden!important}
 .main .stButton>button{background:#1a2035!important;color:#fff!important;border:none!important;border-radius:7px!important;font-weight:600!important;font-size:13px!important;padding:8px 18px!important}
 .main .stButton>button:hover{background:#2d3a56!important}
 /* Sidebar nav buttons */
-section[data-testid="stSidebar"] .stButton>button{text-align:left!important;letter-spacing:0.3px!important;font-size:13px!important;padding:6px 14px 6px 36px!important;min-height:0!important;height:36px!important;line-height:1!important}
+section[data-testid="stSidebar"] .stButton>button{text-align:left!important;font-size:13px!important;font-weight:500!important;padding:8px 14px!important;min-height:0!important;height:36px!important;line-height:1!important;border-radius:8px!important;width:100%!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]{background:#004031!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{background:#005a45!important}
-/* Remove gap between icon overlay div and button */
-section[data-testid="stSidebar"] .stMarkdown{margin-bottom:-34px!important;position:relative!important;z-index:5!important}
+/* Icon cell: center the SVG vertically */
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{gap:0!important;align-items:center!important}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="stMarkdown"]{display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;margin:0!important}
 .stDownloadButton>button{background:#fff!important;color:#374151!important;border:1px solid #e2e8f0!important;border-radius:7px!important}
 [data-testid="stSelectbox"]>div>div{background:#fff!important;border:1px solid #e2e8f0!important;border-radius:7px!important}
 [data-testid="stTabs"] [data-testid="stTabsTabList"]{background:transparent!important;border-bottom:1px solid #e8eaed!important}
@@ -410,26 +411,32 @@ with st.sidebar:
                 "</div>", unsafe_allow_html=True)
     st.divider()
     _SVG_NAV = {
-        "Início":          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>',
-        "Mercados Globais":'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
-        "Gráficos":        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>',
-        "Exportar":        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+        "Início":
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>',
+        "Mercados Globais":
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
+        "Gráficos":
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/></svg>',
+        "Exportar":
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
     }
     for label in NAV:
-        svg  = _SVG_NAV.get(label, "")
         active = st.session_state.pagina == label
-        # Overlay icon on top of button using relative positioning
-        st.markdown(f"""
-        <div style="position:relative;margin-bottom:2px">
-            <div style="position:absolute;left:14px;top:50%;transform:translateY(-50%);
-                        pointer-events:none;z-index:10;display:flex;align-items:center;
-                        color:{'#ffffff' if active else '#374151'}">{svg}</div>
-        </div>""", unsafe_allow_html=True)
-        if st.button(f"      {label}", key=f"nav_{label}",
-                     type="primary" if active else "secondary",
-                     use_container_width=True):
-            st.session_state.pagina = label
-            st.rerun()
+        icon_color = "#ffffff" if active else "#6b7280"
+        svg = _SVG_NAV.get(label, "").replace("currentColor", icon_color)
+        ci, cb = st.columns([1, 5])
+        with ci:
+            st.markdown(
+                f"<div style='display:flex;align-items:center;justify-content:center;"
+                f"height:36px;width:100%'>{svg}</div>",
+                unsafe_allow_html=True,
+            )
+        with cb:
+            if st.button(label, key=f"nav_{label}",
+                         type="primary" if active else "secondary",
+                         use_container_width=True):
+                st.session_state.pagina = label
+                st.rerun()
     st.divider()
     st.caption("Fontes: BCB/SGS · Yahoo Finance")
     st.caption("Mercados ↻60s · BCB ↻1h")
