@@ -89,11 +89,13 @@ section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{backgrou
 [data-testid="stTabs"] button[role="tab"]{font-size:13px!important;color:#6b7280!important;padding:8px 20px!important;border:none!important;border-bottom:2px solid transparent!important;background:transparent!important}
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"]{color:#1a2035!important;border-bottom:2px solid #1a2035!important;font-weight:600!important}
 div[data-testid="stExpander"]{background:#fff!important;border:1px solid #e8eaed!important;border-radius:10px!important}
-/* Fix expander icon — hide Material Icons text fallback */
-[data-testid="stExpander"] summary svg{display:none!important}
-[data-testid="stExpander"] summary [data-testid="stExpanderToggleIcon"]{font-size:0!important;color:transparent!important}
-[data-testid="stExpander"] summary [data-testid="stExpanderToggleIcon"]::after{content:"▾";font-size:14px!important;color:#6b7280!important}
-[data-testid="stExpander"] summary{padding:12px 16px!important;font-weight:600!important;font-size:13px!important;color:#374151!important}
+/* Expander: esconde ícone Material Icons que renderiza como texto */
+[data-testid="stExpander"] summary{padding:12px 16px!important;font-weight:600!important;font-size:13px!important;color:#374151!important;list-style:none!important}
+[data-testid="stExpander"] summary::-webkit-details-marker{display:none!important}
+/* Esconde TUDO dentro do ícone toggle e injeta seta CSS pura */
+[data-testid="stExpanderToggleIcon"]{width:20px!important;height:20px!important;overflow:hidden!important;position:relative!important;flex-shrink:0!important}
+[data-testid="stExpanderToggleIcon"] *{display:none!important}
+[data-testid="stExpanderToggleIcon"]::before{content:"▾";display:block!important;font-size:16px!important;color:#6b7280!important;line-height:20px!important;text-align:center!important}
 /* Containers dos gráficos Plotly */
 [data-testid="stPlotlyChart"]>div{background:#ffffff!important;border:1px solid #e2e5e9!important;border-radius:12px!important;padding:0!important;overflow:visible!important;box-shadow:0 1px 3px rgba(0,0,0,.05)!important}
 /* Remove ALL scrollbars inside chart containers */
@@ -600,15 +602,31 @@ elif st.session_state.pagina == "Gráficos":
                     mime="text/csv",
                 )
     with t2:
-        co1,co2=st.columns([2,1])
-        with co1: ativo=st.selectbox("Ativo",list(GLOBAL.keys()),key="gativo")
-        with co2: anos=st.select_slider("Período (anos)",[1,2,3,5,10],value=5,key="ganos")
-        sym,unit,_=GLOBAL[ativo]
-        with st.spinner(f"Carregando {ativo}..."): dfg=get_hist(sym,anos)
+        co1, _ = st.columns([2, 3])
+        with co1: ativo = st.selectbox("Ativo", list(GLOBAL.keys()), key="gativo")
+        sym, unit, _ = GLOBAL[ativo]
+        # Sempre carrega 10 anos (série completa disponível)
+        with st.spinner(f"Carregando {ativo}..."): dfg = get_hist(sym, years=10)
         if not dfg.empty:
-            st.success(f"✅ {len(dfg)} obs. · {ativo}")
-            st.plotly_chart(line_fig(dfg,f"{ativo} — {anos} ano(s)","#1a2035",suffix=f" {unit}",height=420,inter=True),
-                use_container_width=True, config={
+            dmin_y = dfg["data"].min().date(); dmax_y = dfg["data"].max().date()
+            from datetime import date as _date2
+            _d24y = max(dmin_y, _date2(dmax_y.year - 2, dmax_y.month, dmax_y.day))
+            st.markdown(
+                f"<div style='font-size:11px;color:#6b7280;margin:6px 0 14px'>"
+                f"Disponível: <strong>{dmin_y.strftime('%d/%m/%Y')}</strong> → "
+                f"<strong>{dmax_y.strftime('%d/%m/%Y')}</strong> · {len(dfg)} obs. · "
+                f"<em>Série completa carregada</em></div>",
+                unsafe_allow_html=True,
+            )
+            cy1, cy2 = st.columns(2)
+            with cy1: dy_ini = st.date_input("Exibir de", value=_d24y, min_value=dmin_y, max_value=dmax_y, key="gyini")
+            with cy2: dy_fim = st.date_input("Exibir até", value=dmax_y, min_value=dmin_y, max_value=dmax_y, key="gyfim")
+
+            if dy_ini < dy_fim:
+                st.success(f"✅ {len(dfg)} obs. carregadas · {ativo}")
+                fig_y = line_fig(dfg, f"{ativo}", "#004031", suffix=f" {unit}", height=440, inter=True)
+                fig_y.update_xaxes(range=[str(dy_ini), str(dy_fim)])
+                st.plotly_chart(fig_y, use_container_width=True, config={
                     "displayModeBar": True,
                     "scrollZoom": True,
                     "modeBarButtonsToRemove": ["select2d","lasso2d","autoScale2d","resetScale2d"],
@@ -616,8 +634,13 @@ elif st.session_state.pagina == "Gráficos":
                     "displaylogo": False,
                     "toImageButtonOptions": {"format":"png","filename":f"{ativo}","scale":2},
                 })
-            dlo=dfg.copy(); dlo["data"]=dlo["data"].dt.strftime("%d/%m/%Y")
-            st.download_button(f"💾 Baixar CSV ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ativo.replace(' ','_')}_{anos}a.csv",mime="text/csv")
+                dlo = dfg.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
+                st.download_button(
+                    f"💾 Baixar CSV completo ({len(dlo)} linhas)",
+                    data=dlo.to_csv(index=False).encode("utf-8-sig"),
+                    file_name=f"{ativo.replace(' ','_')}_completo.csv",
+                    mime="text/csv",
+                )
         else: st.warning("Sem dados disponíveis.")
 
 # ══════════════════════════════════════════════════════════════════════════════
