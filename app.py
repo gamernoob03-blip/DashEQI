@@ -83,6 +83,11 @@ footer,#MainMenu,header{visibility:hidden!important}
 .main .stButton>button{background:#1a2035!important;color:#fff!important;border:none!important;border-radius:7px!important;font-weight:600!important;font-size:13px!important;padding:8px 18px!important}
 .main .stButton>button:hover{background:#2d3a56!important}
 /* Sidebar buttons: base */
+/* Sidebar: largura fixa, sem botão de colapso */
+section[data-testid="stSidebar"]{min-width:260px!important;max-width:260px!important;width:260px!important}
+[data-testid="stSidebarResizer"]{display:none!important}
+[data-testid="stSidebarCollapseButton"]{display:none!important}
+[data-testid="stSidebarCollapsedControl"]{display:none!important}
 section[data-testid="stSidebar"] .stButton button{text-align:left!important;padding:8px 14px 8px 38px!important;min-height:0!important;height:36px!important;line-height:1.2!important;font-size:13px!important;font-weight:500!important;border-radius:8px!important;position:relative!important}
 section[data-testid="stSidebar"] .stButton button::before{content:""!important;position:absolute!important;left:12px!important;top:50%!important;transform:translateY(-50%)!important;width:16px!important;height:16px!important;background-repeat:no-repeat!important;background-size:16px 16px!important;background-position:center!important}
 section[data-testid="stSidebar"] .stButton button[kind="primary"]{background:#004031!important}
