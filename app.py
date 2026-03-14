@@ -1008,8 +1008,6 @@ elif st.session_state.pagina == "IPCA & Núcleos":
         fig_acum.update_xaxes(range=[str(_xmin_a.date()), str(_xmax_a.date())])
         st.plotly_chart(fig_acum, use_container_width=True, config={**CHART_CFG_INT,
             "toImageButtonOptions": {"format":"png","filename":"ipca_acum12m_meta","scale":2}})
-        st.plotly_chart(fig_acum, use_container_width=True, config={**CHART_CFG_INT,
-            "toImageButtonOptions": {"format":"png","filename":"ipca_acum12m_meta","scale":2}})
 
     # ── Desagregação por Grupos (IBGE) ─────────────────────────────────────────
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
