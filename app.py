@@ -869,6 +869,7 @@ elif st.session_state.pagina == "IPCA & Núcleos":
         _xmax = df_ipca_full["data"].max()
         _xmin = _xmax - pd.DateOffset(months=24)
         fig_cores.update_xaxes(range=[str(_xmin.date()), str(_xmax.date())])
+    fig_cores.update_yaxes(range=[None, 2])
     st.plotly_chart(fig_cores, use_container_width=True, config={**CHART_CFG_INT,
         "toImageButtonOptions": {"format":"png","filename":"ipca_nucleos","scale":2}})
 
@@ -900,6 +901,112 @@ elif st.session_state.pagina == "IPCA & Núcleos":
         st.dataframe(pd.DataFrame(tab_rows), hide_index=True, use_container_width=True,
                      height=46 + len(tab_rows) * 35)
 
+    # ── Média dos Núcleos — últimos 12 meses ──────────────────────────────────
+    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    sec_title("Média dos Núcleos — Últimos 12 Meses", "↻ diário", "badge-daily")
+
+    _series_nucleos = [df_n.set_index("data")["valor"].rename(key)
+                       for key, (df_n, _, _) in nucleo_data.items()
+                       if not df_n.empty]
+    if _series_nucleos:
+        _df_media = pd.concat(_series_nucleos, axis=1).sort_index()
+        _df_media["media"] = _df_media.mean(axis=1)
+        _df_media = _df_media.reset_index().rename(columns={"data": "data", "index": "data"})
+
+        # Últimos 12 meses
+        _xmax_m  = _df_media["data"].max()
+        _xmin_m  = _xmax_m - pd.DateOffset(months=12)
+        _df_12m  = _df_media[_df_media["data"] >= _xmin_m].copy()
+
+        if not _df_12m.empty:
+            fig_media = go.Figure()
+
+            # Faixa sombreada: min/max dos núcleos por mês
+            _df_12m["min_n"] = _df_12m[[k for k in NUCLEO_SGS]].min(axis=1)
+            _df_12m["max_n"] = _df_12m[[k for k in NUCLEO_SGS]].max(axis=1)
+
+            fig_media.add_trace(go.Scatter(
+                x=pd.concat([_df_12m["data"], _df_12m["data"].iloc[::-1]]),
+                y=pd.concat([_df_12m["max_n"], _df_12m["min_n"].iloc[::-1]]),
+                fill="toself",
+                fillcolor="rgba(139,92,246,0.10)",
+                line=dict(color="rgba(0,0,0,0)"),
+                hoverinfo="skip",
+                showlegend=False,
+                name="Intervalo núcleos",
+            ))
+
+            # Linha de cada núcleo (fina, discreta)
+            for key, (_, label, color) in nucleo_data.items():
+                if key in _df_12m.columns:
+                    fig_media.add_trace(go.Scatter(
+                        x=_df_12m["data"], y=_df_12m[key],
+                        mode="lines",
+                        name=f"{key}",
+                        line=dict(color=color, width=1, dash="dot"),
+                        opacity=0.55,
+                        hovertemplate=f"%{{x|%b/%Y}}<br>{key}: %{{y:.2f}}%<extra></extra>",
+                    ))
+
+            # IPCA headline
+            if not df_ipca_full.empty:
+                _ipca_12m = df_ipca_full[df_ipca_full["data"] >= _xmin_m]
+                fig_media.add_trace(go.Scatter(
+                    x=_ipca_12m["data"], y=_ipca_12m["valor"],
+                    mode="lines",
+                    name="IPCA (headline)",
+                    line=dict(color="#1a2035", width=1.8, dash="dash"),
+                    hovertemplate="%{x|%b/%Y}<br>IPCA: %{y:.2f}%<extra></extra>",
+                ))
+
+            # Linha da média (destaque)
+            fig_media.add_trace(go.Scatter(
+                x=_df_12m["data"], y=_df_12m["media"],
+                mode="lines+markers",
+                name="Média dos Núcleos",
+                line=dict(color="#7c3aed", width=2.5),
+                marker=dict(size=6, color="#7c3aed"),
+                hovertemplate="%{x|%b/%Y}<br><b>Média: %{y:.2f}%</b><extra></extra>",
+            ))
+
+            # Meta BCB como linha de referência
+            fig_media.add_hline(
+                y=meta_bcb, line_dash="dot", line_color="#16a34a", line_width=1.2,
+                annotation_text=f"Meta {meta_bcb:.1f}%",
+                annotation_position="right",
+                annotation_font=dict(size=10, color="#16a34a"),
+            )
+
+            _layout_m = {**_B, "margin": dict(l=52, r=16, t=44, b=36)}
+            fig_media.update_layout(
+                **_layout_m,
+                height=320,
+                title="Variação Média dos Núcleos de Inflação — últimos 12 meses (% ao mês)",
+                hovermode="x unified",
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="left", x=0,
+                    font=dict(size=10, color="#374151"),
+                    bgcolor="rgba(255,255,255,0.8)",
+                    bordercolor="#e2e5e9", borderwidth=1,
+                ),
+            )
+            fig_media.update_yaxes(ticksuffix="%", range=[None, 2])
+
+            # Anotação com valor mais recente da média
+            _last_media = _df_12m["media"].iloc[-1]
+            _last_dt    = _df_12m["data"].iloc[-1]
+            fig_media.add_annotation(
+                x=_last_dt, y=_last_media,
+                text=f"  {fmt(_last_media)}%",
+                showarrow=False,
+                font=dict(size=11, color="#7c3aed", family="Inter"),
+                xanchor="left",
+            )
+
+            st.plotly_chart(fig_media, use_container_width=True, config={**CHART_CFG_INT,
+                "toImageButtonOptions": {"format":"png","filename":"nucleos_media_12m","scale":2}})
+
     # ── IPCA Acumulado 12M vs Meta ─────────────────────────────────────────────
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     sec_title("Acumulado 12 Meses vs Meta BCB", "↻ diário", "badge-daily")
@@ -908,6 +1015,7 @@ elif st.session_state.pagina == "IPCA & Núcleos":
         _xmax_a = df_ipca_full["data"].max()
         _xmin_a = _xmax_a - pd.DateOffset(months=24)
         fig_acum.update_xaxes(range=[str(_xmin_a.date()), str(_xmax_a.date())])
+        fig_acum.update_yaxes(range=[None, 10])
         st.plotly_chart(fig_acum, use_container_width=True, config={**CHART_CFG_INT,
             "toImageButtonOptions": {"format":"png","filename":"ipca_acum12m_meta","scale":2}})
 
