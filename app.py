@@ -20,11 +20,17 @@ TZ_BRT = ZoneInfo("America/Sao_Paulo")
 def now_brt(): return datetime.now(TZ_BRT)
 
 # ── Constantes ────────────────────────────────────────────────────────────────
-BCB_BASE   = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{c}/dados"
-YAHOO_SNAP = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1d&range=5d"
-YAHOO_HIST = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1d&range={y}y"
-HDRS       = {"User-Agent":"Mozilla/5.0 Chrome/120.0.0.0 Safari/537.36","Accept":"application/json"}
-CHART_CFG  = {"displayModeBar": False, "scrollZoom": False, "staticPlot": False, "responsive": True}
+BCB_BASE      = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{c}/dados"
+YAHOO_SNAP    = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1d&range=5d"
+YAHOO_HIST    = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1d&range={y}y"
+IBGE_SIDRA    = "https://servicodados.ibge.gov.br/api/v3/agregados/{tabela}/periodos/{periodos}/variaveis/{var}?localidades=N1[all]&classificacao={cls}"
+HDRS          = {"User-Agent":"Mozilla/5.0 Chrome/120.0.0.0 Safari/537.36","Accept":"application/json"}
+CHART_CFG     = {"displayModeBar": False, "scrollZoom": False, "staticPlot": False, "responsive": True}
+CHART_CFG_INT = {"displayModeBar": True, "scrollZoom": True,
+                 "modeBarButtonsToRemove": ["select2d","lasso2d","autoScale2d","resetScale2d"],
+                 "modeBarButtonsToAdd": ["zoomIn2d","zoomOut2d"],
+                 "displaylogo": False,
+                 "toImageButtonOptions": {"format":"png","scale":2}}
 
 SGS = {
     "Selic":       (432,   "% a.a.",  "Mensal",     "line"),
@@ -56,7 +62,36 @@ GLOBAL = {
     "Bitcoin":         ("BTC-USD",  "US$",    False),
     "Ethereum":        ("ETH-USD",  "US$",    False),
 }
-NAV = ["Início","Mercados Globais","Gráficos","Exportar"]
+
+# ── Núcleos de Inflação BCB (SGS) ─────────────────────────────────────────────
+# Metodologias oficiais publicadas pelo BCB no Relatório de Inflação
+NUCLEO_SGS = {
+    "MA-S":  (4466,  "Médias Aparadas c/ Suavização",   "#0891b2"),
+    "MA":    (11426, "Médias Aparadas s/ Suavização",   "#06b6d4"),
+    "DP":    (4467,  "Dupla Ponderação",                "#16a34a"),
+    "EX":    (11427, "Exclusão",                        "#d97706"),
+    "P55":   (28750, "Percentil 55",                    "#7c3aed"),
+}
+
+# ── Metas BCB ─────────────────────────────────────────────────────────────────
+BCB_META  = {2020:4.0, 2021:3.75, 2022:3.5, 2023:3.25, 2024:3.0, 2025:3.0, 2026:3.0}
+BCB_TOLE  = 1.5   # ± 1,5 pp
+
+# ── Grupos IPCA (IBGE SIDRA) ──────────────────────────────────────────────────
+IPCA_GRUPOS_IDS = "7169,7170,7445,7486,7625,7626,7627,7628,7629,7630"
+IPCA_GRUPOS_CORES = {
+    "Alimentação e bebidas":       "#d97706",
+    "Habitação":                   "#0891b2",
+    "Artigos de residência":       "#64748b",
+    "Vestuário":                   "#ec4899",
+    "Transportes":                 "#7c3aed",
+    "Saúde e cuidados pessoais":   "#16a34a",
+    "Despesas pessoais":           "#f59e0b",
+    "Educação":                    "#dc2626",
+    "Comunicação":                 "#0ea5e9",
+}
+
+NAV = ["Início", "IPCA & Núcleos", "Mercados Globais", "Gráficos", "Exportar"]
 
 # ── Session state ─────────────────────────────────────────────────────────────
 if "pagina" not in st.session_state:
@@ -72,7 +107,6 @@ st.markdown("""<style>
 .main .block-container{padding-top:0!important;padding-bottom:2rem;max-width:1400px}
 footer,#MainMenu,header{visibility:hidden!important}
 [data-testid="stToolbar"]{display:none!important}
-/* kpi_card usa HTML puro — não precisa de CSS para stMetric */
 [data-testid="stCaptionContainer"] p{font-size:10px!important;color:#9ca3af!important;text-align:center!important;margin:0!important}
 .page-top{background:#fff;border-bottom:1px solid #e8eaed;padding:15px 28px;margin:0 -3rem 22px -3rem;display:flex;align-items:center;justify-content:space-between}
 .page-top h1{font-size:16px;font-weight:600;color:#111827;margin:0}
@@ -82,8 +116,6 @@ footer,#MainMenu,header{visibility:hidden!important}
 .badge-daily{display:inline-block;background:#f5f3ff;border:1px solid #ddd6fe;color:#7c3aed;font-size:9px;font-weight:600;padding:2px 8px;border-radius:20px}
 .main .stButton>button{background:#1a2035!important;color:#fff!important;border:none!important;border-radius:7px!important;font-weight:600!important;font-size:13px!important;padding:8px 18px!important}
 .main .stButton>button:hover{background:#2d3a56!important}
-/* Sidebar buttons: base */
-/* Sidebar: largura fixa, sem botão de colapso */
 section[data-testid="stSidebar"]{min-width:260px!important;max-width:260px!important;width:260px!important}
 [data-testid="stSidebarResizer"]{display:none!important}
 [data-testid="stSidebarCollapseButton"]{display:none!important}
@@ -93,9 +125,10 @@ section[data-testid="stSidebar"] .stButton button::before{content:""!important;p
 section[data-testid="stSidebar"] .stButton button[kind="primary"]{background:#004031!important}
 section[data-testid="stSidebar"] .stButton button[kind="primary"]:hover{background:#005a45!important}
 .nav-marker{display:none!important;height:0!important;margin:0!important;padding:0!important}
-/* :has() selector: container que tem o marcador → próximo container tem o botão */
 div:has(.nav-inicio) + div button[kind="secondary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjcyODAiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0zIDkuNUwxMiAzbDkgNi41VjIwYTEgMSAwIDAgMS0xIDFINGExIDEgMCAwIDEtMS0xVjkuNXoiLz48cGF0aCBkPSJNOSAyMVYxMmg2djkiLz48L3N2Zz4=")!important}
 div:has(.nav-inicio) + div button[kind="primary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0zIDkuNUwxMiAzbDkgNi41VjIwYTEgMSAwIDAgMS0xIDFINGExIDEgMCAwIDEtMS0xVjkuNXoiLz48cGF0aCBkPSJNOSAyMVYxMmg2djkiLz48L3N2Zz4=")!important}
+div:has(.nav-ipca) + div button[kind="secondary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjcyODAiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxsaW5lIHgxPSIxOSIgeTE9IjUiIHgyPSI1IiB5Mj0iMTkiLz48Y2lyY2xlIGN4PSI2LjUiIGN5PSI2LjUiIHI9IjIuNSIvPjxjaXJjbGUgY3g9IjE3LjUiIGN5PSIxNy41IiByPSIyLjUiLz48L3N2Zz4=")!important}
+div:has(.nav-ipca) + div button[kind="primary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxsaW5lIHgxPSIxOSIgeTE9IjUiIHgyPSI1IiB5Mj0iMTkiLz48Y2lyY2xlIGN4PSI2LjUiIGN5PSI2LjUiIHI9IjIuNSIvPjxjaXJjbGUgY3g9IjE3LjUiIGN5PSIxNy41IiByPSIyLjUiLz48L3N2Zz4=")!important}
 div:has(.nav-mercados) + div button[kind="secondary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjcyODAiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwb2x5bGluZSBwb2ludHM9IjIyIDcgMTMuNSAxNS41IDguNSAxMC41IDIgMTciLz48cG9seWxpbmUgcG9pbnRzPSIxNiA3IDIyIDcgMjIgMTMiLz48L3N2Zz4=")!important}
 div:has(.nav-mercados) + div button[kind="primary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwb2x5bGluZSBwb2ludHM9IjIyIDcgMTMuNSAxNS41IDguNSAxMC41IDIgMTciLz48cG9seWxpbmUgcG9pbnRzPSIxNiA3IDIyIDcgMjIgMTMiLz48L3N2Zz4=")!important}
 div:has(.nav-graficos) + div button[kind="secondary"]::before{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjcyODAiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IHg9IjMiIHk9IjEyIiB3aWR0aD0iNCIgaGVpZ2h0PSI5Ii8+PHJlY3QgeD0iMTAiIHk9IjciIHdpZHRoPSI0IiBoZWlnaHQ9IjE0Ii8+PHJlY3QgeD0iMTciIHk9IjMiIHdpZHRoPSI0IiBoZWlnaHQ9IjE4Ii8+PC9zdmc+")!important}
@@ -120,20 +153,21 @@ def sec_title(txt, badge="", cls="badge-live"):
 def page_header(title):
     ts = now_brt().strftime("%d/%m/%Y %H:%M")
 
-def kpi_card(label, value, chg_p=None, sub="", invert=False, d=None):
+def kpi_card(label, value, chg_p=None, sub="", invert=False, d=None, raw_delta=None):
     d = d or {}
     cd = d.get("close_date")
     if chg_p is not None:
         up    = chg_p >= 0
-        arrow = "\u25b2" if up else "\u25bc"
+        arrow = "▲" if up else "▼"
         color = "#16a34a" if up else "#dc2626"
-        delta_html = f"<div style='color:{color};font-size:12px;font-weight:600;margin-top:4px'>{arrow} {abs(chg_p):.2f}%</div>"
+        display_val = fmt(raw_delta) if raw_delta is not None else f"{abs(chg_p):.2f}%"
+        delta_html = f"<div style='color:{color};font-size:12px;font-weight:600;margin-top:4px'>{arrow} {display_val}</div>"
     else:
         delta_html = ""
     sub_html    = f"<div style='font-size:10px;color:#9ca3af;margin-top:6px'>{sub}</div>" if sub else ""
     banner_html = (f"<div style='background:#fef9c3;border:1px solid #fde047;border-radius:6px;"
                    f"font-size:9px;font-weight:600;color:#854d0e;padding:3px 8px;margin-top:8px;"
-                   f"text-align:center'>\u26a0 Ref. {cd}</div>") if cd else ""
+                   f"text-align:center'>⚠ Ref. {cd}</div>") if cd else ""
     card = (
         "<div style='background:#ffffff;border:1px solid #e2e5e9;border-radius:12px;"
         "padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.05);text-align:center'>"
@@ -155,7 +189,18 @@ _B = dict(paper_bgcolor="#fff",plot_bgcolor="#fff",font_color="#6b7280",font_fam
 _I = {**_B,
       "xaxis":{**_B["xaxis"],"fixedrange":False},
       "yaxis":{**_B["yaxis"],"fixedrange":False},
-      "dragmode":"zoom"}  # drag=zoom; shift+drag=pan
+      "dragmode":"zoom"}
+
+_RS_BUTTONS = [
+    dict(count=6,  label="6M",  step="month", stepmode="backward"),
+    dict(count=1,  label="1A",  step="year",  stepmode="backward"),
+    dict(count=2,  label="2A",  step="year",  stepmode="backward"),
+    dict(count=5,  label="5A",  step="year",  stepmode="backward"),
+    dict(step="all", label="Tudo"),
+]
+_RS_STYLE = dict(bgcolor="#f8fafc", bordercolor="#e2e5e9", borderwidth=1,
+                 font=dict(size=11, color="#374151"), activecolor="#e6f0ed",
+                 x=1.0, xanchor="right", y=1.0, yanchor="bottom", buttons=_RS_BUTTONS)
 
 def _rng(fig, df, sfx="", pad=0.08):
     if df.empty: return fig
@@ -166,32 +211,22 @@ def _rng(fig, df, sfx="", pad=0.08):
     fig.update_yaxes(range=[mn-yd,mx+yd],tickformat=".2f",ticksuffix=sfx.strip())
     return fig
 
+def _add_rangeslider(fig, height, extra_top=32):
+    fig.update_xaxes(
+        rangeslider=dict(visible=True, thickness=0.05, bgcolor="#f1f5f9"),
+        rangeselector=_RS_STYLE,
+    )
+    fig.update_yaxes(fixedrange=False)
+    fig.update_layout(height=height+40, margin=dict(t=40+extra_top))
+    return fig
+
 def line_fig(df, title, color="#1a2035", fill=True, suffix="", height=260, inter=False):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df["data"],y=df["valor"],mode="lines",line=dict(color=color,width=2),
         fill="tozeroy" if fill else "none",fillcolor=hex_rgba(color,.07),
         hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.2f}}{suffix}</b><extra></extra>"))
     fig.update_layout(**(_I if inter else _B),title=title,height=height)
-    if inter:
-        fig.update_xaxes(
-            rangeslider=dict(visible=True, thickness=0.05, bgcolor="#f1f5f9"),
-            rangeselector=dict(
-                bgcolor="#f8fafc", bordercolor="#e2e5e9", borderwidth=1,
-                font=dict(size=11, color="#374151"),
-                activecolor="#e6f0ed",  # fundo verde claro, texto escuro permanece legível
-                x=1.0, xanchor="right",   # alinha à direita, abaixo do modebar
-                y=1.0, yanchor="bottom",
-                buttons=[
-                    dict(count=6,  label="6M",  step="month", stepmode="backward"),
-                    dict(count=1,  label="1A",  step="year",  stepmode="backward"),
-                    dict(count=2,  label="2A",  step="year",  stepmode="backward"),
-                    dict(count=5,  label="5A",  step="year",  stepmode="backward"),
-                    dict(step="all", label="Tudo"),
-                ],
-            ),
-        )
-        fig.update_yaxes(fixedrange=False)
-        fig.update_layout(height=height+40, margin=dict(t=72))  # espaço para rangeselector
+    if inter: fig = _add_rangeslider(fig, height)
     return _rng(fig,df,suffix) if not df.empty else fig
 
 def bar_fig(df, title, suffix="", height=260, inter=False):
@@ -200,27 +235,161 @@ def bar_fig(df, title, suffix="", height=260, inter=False):
         marker_color=["#16a34a" if v>=0 else "#dc2626" for v in df["valor"]],marker_line_width=0,
         hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>%{{y:.4f}}{suffix}</b><extra></extra>"))
     fig.update_layout(**(_I if inter else _B),title=title,height=height)
-    if inter:
-        fig.update_xaxes(
-            rangeslider=dict(visible=True, thickness=0.05, bgcolor="#f1f5f9"),
-            rangeselector=dict(
-                bgcolor="#f8fafc", bordercolor="#e2e5e9", borderwidth=1,
-                font=dict(size=11, color="#374151"),
-                activecolor="#e6f0ed",  # fundo verde claro, texto escuro permanece legível
-                x=1.0, xanchor="right",
-                y=1.0, yanchor="bottom",
-                buttons=[
-                    dict(count=6,  label="6M",  step="month", stepmode="backward"),
-                    dict(count=1,  label="1A",  step="year",  stepmode="backward"),
-                    dict(count=2,  label="2A",  step="year",  stepmode="backward"),
-                    dict(count=5,  label="5A",  step="year",  stepmode="backward"),
-                    dict(step="all", label="Tudo"),
-                ],
-            ),
-        )
-        fig.update_yaxes(fixedrange=False)
-        fig.update_layout(height=height+40, margin=dict(t=72))
+    if inter: fig = _add_rangeslider(fig, height)
     return _rng(fig,df,suffix,.15) if not df.empty else fig
+
+# ── Figura overlay: IPCA headline + todos os núcleos ─────────────────────────
+def cores_overlay_fig(df_ipca, nucleo_data, height=480):
+    """
+    df_ipca    : DataFrame com colunas [data, valor] — IPCA headline
+    nucleo_data: dict {key: (df, label, color)} — todos os núcleos
+    """
+    fig = go.Figure()
+
+    # Headline
+    if not df_ipca.empty:
+        fig.add_trace(go.Scatter(
+            x=df_ipca["data"], y=df_ipca["valor"],
+            mode="lines", name="IPCA (headline)",
+            line=dict(color="#1a2035", width=2.5),
+            hovertemplate="%{x|%b/%Y}<br><b>IPCA: %{y:.2f}%</b><extra></extra>"
+        ))
+
+    # Núcleos
+    for key, (df_n, label, color) in nucleo_data.items():
+        if not df_n.empty:
+            fig.add_trace(go.Scatter(
+                x=df_n["data"], y=df_n["valor"],
+                mode="lines", name=f"{key} — {label}",
+                line=dict(color=color, width=1.6, dash="solid"),
+                hovertemplate=f"%{{x|%b/%Y}}<br><b>{key}: %{{y:.2f}}%</b><extra></extra>"
+            ))
+
+    fig.update_layout(
+        **_I,
+        height=height,
+        title="IPCA e Núcleos de Inflação (% ao mês)",
+        hovermode="x unified",
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02,
+            xanchor="left", x=0,
+            font=dict(size=10, color="#374151"),
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor="#e2e5e9", borderwidth=1,
+        ),
+    )
+    fig = _add_rangeslider(fig, height, extra_top=40)
+    return fig
+
+# ── Figura grupos: barras horizontais — último mês ────────────────────────────
+def grupos_bar_fig(df_grupos, ultimo_mes):
+    df_m = df_grupos[
+        (df_grupos["data"] == ultimo_mes) &
+        (df_grupos["grupo_id"] != "7169")      # exclui índice geral
+    ].copy()
+    if df_m.empty:
+        return go.Figure()
+    df_m = df_m.sort_values("valor", ascending=True)
+    colors = ["#dc2626" if v >= 0 else "#16a34a" for v in df_m["valor"]]
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df_m["valor"], y=df_m["grupo"],
+        orientation="h",
+        marker_color=colors, marker_line_width=0,
+        text=[f"{v:+.2f}%" for v in df_m["valor"]],
+        textposition="outside",
+        hovertemplate="%{y}<br><b>%{x:.2f}%</b><extra></extra>",
+    ))
+    fig.update_layout(
+        **_B,
+        height=340,
+        title=f"Variação Mensal por Grupo — {ultimo_mes.strftime('%b/%Y')}",
+        xaxis_title="% ao mês",
+        margin=dict(l=180, r=60, t=40, b=36),
+    )
+    fig.update_xaxes(ticksuffix="%", zeroline=True, zerolinecolor="#e2e5e9", zerolinewidth=1)
+    return fig
+
+# ── Figura grupos: linhas — evolução 12M ──────────────────────────────────────
+def grupos_linhas_fig(df_grupos, n=12):
+    datas_sorted = sorted(df_grupos["data"].unique())
+    datas_n = datas_sorted[-n:]
+    df_f = df_grupos[
+        df_grupos["data"].isin(datas_n) &
+        (df_grupos["grupo_id"] != "7169")
+    ].copy()
+    if df_f.empty:
+        return go.Figure()
+
+    fig = go.Figure()
+    for grupo in sorted(df_f["grupo"].unique()):
+        df_g = df_f[df_f["grupo"] == grupo].sort_values("data")
+        color = IPCA_GRUPOS_CORES.get(grupo, "#94a3b8")
+        fig.add_trace(go.Scatter(
+            x=df_g["data"], y=df_g["valor"],
+            mode="lines+markers",
+            name=grupo,
+            line=dict(color=color, width=1.6),
+            marker=dict(size=4, color=color),
+            hovertemplate=f"%{{x|%b/%Y}}<br><b>{grupo}: %{{y:.2f}}%</b><extra></extra>",
+        ))
+    fig.update_layout(
+        **_B,
+        height=380,
+        title="Evolução por Grupo — últimos 12 meses (% ao mês)",
+        hovermode="x unified",
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02,
+            xanchor="left", x=0,
+            font=dict(size=10, color="#374151"),
+        ),
+    )
+    fig.update_yaxes(ticksuffix="%")
+    return fig
+
+# ── Figura acumulado 12M vs meta ──────────────────────────────────────────────
+def acum12m_meta_fig(df_ipca_full):
+    df = df_ipca_full.copy().sort_values("data").reset_index(drop=True)
+    if len(df) < 12:
+        return go.Figure()
+    df["acum12m"] = df["valor"].rolling(12).sum()
+    df = df.dropna(subset=["acum12m"])
+
+    fig = go.Figure()
+    # Banda de tolerância
+    meta_val = 3.0
+    fig.add_hrect(
+        y0=meta_val - BCB_TOLE, y1=meta_val + BCB_TOLE,
+        fillcolor="rgba(22,163,74,0.06)", line_width=0,
+        annotation_text=f"Banda ±{BCB_TOLE}pp", annotation_position="top right",
+        annotation_font=dict(size=10, color="#16a34a"),
+    )
+    # Linha da meta
+    fig.add_hline(
+        y=meta_val, line_dash="dot", line_color="#16a34a", line_width=1.5,
+        annotation_text=f"Meta {meta_val:.1f}%", annotation_position="right",
+        annotation_font=dict(size=10, color="#16a34a"),
+    )
+    # Acumulado 12M
+    above = df["acum12m"] > (meta_val + BCB_TOLE)
+    colors_line = ["#dc2626" if a else "#1a2035" for a in above]
+    fig.add_trace(go.Scatter(
+        x=df["data"], y=df["acum12m"],
+        mode="lines",
+        name="IPCA acum. 12M",
+        line=dict(color="#1a2035", width=2),
+        fill="tozeroy", fillcolor="rgba(26,32,53,0.05)",
+        hovertemplate="%{x|%b/%Y}<br><b>Acum. 12M: %{y:.2f}%</b><extra></extra>",
+    ))
+    fig.update_layout(
+        **_I,
+        height=320,
+        title="IPCA Acumulado 12 Meses vs Meta BCB",
+        hovermode="x unified",
+        showlegend=False,
+    )
+    fig = _add_rangeslider(fig, 320)
+    return fig
 
 # ── Data BCB ──────────────────────────────────────────────────────────────────
 def _parse(v):
@@ -265,9 +434,107 @@ def get_bcb_full(c):
 def get_bcb_range(c,ini,fim):
     return _build(_fetch(BCB_BASE.format(c=c)+f"?formato=json&dataInicial={ini}&dataFinal={fim}"))
 
+# ── Data IBGE SIDRA ───────────────────────────────────────────────────────────
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_ipca_grupos(n_periodos: int = 24) -> pd.DataFrame:
+    """
+    Retorna variação mensal do IPCA por grupo (IBGE SIDRA tabela 7060, variável 63).
+    grupo_id == '7169' → Índice Geral
+    """
+    url = IBGE_SIDRA.format(
+        tabela="7060",
+        periodos=f"-{n_periodos}",
+        var="63",
+        cls=f"315[{IPCA_GRUPOS_IDS}]",
+    )
+    try:
+        r = requests.get(url, headers=HDRS, timeout=30)
+        r.raise_for_status()
+        raw = r.json()
+        rows = []
+        for variavel in raw:
+            for resultado in variavel.get("resultados", []):
+                cats = resultado.get("classificacoes", [])
+                if not cats:
+                    continue
+                cat_dict   = cats[0].get("categoria", {})
+                grupo_id   = next(iter(cat_dict), None)
+                grupo_nome = next(iter(cat_dict.values()), None)
+                if grupo_nome and "." in grupo_nome:
+                    # Remove prefixo numérico: "1.Alimentação..." → "Alimentação..."
+                    grupo_nome = grupo_nome.split(".", 1)[-1].strip()
+                series_list = resultado.get("series", [])
+                if not series_list:
+                    continue
+                serie = series_list[0].get("serie", {})
+                for periodo, valor in serie.items():
+                    try:
+                        val = float(str(valor).replace(",", "."))
+                        dt  = pd.to_datetime(periodo, format="%Y%m")
+                        rows.append({
+                            "data":     dt,
+                            "grupo_id": grupo_id,
+                            "grupo":    grupo_nome,
+                            "valor":    val,
+                        })
+                    except Exception:
+                        pass
+        if not rows:
+            return pd.DataFrame(columns=["data", "grupo_id", "grupo", "valor"])
+        return (pd.DataFrame(rows)
+                .sort_values(["data", "grupo"])
+                .reset_index(drop=True))
+    except Exception:
+        return pd.DataFrame(columns=["data", "grupo_id", "grupo", "valor"])
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_ipca_acum_grupo(n_periodos: int = 24) -> pd.DataFrame:
+    """
+    Variação acumulada 12 meses do IPCA por grupo (IBGE SIDRA tabela 7060, variável 2266).
+    """
+    url = IBGE_SIDRA.format(
+        tabela="7060",
+        periodos=f"-{n_periodos}",
+        var="2266",
+        cls=f"315[{IPCA_GRUPOS_IDS}]",
+    )
+    try:
+        r = requests.get(url, headers=HDRS, timeout=30)
+        r.raise_for_status()
+        raw = r.json()
+        rows = []
+        for variavel in raw:
+            for resultado in variavel.get("resultados", []):
+                cats = resultado.get("classificacoes", [])
+                if not cats:
+                    continue
+                cat_dict   = cats[0].get("categoria", {})
+                grupo_id   = next(iter(cat_dict), None)
+                grupo_nome = next(iter(cat_dict.values()), None)
+                if grupo_nome and "." in grupo_nome:
+                    grupo_nome = grupo_nome.split(".", 1)[-1].strip()
+                series_list = resultado.get("series", [])
+                if not series_list:
+                    continue
+                serie = series_list[0].get("serie", {})
+                for periodo, valor in serie.items():
+                    try:
+                        val = float(str(valor).replace(",", "."))
+                        dt  = pd.to_datetime(periodo, format="%Y%m")
+                        rows.append({"data": dt, "grupo_id": grupo_id,
+                                     "grupo": grupo_nome, "valor": val})
+                    except Exception:
+                        pass
+        if not rows:
+            return pd.DataFrame(columns=["data", "grupo_id", "grupo", "valor"])
+        return (pd.DataFrame(rows)
+                .sort_values(["data", "grupo"])
+                .reset_index(drop=True))
+    except Exception:
+        return pd.DataFrame(columns=["data", "grupo_id", "grupo", "valor"])
+
 # ── Data Yahoo / yfinance ────────────────────────────────────────────────────
 def _yf_quote_raw(sym):
-    """Tenta buscar cotação via yfinance (biblioteca) — mais confiável no Streamlit Cloud."""
     try:
         import yfinance as yf
         tk   = yf.Ticker(sym)
@@ -292,7 +559,6 @@ def _yf_quote_raw(sym):
         return None
 
 def _http_quote_raw(sym):
-    """Fallback via HTTP direto para Yahoo Finance v7 e v8."""
     urls = [
         f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=5d",
         f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={sym}",
@@ -302,7 +568,6 @@ def _http_quote_raw(sym):
             r = requests.get(url, headers=HDRS, timeout=10, verify=False)
             if r.status_code != 200: continue
             data = r.json()
-            # v8 chart
             if "chart" in data:
                 meta  = data["chart"]["result"][0]["meta"]
                 price = meta.get("regularMarketPrice") or meta.get("previousClose")
@@ -310,7 +575,6 @@ def _http_quote_raw(sym):
                 rt    = meta.get("regularMarketTime")
                 last_date = datetime.fromtimestamp(rt).date() if rt else None
                 if price: return {"price": float(price), "prev": float(prev) if prev else None, "last_date": last_date}
-            # v7 quote
             if "quoteResponse" in data:
                 q     = data["quoteResponse"]["result"][0]
                 price = q.get("regularMarketPrice")
@@ -341,7 +605,6 @@ def get_quote(sym):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_hist(sym, years=5):
-    # Tenta yfinance primeiro
     try:
         import yfinance as yf
         df = yf.download(sym, period=f"{years}y", auto_adjust=True, progress=False)
@@ -354,7 +617,6 @@ def get_hist(sym, years=5):
             result["data"] = pd.to_datetime(result["data"]).dt.tz_localize(None)
             return result.dropna().reset_index(drop=True)
     except: pass
-    # Fallback HTTP
     try:
         r   = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range={years}y",
                            headers=HDRS, timeout=15, verify=False)
@@ -367,7 +629,7 @@ def get_hist(sym, years=5):
 
 def aplicar_periodo(df, periodo, ind_nome):
     df = df.copy().sort_values("data").reset_index(drop=True)
-    if periodo == "Original" or periodo == "Mensal (original)" or periodo == "Var. trimestral (original)" or periodo == "Nível (original)":
+    if periodo in ("Original","Mensal (original)","Var. trimestral (original)","Nível (original)"):
         return df, df.attrs.get("unit","")
     elif periodo == "Acumulado 12M":
         df["valor"] = df["valor"].rolling(12).sum()
@@ -397,7 +659,13 @@ with st.sidebar:
                 "<span style='font-size:24px;font-weight:900;color:#004031;letter-spacing:-0.5px'>EQI</span>"
                 "</div>", unsafe_allow_html=True)
     st.divider()
-    _NAV_SLUGS = {"Início":"inicio","Mercados Globais":"mercados","Gráficos":"graficos","Exportar":"exportar"}
+    _NAV_SLUGS = {
+        "Início":          "inicio",
+        "IPCA & Núcleos":  "ipca",
+        "Mercados Globais":"mercados",
+        "Gráficos":        "graficos",
+        "Exportar":        "exportar",
+    }
     for label in NAV:
         slug = _NAV_SLUGS.get(label, label.lower())
         st.markdown(f"<div class='nav-marker nav-{slug}'></div>", unsafe_allow_html=True)
@@ -407,8 +675,8 @@ with st.sidebar:
             st.session_state.pagina = label
             st.rerun()
     st.divider()
-    st.caption("Fontes: BCB/SGS · Yahoo Finance")
-    st.caption("Mercados ↻60s · BCB ↻1h")
+    st.caption("Fontes: BCB/SGS · IBGE/SIDRA · Yahoo Finance")
+    st.caption("Mercados ↻60s · BCB/IBGE ↻1h")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # INÍCIO
@@ -418,9 +686,9 @@ if st.session_state.pagina == "Início":
     with st.spinner("Carregando..."):
         ibov=get_quote("^BVSP"); usd=get_quote("USDBRL=X"); eur=get_quote("EURBRL=X")
         _hoje  = datetime.today()
-        _ini13 = (_hoje - timedelta(days=400)).strftime("%d/%m/%Y")   # ~13 meses
-        _ini30 = (_hoje - timedelta(days=45)).strftime("%d/%m/%Y")    # ~30 dias úteis
-        _ini3a = (_hoje - timedelta(days=3*365)).strftime("%d/%m/%Y") # 3 anos
+        _ini13 = (_hoje - timedelta(days=400)).strftime("%d/%m/%Y")
+        _ini30 = (_hoje - timedelta(days=45)).strftime("%d/%m/%Y")
+        _ini3a = (_hoje - timedelta(days=3*365)).strftime("%d/%m/%Y")
         _fim   = _hoje.strftime("%d/%m/%Y")
         dsel  = get_bcb_range(432,   _ini13, _fim)
         dipca = get_bcb_range(433,   _ini13, _fim)
@@ -467,7 +735,7 @@ if st.session_state.pagina == "Início":
                      sub=f"Ref: {ddes['data'].iloc[-1].strftime('%b/%Y')}")
         else: kpi_card("Desemprego (PNAD)","—",sub="BCB indisponível")
 
-    st.markdown('<div class="sec-title">Histórico — 12 meses <span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px">→ série completa em Gráficos</span></div>',unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Histórico — 12 meses <span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px">→ análise completa em IPCA & Núcleos</span></div>',unsafe_allow_html=True)
     ca,cb=st.columns(2)
     with ca:
         if not dsel.empty: st.plotly_chart(line_fig(dsel,"Selic (% a.a.)","#1a2035",suffix="%"),use_container_width=True,config=CHART_CFG)
@@ -484,6 +752,247 @@ if st.session_state.pagina == "Início":
         if not dpib.empty: st.plotly_chart(bar_fig(dpib,"PIB — variação trimestral (%)",suffix="%"),use_container_width=True,config=CHART_CFG)
     with cf:
         if not ddes.empty: st.plotly_chart(line_fig(ddes,"Desemprego PNAD (%)","#dc2626",suffix="%"),use_container_width=True,config=CHART_CFG)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# IPCA & NÚCLEOS
+# ══════════════════════════════════════════════════════════════════════════════
+elif st.session_state.pagina == "IPCA & Núcleos":
+    page_header("IPCA & Núcleos de Inflação")
+
+    with st.spinner("Carregando indicadores de inflação..."):
+        # ── IPCA headline (série completa para cálculos) ──────────────────────
+        df_ipca_full = get_bcb_full(433)
+
+        # ── Núcleos — séries completas do BCB/SGS ────────────────────────────
+        nucleo_data = {}
+        for key, (cod, label, color) in NUCLEO_SGS.items():
+            nucleo_data[key] = (get_bcb_full(cod), label, color)
+
+        # ── Grupos IPCA — IBGE SIDRA ──────────────────────────────────────────
+        df_grupos_mensal = get_ipca_grupos(24)
+        df_grupos_acum   = get_ipca_acum_grupo(24)
+
+    # ── KPIs ──────────────────────────────────────────────────────────────────
+    sec_title("IPCA — Inflação ao Consumidor", "↻ diário", "badge-daily")
+
+    hoje_ano  = datetime.today().year
+    meta_bcb  = BCB_META.get(hoje_ano, 3.0)
+    teto_meta = meta_bcb + BCB_TOLE
+    piso_meta = meta_bcb - BCB_TOLE
+
+    ipca_mensal  = df_ipca_full["valor"].iloc[-1]  if not df_ipca_full.empty else None
+    ipca_ant     = df_ipca_full["valor"].iloc[-2]  if len(df_ipca_full) >= 2 else None
+    ipca_acum12m = df_ipca_full["valor"].tail(12).sum() if len(df_ipca_full) >= 12 else None
+    ref_mes      = df_ipca_full["data"].iloc[-1].strftime("%b/%Y") if not df_ipca_full.empty else ""
+    desvio_meta  = (ipca_acum12m - meta_bcb) if ipca_acum12m is not None else None
+    var_mensal   = (ipca_mensal - ipca_ant) if (ipca_mensal is not None and ipca_ant is not None) else None
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        kpi_card("IPCA Mensal",
+                 f"{fmt(ipca_mensal)}%" if ipca_mensal is not None else "—",
+                 chg_p=var_mensal,
+                 raw_delta=var_mensal,
+                 sub=f"Ref: {ref_mes}")
+    with c2:
+        if ipca_acum12m is not None:
+            dentro = piso_meta <= ipca_acum12m <= teto_meta
+            status = "✓ dentro da meta" if dentro else ("↑ acima do teto" if ipca_acum12m > teto_meta else "↓ abaixo do piso")
+            kpi_card("Acum. 12 Meses",
+                     f"{fmt(ipca_acum12m)}%",
+                     sub=status)
+        else:
+            kpi_card("Acum. 12 Meses", "—")
+    with c3:
+        kpi_card("Meta BCB",
+                 f"{fmt(meta_bcb, 1)}%",
+                 sub=f"Banda: {fmt(piso_meta,1)}% – {fmt(teto_meta,1)}% (±{BCB_TOLE}pp)")
+    with c4:
+        if desvio_meta is not None:
+            color_dev = "#dc2626" if abs(desvio_meta) > BCB_TOLE else "#16a34a"
+            kpi_card("Desvio da Meta",
+                     f"{'+' if desvio_meta >= 0 else ''}{fmt(desvio_meta)}pp",
+                     chg_p=desvio_meta,
+                     raw_delta=desvio_meta,
+                     sub=f"Meta contínua {hoje_ano}")
+        else:
+            kpi_card("Desvio da Meta", "—")
+
+    # ── Núcleos de Inflação ────────────────────────────────────────────────────
+    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    sec_title("Núcleos de Inflação — BCB", "↻ diário", "badge-daily")
+
+    st.markdown(
+        "<div style='font-size:11px;color:#6b7280;margin:0 0 14px'>"
+        "Cinco medidas de núcleo calculadas e publicadas pelo BCB no <em>Relatório de Inflação</em>: "
+        "<b>MA-S</b> médias aparadas c/ suavização (cód. 4466) · "
+        "<b>MA</b> médias aparadas s/ suavização (11426) · "
+        "<b>DP</b> dupla ponderação (4467) · "
+        "<b>EX</b> exclusão de alimentação no domicílio e administrados (11427) · "
+        "<b>P55</b> percentil 55 (28750)"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    fig_cores = cores_overlay_fig(df_ipca_full, nucleo_data, height=480)
+    st.plotly_chart(fig_cores, use_container_width=True, config={**CHART_CFG_INT,
+        "toImageButtonOptions": {"format":"png","filename":"ipca_nucleos","scale":2}})
+
+    # Tabela resumo — últimas leituras
+    tab_rows = []
+    if not df_ipca_full.empty:
+        ul = df_ipca_full.iloc[-1]
+        an = df_ipca_full.iloc[-2]["valor"] if len(df_ipca_full) >= 2 else None
+        tab_rows.append({
+            "Medida":     "IPCA (headline)",
+            "Cód. SGS":   433,
+            "Último valor": f"{fmt(ul['valor'])}%",
+            "Ref.":       ul["data"].strftime("%b/%Y"),
+            "Var. s/ ant.": f"{'+' if an and ul['valor']>=an else ''}{fmt(ul['valor']-an)}pp" if an else "—",
+        })
+    for key, (df_n, label, color) in nucleo_data.items():
+        if not df_n.empty:
+            ul = df_n.iloc[-1]
+            an = df_n.iloc[-2]["valor"] if len(df_n) >= 2 else None
+            cod = NUCLEO_SGS[key][0]
+            tab_rows.append({
+                "Medida":     f"{key} — {label}",
+                "Cód. SGS":   cod,
+                "Último valor": f"{fmt(ul['valor'])}%",
+                "Ref.":       ul["data"].strftime("%b/%Y"),
+                "Var. s/ ant.": f"{'+' if an and ul['valor']>=an else ''}{fmt(ul['valor']-an)}pp" if an else "—",
+            })
+    if tab_rows:
+        st.dataframe(pd.DataFrame(tab_rows), hide_index=True, use_container_width=True,
+                     height=46 + len(tab_rows) * 35)
+
+    # ── IPCA Acumulado 12M vs Meta ─────────────────────────────────────────────
+    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    sec_title("Acumulado 12 Meses vs Meta BCB", "↻ diário", "badge-daily")
+    if not df_ipca_full.empty:
+        fig_acum = acum12m_meta_fig(df_ipca_full)
+        st.plotly_chart(fig_acum, use_container_width=True, config={**CHART_CFG_INT,
+            "toImageButtonOptions": {"format":"png","filename":"ipca_acum12m_meta","scale":2}})
+
+    # ── Desagregação por Grupos (IBGE) ─────────────────────────────────────────
+    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    sec_title("IPCA por Grupos — IBGE SIDRA", "↻ diário", "badge-daily")
+
+    if df_grupos_mensal.empty:
+        st.warning("⚠️ API IBGE/SIDRA temporariamente indisponível. Tente novamente em instantes.")
+    else:
+        # Último mês disponível
+        ultimo_mes = df_grupos_mensal["data"].max()
+        prev_mes   = sorted(df_grupos_mensal["data"].unique())[-2] if df_grupos_mensal["data"].nunique() >= 2 else None
+
+        # KPIs dos principais grupos no último mês
+        df_ult = df_grupos_mensal[
+            (df_grupos_mensal["data"] == ultimo_mes) &
+            (df_grupos_mensal["grupo_id"] != "7169")
+        ].copy().sort_values("valor", ascending=False)
+
+        ga, gb = st.columns([1.1, 1])
+
+        with ga:
+            st.plotly_chart(
+                grupos_bar_fig(df_grupos_mensal, ultimo_mes),
+                use_container_width=True, config=CHART_CFG,
+            )
+
+        with gb:
+            # Maiores altas e baixas
+            top_alta  = df_ult.head(3)
+            top_baixa = df_ult.tail(3)
+
+            def _mini_card(grupo, valor, ref):
+                cor = "#dc2626" if valor >= 0 else "#16a34a"
+                sinal = "▲" if valor >= 0 else "▼"
+                st.markdown(
+                    f"<div style='background:#fff;border:1px solid #e2e5e9;border-radius:10px;"
+                    f"padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;"
+                    f"justify-content:space-between'>"
+                    f"<span style='font-size:12px;font-weight:500;color:#374151'>{grupo}</span>"
+                    f"<span style='font-size:14px;font-weight:700;color:{cor}'>{sinal} {abs(valor):.2f}%</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown(
+                f"<div style='font-size:10px;font-weight:700;color:#6b7280;"
+                f"text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px'>"
+                f"Maiores altas — {ultimo_mes.strftime('%b/%Y')}</div>",
+                unsafe_allow_html=True,
+            )
+            for _, row in top_alta.iterrows():
+                _mini_card(row["grupo"], row["valor"], ultimo_mes)
+
+            st.markdown(
+                f"<div style='font-size:10px;font-weight:700;color:#6b7280;"
+                f"text-transform:uppercase;letter-spacing:1.5px;margin:12px 0 8px'>"
+                f"Menores variações — {ultimo_mes.strftime('%b/%Y')}</div>",
+                unsafe_allow_html=True,
+            )
+            for _, row in top_baixa.iterrows():
+                _mini_card(row["grupo"], row["valor"], ultimo_mes)
+
+        # Evolução 12M por grupo
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+        st.plotly_chart(
+            grupos_linhas_fig(df_grupos_mensal, n=12),
+            use_container_width=True, config=CHART_CFG,
+        )
+
+        # Acumulado 12M por grupo (IBGE)
+        if not df_grupos_acum.empty:
+            st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+            sec_title("Acumulado 12 Meses por Grupo — IBGE", "↻ diário", "badge-daily")
+
+            ult_acum  = df_grupos_acum["data"].max()
+            df_acum_u = df_grupos_acum[
+                (df_grupos_acum["data"] == ult_acum) &
+                (df_grupos_acum["grupo_id"] != "7169")
+            ].copy().sort_values("valor", ascending=True)
+
+            if not df_acum_u.empty:
+                colors_acum = ["#dc2626" if v > teto_meta else "#16a34a" if v < piso_meta else "#0891b2"
+                               for v in df_acum_u["valor"]]
+                fig_acum_g = go.Figure()
+                fig_acum_g.add_shape(type="rect",
+                    x0=piso_meta, x1=teto_meta, y0=-0.5, y1=len(df_acum_u)-0.5,
+                    fillcolor="rgba(22,163,74,0.07)", line_width=0)
+                fig_acum_g.add_vline(x=meta_bcb, line_dash="dot", line_color="#16a34a",
+                                     line_width=1.5,
+                                     annotation_text=f"Meta {meta_bcb:.1f}%",
+                                     annotation_position="top",
+                                     annotation_font=dict(size=10, color="#16a34a"))
+                fig_acum_g.add_trace(go.Bar(
+                    x=df_acum_u["valor"], y=df_acum_u["grupo"],
+                    orientation="h",
+                    marker_color=colors_acum, marker_line_width=0,
+                    text=[f"{v:.1f}%" for v in df_acum_u["valor"]],
+                    textposition="outside",
+                    hovertemplate="%{y}<br><b>Acum. 12M: %{x:.2f}%</b><extra></extra>",
+                ))
+                fig_acum_g.update_layout(
+                    **_B,
+                    height=340,
+                    title=f"IPCA Acumulado 12M por Grupo — {ult_acum.strftime('%b/%Y')} (vs meta {meta_bcb:.1f}%)",
+                    xaxis_title="% acumulado 12 meses",
+                    margin=dict(l=190, r=60, t=44, b=36),
+                )
+                fig_acum_g.update_xaxes(ticksuffix="%")
+                st.plotly_chart(fig_acum_g, use_container_width=True, config=CHART_CFG)
+
+        # Download
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+        dlo_g = df_grupos_mensal.copy()
+        dlo_g["data"] = dlo_g["data"].dt.strftime("%Y-%m")
+        st.download_button(
+            "💾 Baixar CSV — IPCA por grupos (variação mensal)",
+            data=dlo_g.to_csv(index=False).encode("utf-8-sig"),
+            file_name="ipca_grupos_mensal.csv",
+            mime="text/csv",
+        )
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MERCADOS GLOBAIS
@@ -520,7 +1029,6 @@ elif st.session_state.pagina == "Gráficos":
     page_header("Gráficos")
     t1,t2=st.tabs(["BCB — Indicadores Brasil","Yahoo Finance — Ativos Globais"])
     with t1:
-        # Opções de transformação por indicador
         PERIODOS = {
             "Selic":       ["Original"],
             "IPCA":        ["Mensal (original)","Acumulado 12M","Acumulado no ano"],
@@ -534,9 +1042,6 @@ elif st.session_state.pagina == "Gráficos":
             "Importações": ["Original","Var. mensal (m/m)","Var. anual (a/a)"],
             "Dívida/PIB":  ["Original","Var. mensal (m/m)"],
         }
-
-        # aplicar_periodo definida no escopo global acima
-
         col1, col2 = st.columns([2, 2])
         with col1: ind = st.selectbox("Indicador", list(SGS.keys()), key="gind")
         opts = PERIODOS.get(ind, ["Original"])
@@ -548,11 +1053,9 @@ elif st.session_state.pagina == "Gráficos":
         if df_f.empty:
             st.warning("⚠️ API BCB temporariamente indisponível.")
         else:
-            # Aplica transformação
             df_t, unit_t = aplicar_periodo(df_f, periodo, ind)
             if not unit_t: unit_t = unit
             label_t = f"{ind} — {periodo}" if periodo not in ("Original","Mensal (original)","Nível (original)","Var. trimestral (original)") else f"{ind} ({unit_t})"
-
             dmin = df_t["data"].min().date(); dmax = df_t["data"].max().date()
             st.markdown(
                 f"<div style='font-size:11px;color:#6b7280;margin:6px 0 14px'>"
@@ -566,24 +1069,16 @@ elif st.session_state.pagina == "Gráficos":
             c2, c3 = st.columns(2)
             with c2: d_ini = st.date_input("Exibir de", value=_d24, min_value=dmin, max_value=dmax, key="gini")
             with c3: d_fim = st.date_input("Exibir até", value=dmax, min_value=dmin, max_value=dmax, key="gfim")
-
             if d_ini < d_fim:
                 st.success(f"✅ {len(df_t)} obs. · {label_t} · {freq}")
-                # Decide bar or line based on tipo AND transformação
                 use_bar = (tipo == "bar") and (periodo in ("Original","Mensal (original)","Var. trimestral (original)"))
                 if use_bar:
                     fig = bar_fig(df_t, label_t, suffix=f" {unit_t}", height=440, inter=True)
                 else:
                     fig = line_fig(df_t, label_t, "#004031", suffix=f" {unit_t}", height=440, inter=True)
                 fig.update_xaxes(range=[str(d_ini), str(d_fim)])
-                st.plotly_chart(fig, use_container_width=True, config={
-                    "displayModeBar": True,
-                    "scrollZoom": True,
-                    "modeBarButtonsToRemove": ["select2d","lasso2d","autoScale2d","resetScale2d"],
-                    "modeBarButtonsToAdd": ["zoomIn2d","zoomOut2d"],
-                    "displaylogo": False,
-                    "toImageButtonOptions": {"format":"png","filename":f"{ind}_{periodo}","scale":2},
-                })
+                st.plotly_chart(fig, use_container_width=True, config={**CHART_CFG_INT,
+                    "toImageButtonOptions": {"format":"png","filename":f"{ind}_{periodo}","scale":2}})
                 dlo = df_t.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(
                     f"💾 Baixar CSV ({len(dlo)} linhas)",
@@ -595,7 +1090,6 @@ elif st.session_state.pagina == "Gráficos":
         co1, _ = st.columns([2, 3])
         with co1: ativo = st.selectbox("Ativo", list(GLOBAL.keys()), key="gativo")
         sym, unit, _ = GLOBAL[ativo]
-        # Sempre carrega 10 anos (série completa disponível)
         with st.spinner(f"Carregando {ativo}..."): dfg = get_hist(sym, years=10)
         if not dfg.empty:
             dmin_y = dfg["data"].min().date(); dmax_y = dfg["data"].max().date()
@@ -611,19 +1105,12 @@ elif st.session_state.pagina == "Gráficos":
             cy1, cy2 = st.columns(2)
             with cy1: dy_ini = st.date_input("Exibir de", value=_d24y, min_value=dmin_y, max_value=dmax_y, key="gyini")
             with cy2: dy_fim = st.date_input("Exibir até", value=dmax_y, min_value=dmin_y, max_value=dmax_y, key="gyfim")
-
             if dy_ini < dy_fim:
                 st.success(f"✅ {len(dfg)} obs. carregadas · {ativo}")
                 fig_y = line_fig(dfg, f"{ativo}", "#004031", suffix=f" {unit}", height=440, inter=True)
                 fig_y.update_xaxes(range=[str(dy_ini), str(dy_fim)])
-                st.plotly_chart(fig_y, use_container_width=True, config={
-                    "displayModeBar": True,
-                    "scrollZoom": True,
-                    "modeBarButtonsToRemove": ["select2d","lasso2d","autoScale2d","resetScale2d"],
-                    "modeBarButtonsToAdd": ["zoomIn2d","zoomOut2d"],
-                    "displaylogo": False,
-                    "toImageButtonOptions": {"format":"png","filename":f"{ativo}","scale":2},
-                })
+                st.plotly_chart(fig_y, use_container_width=True, config={**CHART_CFG_INT,
+                    "toImageButtonOptions": {"format":"png","filename":f"{ativo}","scale":2}})
                 dlo = dfg.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(
                     f"💾 Baixar CSV completo ({len(dlo)} linhas)",
@@ -642,7 +1129,6 @@ else:
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
     if fonte == "BCB/SGS — Brasil":
-        # mesmas opções de período da aba Gráficos
         _PERIODOS_EXP = {
             "Selic":       ["Original"],
             "IPCA":        ["Mensal (original)", "Acumulado 12M", "Acumulado no ano"],
@@ -656,19 +1142,16 @@ else:
             "Importações": ["Original", "Var. mensal (m/m)", "Var. anual (a/a)"],
             "Dívida/PIB":  ["Original", "Var. mensal (m/m)"],
         }
-
         c1, c2 = st.columns([2, 2])
         with c1: ind = st.selectbox("Indicador", list(SGS.keys()), index=1, key="eind")
         opts_e = _PERIODOS_EXP.get(ind, ["Original"])
         with c2:
             periodo_e = st.selectbox("Período / Transformação", opts_e, key="eperiodo") if len(opts_e) > 1 else opts_e[0]
-
         c3, c4 = st.columns(2)
         with c3: d_ini = st.date_input("De", value=datetime.today() - timedelta(days=365*5), key="eini")
         with c4: d_fim = st.date_input("Até", value=datetime.today(), key="efim")
         modo = st.radio("Dados:", ["Filtrar pelo intervalo acima", "Série completa desde o início"],
                         horizontal=True, key="emodo")
-
         if st.button("Gerar CSV", type="primary", key="ebtn"):
             cod, unit, freq, _ = SGS[ind]
             with st.spinner(f"Carregando {ind}..."):
@@ -676,11 +1159,9 @@ else:
                     dfe = get_bcb_full(cod)
                 else:
                     dfe = get_bcb_range(cod, d_ini.strftime("%d/%m/%Y"), d_fim.strftime("%d/%m/%Y"))
-
             if dfe.empty:
                 st.warning("Nenhum dado encontrado.")
             else:
-                # Aplica transformação (reutiliza função definida na aba Gráficos)
                 dfe2, unit_t = aplicar_periodo(dfe, periodo_e, ind)
                 if not unit_t: unit_t = unit
                 if dfe2.empty:
@@ -703,7 +1184,6 @@ else:
                         file_name=nome,
                         mime="text/csv",
                     )
-
     else:
         co1, co2 = st.columns([2, 1])
         with co1: ativo = st.selectbox("Ativo", list(GLOBAL.keys()), key="eativo")
@@ -730,7 +1210,6 @@ else:
                 )
 
     st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
-    # Toggle manual — evita bug do st.expander com Material Icons
     lbl = "▲  Ocultar indicadores e ativos" if st.session_state.tabela_aberta else "▼  Ver todos os indicadores e ativos disponíveis"
     if st.button(lbl, key="btn_tabela", use_container_width=False):
         st.session_state.tabela_aberta = not st.session_state.tabela_aberta
