@@ -266,8 +266,9 @@ def cores_overlay_fig(df_ipca, nucleo_data, height=480):
                 hovertemplate=f"%{{x|%b/%Y}}<br><b>{key}: %{{y:.2f}}%</b><extra></extra>"
             ))
 
+    _layout_overlay = {**_I, "margin": dict(l=52, r=16, t=44, b=90)}
     fig.update_layout(
-        **_I,
+        **_layout_overlay,
         height=height,
         title="IPCA e Núcleos de Inflação (% ao mês)",
         hovermode="x unified",
@@ -278,7 +279,6 @@ def cores_overlay_fig(df_ipca, nucleo_data, height=480):
             font=dict(size=10, color="#374151"),
             bgcolor="rgba(255,255,255,0)",
         ),
-        margin=dict(l=52, r=16, t=44, b=90),
     )
     fig.update_yaxes(range=[-2, 2], ticksuffix="%")
     fig = _add_rangeslider(fig, height, extra_top=40)
