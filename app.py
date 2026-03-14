@@ -98,6 +98,13 @@ if "pagina" not in st.session_state:
     st.session_state.pagina = "Início"
 if "tabela_aberta" not in st.session_state:
     st.session_state.tabela_aberta = False
+if "mercados_ativo" not in st.session_state:
+    st.session_state.mercados_ativo = "IBOVESPA"
+
+# Sync query param → session state (tile click sets ?mv=NomeAtivo)
+_qp = st.query_params.get("mv", None)
+if _qp and _qp in GLOBAL:
+    st.session_state.mercados_ativo = _qp
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""<style>
@@ -1074,16 +1081,13 @@ elif st.session_state.pagina == "IPCA & Núcleos":
 elif st.session_state.pagina == "Mercados Globais":
     page_header("Mercados Globais")
 
-    if "mercados_ativo" not in st.session_state:
-        st.session_state.mercados_ativo = "IBOVESPA"
-
-    # ── CSS do terminal ───────────────────────────────────────────────────────
-    st.markdown("""
-    <style>
+    # ── CSS ───────────────────────────────────────────────────────────────────
+    st.markdown("""<style>
     .terminal-cat{font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase;
                   letter-spacing:2.5px;margin:0 0 8px 2px;display:block}
-    .tile{border-radius:5px;padding:9px 11px 8px;transition:filter .15s;user-select:none}
-    .tile.sel{outline:2px solid rgba(255,255,255,.75);outline-offset:-2px}
+    .tile{border-radius:6px;padding:10px 12px 9px;display:block;
+          text-decoration:none!important;transition:filter .12s}
+    .tile:hover{filter:brightness(1.14);text-decoration:none!important}
     .tile-name{font-size:9px;font-weight:800;color:rgba(255,255,255,.55);
                text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px;
                white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1098,11 +1102,11 @@ elif st.session_state.pagina == "Mercados Globais":
     .up  .tile-hl,.up  .tile-chg{color:#86efac}
     .dn  .tile-hl,.dn  .tile-chg{color:#fca5a5}
     .neu .tile-hl,.neu .tile-chg{color:#94a3b8}
-    .tile-closed{font-size:8px;background:rgba(0,0,0,.25);border-radius:3px;
-                 padding:1px 5px;color:rgba(255,255,255,.4);margin-left:4px;
-                 vertical-align:middle;font-weight:600}
-    </style>
-    """, unsafe_allow_html=True)
+    .tile.sel{outline:2px solid rgba(255,255,255,.8);outline-offset:-2px}
+    .tile-closed{font-size:8px;background:rgba(0,0,0,.3);border-radius:3px;
+                 padding:1px 5px;color:rgba(255,255,255,.45);margin-left:5px;
+                 font-weight:600;vertical-align:middle}
+    </style>""", unsafe_allow_html=True)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
     def _tfmt(v, unit):
@@ -1113,18 +1117,26 @@ elif st.session_state.pagina == "Mercados Globais":
         dec = 4 if unit == "R$" else 2
         return f"{v:,.{dec}f}".replace(",","X").replace(".",",").replace("X",".")
 
-    def _tile_html(nome, d, unit, selected=False):
-        price = d.get("price")
-        chg_p = d.get("chg_p")
-        chg_v = d.get("chg_v")
-        dh    = d.get("day_high")
-        dl    = d.get("day_low")
-        closed= d.get("is_closed", False)
+    def _tile_html(nome, d, unit):
+        """Retorna HTML de um tile como <a href> clicável."""
+        sel    = (st.session_state.mercados_ativo == nome)
+        price  = d.get("price")
+        chg_p  = d.get("chg_p")
+        chg_v  = d.get("chg_v")
+        dh     = d.get("day_high")
+        dl     = d.get("day_low")
+        closed = d.get("is_closed", False)
+
+        # URL com query param — ao clicar Streamlit relê ?mv=
+        import urllib.parse
+        href = "?" + urllib.parse.urlencode({"mv": nome})
+
         if price is None:
-            return (f"<div class='tile neu{' sel' if selected else ''}'>"
+            return (f"<a href='{href}' target='_self' class='tile neu{' sel' if sel else ''}'>"
                     f"<div class='tile-name'>{nome}</div>"
-                    f"<div class='tile-price' style='font-size:16px;color:#4b5563'>—</div>"
-                    f"</div>")
+                    f"<div class='tile-price' style='font-size:16px;opacity:.4'>—</div>"
+                    f"</a>")
+
         cls   = "up" if (chg_p or 0) >= 0 else "dn"
         arrow = "▲" if (chg_p or 0) >= 0 else "▼"
         px    = "R$ " if unit == "R$" else ("US$ " if "US$" in unit else "")
@@ -1134,72 +1146,28 @@ elif st.session_state.pagina == "Mercados Globais":
         h_str = f"H {_tfmt(dh, unit)}" if dh else "H —"
         l_str = f"L {_tfmt(dl, unit)}" if dl else "L —"
         badge = "<span class='tile-closed'>FEC</span>" if closed else ""
-        sel_cls = " sel" if selected else ""
+        sel_cls = " sel" if sel else ""
+
         return (
-            f"<div class='tile {cls}{sel_cls}'>"
+            f"<a href='{href}' target='_self' class='tile {cls}{sel_cls}'>"
             f"<div class='tile-name'>{nome}{badge}</div>"
             f"<div class='tile-price'>{p_str}</div>"
             f"<div class='tile-hl'><span>{h_str}</span><span>{v_str} {arrow}</span></div>"
             f"<div class='tile-chg'><span>{l_str}</span><span>{c_str}</span></div>"
-            f"</div>"
+            f"</a>"
         )
-
-    _TILE_H = 97   # px — altura aproximada do tile
-
-    def _clickable_tile(nome):
-        sym, unit, _ = GLOBAL[nome]
-        d   = get_quote(sym)
-        sel = (st.session_state.mercados_ativo == nome)
-        tid = "ti_" + "".join(c for c in nome if c.isalnum())
-
-        # Tile visual
-        st.markdown(f"<div id='{tid}'>{_tile_html(nome, d, unit, selected=sel)}</div>",
-                    unsafe_allow_html=True)
-
-        # CSS usa transform (funciona em flexbox) + margin-bottom negativo
-        # para puxar o botão sobre o tile sem empurrar os elementos abaixo
-        st.markdown(f"""<style>
-        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] {{
-            transform: translateY(-{_TILE_H}px);
-            margin-bottom: -{_TILE_H}px;
-            position: relative;
-            z-index: 9;
-        }}
-        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button {{
-            height: {_TILE_H}px !important;
-            min-height: {_TILE_H}px !important;
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            color: transparent !important;
-            font-size: 1px !important;
-            cursor: pointer !important;
-            padding: 0 !important;
-            border-radius: 5px !important;
-            width: 100% !important;
-        }}
-        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button:hover {{
-            background: rgba(255,255,255,.09) !important;
-        }}
-        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button:focus {{
-            box-shadow: none !important;
-            outline: none !important;
-        }}
-        </style>""", unsafe_allow_html=True)
-
-        if st.button("·", key=f"tbtn_{tid}", use_container_width=True):
-            st.session_state.mercados_ativo = nome
-            st.rerun()
 
     def _group(label, ativos_list):
         st.markdown(f"<span class='terminal-cat'>{label}</span>", unsafe_allow_html=True)
         cols = st.columns(len(ativos_list))
         for col, nome in zip(cols, ativos_list):
+            sym, unit, _ = GLOBAL[nome]
+            d = get_quote(sym)
             with col:
-                _clickable_tile(nome)
+                st.markdown(_tile_html(nome, d, unit), unsafe_allow_html=True)
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    # ── Renderização dos grupos ───────────────────────────────────────────────
+    # ── Renderização ──────────────────────────────────────────────────────────
     with st.spinner("Carregando cotações..."):
         _group("Índices", ["IBOVESPA","S&P 500","Nasdaq 100","Dow Jones","FTSE 100","DAX"])
 
@@ -1233,7 +1201,7 @@ elif st.session_state.pagina == "Mercados Globais":
     }
     ativo_sel = st.session_state.mercados_ativo
     sym_sel, unit_sel, _ = GLOBAL[ativo_sel]
-    cor_sel   = CORES_HIST.get(sym_sel, "#1a2035")
+    cor_sel = CORES_HIST.get(sym_sel, "#1a2035")
 
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
     sec_title(f"Histórico — {ativo_sel}", "2 anos interativo", "badge-daily")
