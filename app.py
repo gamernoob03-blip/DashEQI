@@ -1079,7 +1079,7 @@ elif st.session_state.pagina == "Mercados Globais":
     # ── CSS do terminal ───────────────────────────────────────────────────────
     st.markdown("""
     <style>
-    .terminal-wrap{background:#0e1117;border-radius:10px;padding:14px 14px 8px;margin-bottom:18px}
+    .terminal-wrap{background:transparent;padding:0 0 4px;margin-bottom:10px}
     .terminal-cat{font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase;
                   letter-spacing:2.5px;margin:0 0 8px 2px}
     .terminal-grid{display:grid;gap:3px;margin-bottom:3px}
