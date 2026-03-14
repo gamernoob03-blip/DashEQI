@@ -1152,23 +1152,28 @@ elif st.session_state.pagina == "Mercados Globais":
         d   = get_quote(sym)
         sel = (st.session_state.mercados_ativo == nome)
         tid = "ti_" + "".join(c for c in nome if c.isalnum())
-        # Tile visual
+        # Tile visual — wrapped in unique id div
         st.markdown(f"<div id='{tid}'>{_tile_html(nome, d, unit, selected=sel)}</div>",
                     unsafe_allow_html=True)
-        # CSS: pull the button container up over the tile, make it transparent
+        # :has() targets the stMarkdown container that holds our id'd div,
+        # then + selects the immediately following stButton container
         st.markdown(f"""<style>
-        div#{tid}+div[data-testid="stButton"]{{
-            position:relative;margin-top:-{_TILE_H}px!important;z-index:9
+        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"]{{
+            margin-top:-{_TILE_H}px!important;position:relative;z-index:9
         }}
-        div#{tid}+div[data-testid="stButton"] button{{
+        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button{{
             height:{_TILE_H}px!important;min-height:{_TILE_H}px!important;
-            background:transparent!important;border:none!important;
+            background:transparent!important;border:none!important;box-shadow:none!important;
             color:transparent!important;font-size:1px!important;
             cursor:pointer!important;padding:0!important;
-            border-radius:5px!important;width:100%!important
+            border-radius:5px!important;width:100%!important;
+            outline:none!important
         }}
-        div#{tid}+div[data-testid="stButton"] button:hover{{
-            background:rgba(255,255,255,.07)!important
+        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button:hover{{
+            background:rgba(255,255,255,.09)!important
+        }}
+        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button:focus{{
+            box-shadow:none!important;outline:none!important
         }}
         </style>""", unsafe_allow_html=True)
         if st.button("·", key=f"tbtn_{tid}", use_container_width=True):
