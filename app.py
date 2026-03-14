@@ -1144,7 +1144,6 @@ elif st.session_state.pagina == "Mercados Globais":
             f"</div>"
         )
 
-    # Overlay button: transparent, same height as tile, sits on top via negative margin
     _TILE_H = 97   # px — altura aproximada do tile
 
     def _clickable_tile(nome):
@@ -1152,30 +1151,42 @@ elif st.session_state.pagina == "Mercados Globais":
         d   = get_quote(sym)
         sel = (st.session_state.mercados_ativo == nome)
         tid = "ti_" + "".join(c for c in nome if c.isalnum())
-        # Tile visual — wrapped in unique id div
+
+        # Tile visual
         st.markdown(f"<div id='{tid}'>{_tile_html(nome, d, unit, selected=sel)}</div>",
                     unsafe_allow_html=True)
-        # :has() targets the stMarkdown container that holds our id'd div,
-        # then + selects the immediately following stButton container
+
+        # CSS usa transform (funciona em flexbox) + margin-bottom negativo
+        # para puxar o botão sobre o tile sem empurrar os elementos abaixo
         st.markdown(f"""<style>
-        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"]{{
-            margin-top:-{_TILE_H}px!important;position:relative;z-index:9
+        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] {{
+            transform: translateY(-{_TILE_H}px);
+            margin-bottom: -{_TILE_H}px;
+            position: relative;
+            z-index: 9;
         }}
-        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button{{
-            height:{_TILE_H}px!important;min-height:{_TILE_H}px!important;
-            background:transparent!important;border:none!important;box-shadow:none!important;
-            color:transparent!important;font-size:1px!important;
-            cursor:pointer!important;padding:0!important;
-            border-radius:5px!important;width:100%!important;
-            outline:none!important
+        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button {{
+            height: {_TILE_H}px !important;
+            min-height: {_TILE_H}px !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: transparent !important;
+            font-size: 1px !important;
+            cursor: pointer !important;
+            padding: 0 !important;
+            border-radius: 5px !important;
+            width: 100% !important;
         }}
-        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button:hover{{
-            background:rgba(255,255,255,.09)!important
+        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button:hover {{
+            background: rgba(255,255,255,.09) !important;
         }}
-        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button:focus{{
-            box-shadow:none!important;outline:none!important
+        div[data-testid="stMarkdown"]:has(div#{tid}) + div[data-testid="stButton"] button:focus {{
+            box-shadow: none !important;
+            outline: none !important;
         }}
         </style>""", unsafe_allow_html=True)
+
         if st.button("·", key=f"tbtn_{tid}", use_container_width=True):
             st.session_state.mercados_ativo = nome
             st.rerun()
