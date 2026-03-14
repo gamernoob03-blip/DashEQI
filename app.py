@@ -91,7 +91,7 @@ IPCA_GRUPOS_CORES = {
     "Comunicação":                 "#0ea5e9",
 }
 
-NAV = ["Início", "IPCA & Núcleos", "Mercados Globais", "Gráficos", "Exportar"]
+NAV = ["Início", "Monitor Inflação", "Mercados Globais", "Gráficos", "Exportar"]
 
 # ── Session state ─────────────────────────────────────────────────────────────
 if "pagina" not in st.session_state:
@@ -683,7 +683,7 @@ with st.sidebar:
     st.divider()
     _NAV_SLUGS = {
         "Início":          "inicio",
-        "IPCA & Núcleos":  "ipca",
+        "Monitor Inflação":  "ipca",
         "Mercados Globais":"mercados",
         "Gráficos":        "graficos",
         "Exportar":        "exportar",
@@ -757,7 +757,7 @@ if st.session_state.pagina == "Início":
                      sub=f"Ref: {ddes['data'].iloc[-1].strftime('%b/%Y')}")
         else: kpi_card("Desemprego (PNAD)","—",sub="BCB indisponível")
 
-    st.markdown('<div class="sec-title">Histórico — 12 meses <span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px">→ análise completa em IPCA & Núcleos</span></div>',unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Histórico — 12 meses <span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px">→ análise completa em Monitor Inflação</span></div>',unsafe_allow_html=True)
     ca,cb=st.columns(2)
     with ca:
         if not dsel.empty: st.plotly_chart(line_fig(dsel,"Selic (% a.a.)","#1a2035",suffix="%"),use_container_width=True,config=CHART_CFG)
@@ -778,8 +778,8 @@ if st.session_state.pagina == "Início":
 # ══════════════════════════════════════════════════════════════════════════════
 # IPCA & NÚCLEOS
 # ══════════════════════════════════════════════════════════════════════════════
-elif st.session_state.pagina == "IPCA & Núcleos":
-    page_header("IPCA & Núcleos de Inflação")
+elif st.session_state.pagina == "Monitor Inflação":
+    page_header("Monitor de Inflação")
 
     with st.spinner("Carregando indicadores de inflação..."):
         # ── IPCA headline (série completa para cálculos) ──────────────────────
@@ -1199,6 +1199,91 @@ elif st.session_state.pagina == "IPCA & Núcleos":
                         file_name="ipca_grupos_acum12m.csv",
                         mime="text/csv",
                     )
+
+    # ── Nota metodológica ──────────────────────────────────────────────────────
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    sec_title("Metodologia dos Núcleos de Inflação — BCB", "", "badge-daily")
+    st.markdown("""
+    <div style='background:#fff;border:1px solid #e2e5e9;border-radius:12px;padding:20px 24px;
+                font-size:12px;color:#374151;line-height:1.8'>
+
+    <p style='margin:0 0 12px'>
+    Os núcleos de inflação são medidas alternativas ao IPCA cheio que buscam capturar a 
+    <strong>tendência subjacente da inflação</strong>, removendo componentes voláteis ou transitórios. 
+    O BCB acompanha cinco medidas oficiais, publicadas mensalmente no 
+    <em>Relatório de Inflação</em>:
+    </p>
+
+    <table style='width:100%;border-collapse:collapse;font-size:11.5px'>
+      <thead>
+        <tr style='border-bottom:2px solid #e2e5e9'>
+          <th style='text-align:left;padding:6px 10px;color:#6b7280;font-weight:700;
+                     text-transform:uppercase;letter-spacing:1px;font-size:10px'>Sigla</th>
+          <th style='text-align:left;padding:6px 10px;color:#6b7280;font-weight:700;
+                     text-transform:uppercase;letter-spacing:1px;font-size:10px'>Nome</th>
+          <th style='text-align:left;padding:6px 10px;color:#6b7280;font-weight:700;
+                     text-transform:uppercase;letter-spacing:1px;font-size:10px'>Cód. SGS</th>
+          <th style='text-align:left;padding:6px 10px;color:#6b7280;font-weight:700;
+                     text-transform:uppercase;letter-spacing:1px;font-size:10px'>Como é calculado</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style='border-bottom:1px solid #f1f5f9'>
+          <td style='padding:8px 10px;font-weight:700;color:#0891b2'>MA-S</td>
+          <td style='padding:8px 10px'>Médias Aparadas com Suavização</td>
+          <td style='padding:8px 10px;color:#6b7280'>4466</td>
+          <td style='padding:8px 10px'>Exclui os itens com maior e menor variação no mês 
+          (aparamento simétrico de 20% em cada extremo). Aplica <strong>suavização</strong> em 
+          serviços de preços monitorados e sazonais, distribuindo ao longo de 12 meses as 
+          variações atípicas. É a medida mais utilizada pelo Copom.</td>
+        </tr>
+        <tr style='border-bottom:1px solid #f1f5f9'>
+          <td style='padding:8px 10px;font-weight:700;color:#06b6d4'>MA</td>
+          <td style='padding:8px 10px'>Médias Aparadas sem Suavização</td>
+          <td style='padding:8px 10px;color:#6b7280'>11426</td>
+          <td style='padding:8px 10px'>Idêntico ao MA-S, porém <strong>sem suavizar</strong> 
+          os itens monitorados e sazonais. Apara 20% dos extremos e recalcula a média 
+          ponderada com os itens restantes. Mais sensível a choques pontuais.</td>
+        </tr>
+        <tr style='border-bottom:1px solid #f1f5f9'>
+          <td style='padding:8px 10px;font-weight:700;color:#16a34a'>DP</td>
+          <td style='padding:8px 10px'>Dupla Ponderação</td>
+          <td style='padding:8px 10px;color:#6b7280'>4467</td>
+          <td style='padding:8px 10px'>Recalcula o peso de cada item na cesta do IPCA 
+          com base em duas dimensões: o <strong>peso original</strong> do item e a 
+          <strong>inversa da volatilidade histórica</strong> de sua variação de preços. 
+          Itens mais voláteis recebem peso menor, sem necessidade de exclusão.</td>
+        </tr>
+        <tr style='border-bottom:1px solid #f1f5f9'>
+          <td style='padding:8px 10px;font-weight:700;color:#d97706'>EX</td>
+          <td style='padding:8px 10px'>Exclusão</td>
+          <td style='padding:8px 10px;color:#6b7280'>11427</td>
+          <td style='padding:8px 10px'>Exclui sistematicamente dois subgrupos: 
+          <strong>alimentação no domicílio</strong> (altamente volátil, sujeita a choques 
+          climáticos) e <strong>preços administrados</strong> (energia, combustíveis, tarifas), 
+          que dependem de decisões regulatórias. Reflete a inflação de mercado "livre".</td>
+        </tr>
+        <tr>
+          <td style='padding:8px 10px;font-weight:700;color:#7c3aed'>P55</td>
+          <td style='padding:8px 10px'>Percentil 55</td>
+          <td style='padding:8px 10px;color:#6b7280'>28750</td>
+          <td style='padding:8px 10px'>Calcula a variação no <strong>percentil 55 da 
+          distribuição</strong> das variações dos itens (ponderadas pelos seus pesos na 
+          cesta). Ao usar a mediana deslocada para cima, captura a pressão inflacionária 
+          de forma robusta a outliers sem precisar definir regras de exclusão.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p style='margin:14px 0 0;font-size:11px;color:#9ca3af'>
+    Fonte: Banco Central do Brasil — Sistema Gerenciador de Séries Temporais (SGS). 
+    Dados referentes à variação mensal (% ao mês) e ao acumulado em 12 meses (% a.a.). 
+    Atualização mensal, geralmente na semana seguinte à divulgação do IPCA pelo IBGE.
+    </p>
+
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MERCADOS GLOBAIS — Terminal financeiro
