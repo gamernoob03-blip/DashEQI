@@ -285,7 +285,7 @@ def cores_overlay_fig(df_ipca, nucleo_data, height=480):
 def grupos_bar_fig(df_grupos, ultimo_mes):
     df_m = df_grupos[
         (df_grupos["data"] == ultimo_mes) &
-        (df_grupos["grupo_id"] != "7169")      # exclui índice geral
+        (df_grupos["grupo_id"] != "7169")
     ].copy()
     if df_m.empty:
         return go.Figure()
@@ -300,24 +300,24 @@ def grupos_bar_fig(df_grupos, ultimo_mes):
         textposition="outside",
         hovertemplate="%{y}<br><b>%{x:.2f}%</b><extra></extra>",
     ))
-    fig.update_layout(
-        **_B,
+    _layout_g = {**_B, "margin": dict(l=185, r=70, t=44, b=36)}
+    fig.update_layout(**_layout_g,
         height=340,
         title=f"Variação Mensal por Grupo — {ultimo_mes.strftime('%b/%Y')}",
         xaxis_title="% ao mês",
-        margin=dict(l=180, r=60, t=40, b=36),
     )
     fig.update_xaxes(ticksuffix="%", zeroline=True, zerolinecolor="#e2e5e9", zerolinewidth=1)
     return fig
 
-# ── Figura grupos: linhas — evolução 12M ──────────────────────────────────────
-def grupos_linhas_fig(df_grupos, n=12):
-    datas_sorted = sorted(df_grupos["data"].unique())
-    datas_n = datas_sorted[-n:]
-    df_f = df_grupos[
-        df_grupos["data"].isin(datas_n) &
-        (df_grupos["grupo_id"] != "7169")
-    ].copy()
+# ── Figura grupos: linhas — evolução por período (interativa) ─────────────────
+def grupos_linhas_fig(df_grupos, d_ini=None, d_fim=None, height=420):
+    df_f = df_grupos[df_grupos["grupo_id"] != "7169"].copy()
+    if df_f.empty:
+        return go.Figure()
+    if d_ini:
+        df_f = df_f[df_f["data"] >= pd.Timestamp(d_ini)]
+    if d_fim:
+        df_f = df_f[df_f["data"] <= pd.Timestamp(d_fim)]
     if df_f.empty:
         return go.Figure()
 
@@ -329,22 +329,25 @@ def grupos_linhas_fig(df_grupos, n=12):
             x=df_g["data"], y=df_g["valor"],
             mode="lines+markers",
             name=grupo,
-            line=dict(color=color, width=1.6),
-            marker=dict(size=4, color=color),
+            line=dict(color=color, width=1.8),
+            marker=dict(size=5, color=color),
             hovertemplate=f"%{{x|%b/%Y}}<br><b>{grupo}: %{{y:.2f}}%</b><extra></extra>",
         ))
-    fig.update_layout(
-        **_B,
-        height=380,
-        title="Evolução por Grupo — últimos 12 meses (% ao mês)",
+    _layout_l = {**_I, "margin": dict(l=52, r=16, t=80, b=36)}
+    fig.update_layout(**_layout_l,
+        height=height,
+        title="Variação Mensal por Grupo (% ao mês)",
         hovermode="x unified",
         legend=dict(
             orientation="h", yanchor="bottom", y=1.02,
             xanchor="left", x=0,
             font=dict(size=10, color="#374151"),
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor="#e2e5e9", borderwidth=1,
         ),
     )
     fig.update_yaxes(ticksuffix="%")
+    fig = _add_rangeslider(fig, height, extra_top=50)
     return fig
 
 # ── Figura acumulado 12M vs meta ──────────────────────────────────────────────
@@ -769,8 +772,8 @@ elif st.session_state.pagina == "IPCA & Núcleos":
             nucleo_data[key] = (get_bcb_full(cod), label, color)
 
         # ── Grupos IPCA — IBGE SIDRA ──────────────────────────────────────────
-        df_grupos_mensal = get_ipca_grupos(24)
-        df_grupos_acum   = get_ipca_acum_grupo(24)
+        df_grupos_mensal = get_ipca_grupos(60)
+        df_grupos_acum   = get_ipca_acum_grupo(60)
 
     # ── KPIs ──────────────────────────────────────────────────────────────────
     sec_title("IPCA — Inflação ao Consumidor", "↻ diário", "badge-daily")
@@ -881,31 +884,49 @@ elif st.session_state.pagina == "IPCA & Núcleos":
     if df_grupos_mensal.empty:
         st.warning("⚠️ API IBGE/SIDRA temporariamente indisponível. Tente novamente em instantes.")
     else:
-        # Último mês disponível
-        ultimo_mes = df_grupos_mensal["data"].max()
-        prev_mes   = sorted(df_grupos_mensal["data"].unique())[-2] if df_grupos_mensal["data"].nunique() >= 2 else None
+        from datetime import date as _dg
+        datas_disp = sorted(df_grupos_mensal["data"].unique())
+        dmin_g = datas_disp[0].date()
+        dmax_g = datas_disp[-1].date()
+        # padrão: últimos 24 meses
+        _d24g  = datas_disp[-24].date() if len(datas_disp) >= 24 else dmin_g
 
-        # KPIs dos principais grupos no último mês
-        df_ult = df_grupos_mensal[
-            (df_grupos_mensal["data"] == ultimo_mes) &
-            (df_grupos_mensal["grupo_id"] != "7169")
-        ].copy().sort_values("valor", ascending=False)
+        st.markdown(
+            f"<div style='font-size:11px;color:#6b7280;margin:0 0 12px'>"
+            f"Disponível: <strong>{dmin_g.strftime('%b/%Y')}</strong> → "
+            f"<strong>{dmax_g.strftime('%b/%Y')}</strong> · "
+            f"{len(datas_disp)} meses · <em>Série completa carregada</em></div>",
+            unsafe_allow_html=True,
+        )
 
-        ga, gb = st.columns([1.1, 1])
+        cg1, cg2 = st.columns(2)
+        with cg1:
+            g_ini = st.date_input("Exibir de", value=_d24g,
+                                  min_value=dmin_g, max_value=dmax_g, key="g_ini")
+        with cg2:
+            g_fim = st.date_input("Exibir até", value=dmax_g,
+                                  min_value=dmin_g, max_value=dmax_g, key="g_fim")
 
-        with ga:
-            st.plotly_chart(
-                grupos_bar_fig(df_grupos_mensal, ultimo_mes),
-                use_container_width=True, config=CHART_CFG,
+        ultimo_mes = df_grupos_mensal[
+            df_grupos_mensal["data"] <= pd.Timestamp(g_fim)
+        ]["data"].max()
+
+        if pd.isna(ultimo_mes):
+            st.warning("Nenhum dado no intervalo selecionado.")
+        else:
+            st.success(
+                f"✅ Exibindo {g_ini.strftime('%b/%Y')} → {g_fim.strftime('%b/%Y')} · "
+                f"Referência do mês: {ultimo_mes.strftime('%b/%Y')}"
             )
 
-        with gb:
-            # Maiores altas e baixas
-            top_alta  = df_ult.head(3)
-            top_baixa = df_ult.tail(3)
+            # ── Mini-cards: maiores altas e baixas no último mês ──────────────
+            df_ult = df_grupos_mensal[
+                (df_grupos_mensal["data"] == ultimo_mes) &
+                (df_grupos_mensal["grupo_id"] != "7169")
+            ].copy().sort_values("valor", ascending=False)
 
-            def _mini_card(grupo, valor, ref):
-                cor = "#dc2626" if valor >= 0 else "#16a34a"
+            def _mini_card(grupo, valor):
+                cor   = "#dc2626" if valor >= 0 else "#16a34a"
                 sinal = "▲" if valor >= 0 else "▼"
                 st.markdown(
                     f"<div style='background:#fff;border:1px solid #e2e5e9;border-radius:10px;"
@@ -917,82 +938,115 @@ elif st.session_state.pagina == "IPCA & Núcleos":
                     unsafe_allow_html=True,
                 )
 
-            st.markdown(
-                f"<div style='font-size:10px;font-weight:700;color:#6b7280;"
-                f"text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px'>"
-                f"Maiores altas — {ultimo_mes.strftime('%b/%Y')}</div>",
-                unsafe_allow_html=True,
-            )
-            for _, row in top_alta.iterrows():
-                _mini_card(row["grupo"], row["valor"], ultimo_mes)
-
-            st.markdown(
-                f"<div style='font-size:10px;font-weight:700;color:#6b7280;"
-                f"text-transform:uppercase;letter-spacing:1.5px;margin:12px 0 8px'>"
-                f"Menores variações — {ultimo_mes.strftime('%b/%Y')}</div>",
-                unsafe_allow_html=True,
-            )
-            for _, row in top_baixa.iterrows():
-                _mini_card(row["grupo"], row["valor"], ultimo_mes)
-
-        # Evolução 12M por grupo
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-        st.plotly_chart(
-            grupos_linhas_fig(df_grupos_mensal, n=12),
-            use_container_width=True, config=CHART_CFG,
-        )
-
-        # Acumulado 12M por grupo (IBGE)
-        if not df_grupos_acum.empty:
-            st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-            sec_title("Acumulado 12 Meses por Grupo — IBGE", "↻ diário", "badge-daily")
-
-            ult_acum  = df_grupos_acum["data"].max()
-            df_acum_u = df_grupos_acum[
-                (df_grupos_acum["data"] == ult_acum) &
-                (df_grupos_acum["grupo_id"] != "7169")
-            ].copy().sort_values("valor", ascending=True)
-
-            if not df_acum_u.empty:
-                colors_acum = ["#dc2626" if v > teto_meta else "#16a34a" if v < piso_meta else "#0891b2"
-                               for v in df_acum_u["valor"]]
-                fig_acum_g = go.Figure()
-                fig_acum_g.add_shape(type="rect",
-                    x0=piso_meta, x1=teto_meta, y0=-0.5, y1=len(df_acum_u)-0.5,
-                    fillcolor="rgba(22,163,74,0.07)", line_width=0)
-                fig_acum_g.add_vline(x=meta_bcb, line_dash="dot", line_color="#16a34a",
-                                     line_width=1.5,
-                                     annotation_text=f"Meta {meta_bcb:.1f}%",
-                                     annotation_position="top",
-                                     annotation_font=dict(size=10, color="#16a34a"))
-                fig_acum_g.add_trace(go.Bar(
-                    x=df_acum_u["valor"], y=df_acum_u["grupo"],
-                    orientation="h",
-                    marker_color=colors_acum, marker_line_width=0,
-                    text=[f"{v:.1f}%" for v in df_acum_u["valor"]],
-                    textposition="outside",
-                    hovertemplate="%{y}<br><b>Acum. 12M: %{x:.2f}%</b><extra></extra>",
-                ))
-                fig_acum_g.update_layout(
-                    **_B,
-                    height=340,
-                    title=f"IPCA Acumulado 12M por Grupo — {ult_acum.strftime('%b/%Y')} (vs meta {meta_bcb:.1f}%)",
-                    xaxis_title="% acumulado 12 meses",
-                    margin=dict(l=190, r=60, t=44, b=36),
+            ga, gb = st.columns([1.2, 1])
+            with ga:
+                st.plotly_chart(
+                    grupos_bar_fig(df_grupos_mensal, ultimo_mes),
+                    use_container_width=True, config=CHART_CFG,
                 )
-                fig_acum_g.update_xaxes(ticksuffix="%")
-                st.plotly_chart(fig_acum_g, use_container_width=True, config=CHART_CFG)
+            with gb:
+                top_alta  = df_ult.head(3)
+                top_baixa = df_ult.tail(3)
+                st.markdown(
+                    f"<div style='font-size:10px;font-weight:700;color:#6b7280;"
+                    f"text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px'>"
+                    f"Maiores altas — {ultimo_mes.strftime('%b/%Y')}</div>",
+                    unsafe_allow_html=True,
+                )
+                for _, row in top_alta.iterrows():
+                    _mini_card(row["grupo"], row["valor"])
+                st.markdown(
+                    f"<div style='font-size:10px;font-weight:700;color:#6b7280;"
+                    f"text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 8px'>"
+                    f"Menores variações — {ultimo_mes.strftime('%b/%Y')}</div>",
+                    unsafe_allow_html=True,
+                )
+                for _, row in top_baixa.iterrows():
+                    _mini_card(row["grupo"], row["valor"])
 
-        # Download
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-        dlo_g = df_grupos_mensal.copy()
-        dlo_g["data"] = dlo_g["data"].dt.strftime("%Y-%m")
-        st.download_button(
-            "💾 Baixar CSV — IPCA por grupos (variação mensal)",
-            data=dlo_g.to_csv(index=False).encode("utf-8-sig"),
-            file_name="ipca_grupos_mensal.csv",
-            mime="text/csv",
-        )
+            # ── Gráfico de linhas — evolução no período selecionado ───────────
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+            st.plotly_chart(
+                grupos_linhas_fig(df_grupos_mensal, d_ini=g_ini, d_fim=g_fim, height=440),
+                use_container_width=True,
+                config={**CHART_CFG_INT,
+                        "toImageButtonOptions": {"format":"png","filename":"ipca_grupos_evolucao","scale":2}},
+            )
+
+            # ── Acumulado 12M por grupo (IBGE) ────────────────────────────────
+            if not df_grupos_acum.empty:
+                st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+                sec_title("Acumulado 12 Meses por Grupo — IBGE", "↻ diário", "badge-daily")
+
+                ult_acum  = df_grupos_acum[
+                    df_grupos_acum["data"] <= pd.Timestamp(g_fim)
+                ]["data"].max()
+                df_acum_u = df_grupos_acum[
+                    (df_grupos_acum["data"] == ult_acum) &
+                    (df_grupos_acum["grupo_id"] != "7169")
+                ].copy().sort_values("valor", ascending=True)
+
+                if not df_acum_u.empty:
+                    colors_acum = [
+                        "#dc2626" if v > teto_meta else
+                        "#16a34a" if v < piso_meta else
+                        "#0891b2"
+                        for v in df_acum_u["valor"]
+                    ]
+                    fig_acum_g = go.Figure()
+                    fig_acum_g.add_shape(type="rect",
+                        x0=piso_meta, x1=teto_meta, y0=-0.5, y1=len(df_acum_u)-0.5,
+                        fillcolor="rgba(22,163,74,0.07)", line_width=0)
+                    fig_acum_g.add_vline(x=meta_bcb, line_dash="dot", line_color="#16a34a",
+                                         line_width=1.5,
+                                         annotation_text=f"Meta {meta_bcb:.1f}%",
+                                         annotation_position="top",
+                                         annotation_font=dict(size=10, color="#16a34a"))
+                    fig_acum_g.add_trace(go.Bar(
+                        x=df_acum_u["valor"], y=df_acum_u["grupo"],
+                        orientation="h",
+                        marker_color=colors_acum, marker_line_width=0,
+                        text=[f"{v:.1f}%" for v in df_acum_u["valor"]],
+                        textposition="outside",
+                        hovertemplate="%{y}<br><b>Acum. 12M: %{x:.2f}%</b><extra></extra>",
+                    ))
+                    _layout_acum = {**_B, "margin": dict(l=190, r=70, t=44, b=36)}
+                    fig_acum_g.update_layout(**_layout_acum,
+                        height=340,
+                        title=f"IPCA Acumulado 12M por Grupo — {ult_acum.strftime('%b/%Y')} (meta {meta_bcb:.1f}%)",
+                        xaxis_title="% acumulado 12 meses",
+                    )
+                    fig_acum_g.update_xaxes(ticksuffix="%")
+                    st.plotly_chart(fig_acum_g, use_container_width=True, config=CHART_CFG)
+
+            # ── Download ──────────────────────────────────────────────────────
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+            dlo_g = df_grupos_mensal[
+                (df_grupos_mensal["data"] >= pd.Timestamp(g_ini)) &
+                (df_grupos_mensal["data"] <= pd.Timestamp(g_fim))
+            ].copy()
+            dlo_g["data"] = dlo_g["data"].dt.strftime("%Y-%m")
+            col_dl1, col_dl2 = st.columns(2)
+            with col_dl1:
+                st.download_button(
+                    f"💾 Baixar CSV — var. mensal por grupo ({len(dlo_g)} linhas)",
+                    data=dlo_g.to_csv(index=False).encode("utf-8-sig"),
+                    file_name="ipca_grupos_mensal.csv",
+                    mime="text/csv",
+                )
+            with col_dl2:
+                if not df_grupos_acum.empty:
+                    dlo_acum = df_grupos_acum[
+                        (df_grupos_acum["data"] >= pd.Timestamp(g_ini)) &
+                        (df_grupos_acum["data"] <= pd.Timestamp(g_fim))
+                    ].copy()
+                    dlo_acum["data"] = dlo_acum["data"].dt.strftime("%Y-%m")
+                    st.download_button(
+                        f"💾 Baixar CSV — acum. 12M por grupo ({len(dlo_acum)} linhas)",
+                        data=dlo_acum.to_csv(index=False).encode("utf-8-sig"),
+                        file_name="ipca_grupos_acum12m.csv",
+                        mime="text/csv",
+                    )
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MERCADOS GLOBAIS
