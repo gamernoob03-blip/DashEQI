@@ -894,73 +894,91 @@ elif st.session_state.pagina == "IPCA & Núcleos":
 
     # ── Média dos Núcleos — últimos 12 meses ──────────────────────────────────
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-    sec_title("Média dos Núcleos — Últimos 12 Meses", "↻ diário", "badge-daily")
+    sec_title("Média dos Núcleos — Acumulado 12 Meses", "↻ diário", "badge-daily")
 
     _series_nucleos = [df_n.set_index("data")["valor"].rename(key)
                        for key, (df_n, _, _) in nucleo_data.items()
                        if not df_n.empty]
     if _series_nucleos:
-        _df_media = pd.concat(_series_nucleos, axis=1).sort_index()
-        _df_media["media"] = _df_media.mean(axis=1)
-        _df_media = _df_media.reset_index().rename(columns={"data": "data", "index": "data"})
+        # Monta DataFrame com todas as séries mensais alinhadas
+        _df_all = pd.concat(_series_nucleos, axis=1).sort_index()
 
-        # Últimos 12 meses
-        _xmax_m  = _df_media["data"].max()
-        _xmin_m  = _xmax_m - pd.DateOffset(months=12)
-        _df_12m  = _df_media[_df_media["data"] >= _xmin_m].copy()
+        # Calcula acumulado 12M (soma rolling de 12 meses) para cada núcleo
+        _keys = [k for k in NUCLEO_SGS if k in _df_all.columns]
+        for k in _keys:
+            _df_all[f"{k}_a12"] = _df_all[k].rolling(12).sum()
 
-        if not _df_12m.empty:
+        # Média do acumulado 12M entre todos os núcleos
+        _acum_cols = [f"{k}_a12" for k in _keys]
+        _df_all["media_a12"] = _df_all[_acum_cols].mean(axis=1)
+        _df_all = _df_all.dropna(subset=["media_a12"]).reset_index()
+
+        # Acumulado 12M do IPCA headline para comparação
+        _ipca_a12 = pd.DataFrame()
+        if not df_ipca_full.empty:
+            _tmp = df_ipca_full.copy().sort_values("data").set_index("data")
+            _tmp["acum12m"] = _tmp["valor"].rolling(12).sum()
+            _ipca_a12 = _tmp.dropna(subset=["acum12m"]).reset_index()
+
+        # Filtra últimos 24 meses para exibição inicial (carrega tudo)
+        _xmax_m = _df_all["data"].max()
+        _xmin_m = _xmax_m - pd.DateOffset(months=24)
+
+        if not _df_all.empty:
             fig_media = go.Figure()
 
-            # Faixa sombreada: min/max dos núcleos por mês
-            _df_12m["min_n"] = _df_12m[[k for k in NUCLEO_SGS]].min(axis=1)
-            _df_12m["max_n"] = _df_12m[[k for k in NUCLEO_SGS]].max(axis=1)
+            # Faixa sombreada min/max dos núcleos acumulados
+            _df_all["min_a12"] = _df_all[_acum_cols].min(axis=1)
+            _df_all["max_a12"] = _df_all[_acum_cols].max(axis=1)
 
             fig_media.add_trace(go.Scatter(
-                x=pd.concat([_df_12m["data"], _df_12m["data"].iloc[::-1]]),
-                y=pd.concat([_df_12m["max_n"], _df_12m["min_n"].iloc[::-1]]),
+                x=pd.concat([_df_all["data"], _df_all["data"].iloc[::-1]]),
+                y=pd.concat([_df_all["max_a12"], _df_all["min_a12"].iloc[::-1]]),
                 fill="toself",
                 fillcolor="rgba(139,92,246,0.10)",
                 line=dict(color="rgba(0,0,0,0)"),
                 hoverinfo="skip",
                 showlegend=False,
-                name="Intervalo núcleos",
             ))
 
             # Linha de cada núcleo (fina, discreta)
             for key, (_, label, color) in nucleo_data.items():
-                if key in _df_12m.columns:
+                col_a = f"{key}_a12"
+                if col_a in _df_all.columns:
                     fig_media.add_trace(go.Scatter(
-                        x=_df_12m["data"], y=_df_12m[key],
+                        x=_df_all["data"], y=_df_all[col_a],
                         mode="lines",
-                        name=f"{key}",
+                        name=key,
                         line=dict(color=color, width=1, dash="dot"),
                         opacity=0.55,
-                        hovertemplate=f"%{{x|%b/%Y}}<br>{key}: %{{y:.2f}}%<extra></extra>",
+                        hovertemplate=f"%{{x|%b/%Y}}<br>{key} acum. 12M: %{{y:.2f}}%<extra></extra>",
                     ))
 
-            # IPCA headline
-            if not df_ipca_full.empty:
-                _ipca_12m = df_ipca_full[df_ipca_full["data"] >= _xmin_m]
+            # IPCA acumulado 12M
+            if not _ipca_a12.empty:
                 fig_media.add_trace(go.Scatter(
-                    x=_ipca_12m["data"], y=_ipca_12m["valor"],
+                    x=_ipca_a12["data"], y=_ipca_a12["acum12m"],
                     mode="lines",
-                    name="IPCA (headline)",
+                    name="IPCA acum. 12M",
                     line=dict(color="#1a2035", width=1.8, dash="dash"),
-                    hovertemplate="%{x|%b/%Y}<br>IPCA: %{y:.2f}%<extra></extra>",
+                    hovertemplate="%{x|%b/%Y}<br>IPCA acum. 12M: %{y:.2f}%<extra></extra>",
                 ))
 
-            # Linha da média (destaque)
+            # Linha da média dos núcleos acumulados (destaque)
             fig_media.add_trace(go.Scatter(
-                x=_df_12m["data"], y=_df_12m["media"],
+                x=_df_all["data"], y=_df_all["media_a12"],
                 mode="lines+markers",
-                name="Média dos Núcleos",
+                name="Média Núcleos acum. 12M",
                 line=dict(color="#7c3aed", width=2.5),
                 marker=dict(size=6, color="#7c3aed"),
-                hovertemplate="%{x|%b/%Y}<br><b>Média: %{y:.2f}%</b><extra></extra>",
+                hovertemplate="%{x|%b/%Y}<br><b>Média acum. 12M: %{y:.2f}%</b><extra></extra>",
             ))
 
-            # Meta BCB como linha de referência
+            # Banda e meta BCB
+            fig_media.add_hrect(
+                y0=meta_bcb - BCB_TOLE, y1=meta_bcb + BCB_TOLE,
+                fillcolor="rgba(22,163,74,0.07)", line_width=0,
+            )
             fig_media.add_hline(
                 y=meta_bcb, line_dash="dot", line_color="#16a34a", line_width=1.2,
                 annotation_text=f"Meta {meta_bcb:.1f}%",
@@ -968,11 +986,11 @@ elif st.session_state.pagina == "IPCA & Núcleos":
                 annotation_font=dict(size=10, color="#16a34a"),
             )
 
-            _layout_m = {**_B, "margin": dict(l=52, r=16, t=44, b=90)}
+            _layout_m = {**_I, "margin": dict(l=52, r=16, t=44, b=90)}
             fig_media.update_layout(
                 **_layout_m,
-                height=340,
-                title="Variação Média dos Núcleos de Inflação — últimos 12 meses (% ao mês)",
+                height=360,
+                title="Núcleos de Inflação — Acumulado 12 Meses (%) vs Meta BCB",
                 hovermode="x unified",
                 legend=dict(
                     orientation="h",
@@ -982,11 +1000,13 @@ elif st.session_state.pagina == "IPCA & Núcleos":
                     bgcolor="rgba(255,255,255,0)",
                 ),
             )
-            fig_media.update_yaxes(ticksuffix="%", range=[-2, 2])
+            fig_media.update_yaxes(ticksuffix="%", range=[0, 10])
+            fig_media.update_xaxes(range=[str(_xmin_m.date()), str(_xmax_m.date())])
+            fig_media = _add_rangeslider(fig_media, 360, extra_top=40)
 
             # Anotação com valor mais recente da média
-            _last_media = _df_12m["media"].iloc[-1]
-            _last_dt    = _df_12m["data"].iloc[-1]
+            _last_media = _df_all["media_a12"].iloc[-1]
+            _last_dt    = _df_all["data"].iloc[-1]
             fig_media.add_annotation(
                 x=_last_dt, y=_last_media,
                 text=f"  {fmt(_last_media)}%",
@@ -996,7 +1016,7 @@ elif st.session_state.pagina == "IPCA & Núcleos":
             )
 
             st.plotly_chart(fig_media, use_container_width=True, config={**CHART_CFG_INT,
-                "toImageButtonOptions": {"format":"png","filename":"nucleos_media_12m","scale":2}})
+                "toImageButtonOptions": {"format":"png","filename":"nucleos_acum12m","scale":2}})
 
     # ── IPCA Acumulado 12M vs Meta ─────────────────────────────────────────────
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
