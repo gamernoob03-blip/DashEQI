@@ -247,13 +247,8 @@ def bar_fig(df, title, suffix="", height=260, inter=False):
 
 # ── Figura overlay: IPCA headline + todos os núcleos ─────────────────────────
 def cores_overlay_fig(df_ipca, nucleo_data, height=480):
-    """
-    df_ipca    : DataFrame com colunas [data, valor] — IPCA headline
-    nucleo_data: dict {key: (df, label, color)} — todos os núcleos
-    """
     fig = go.Figure()
 
-    # Headline
     if not df_ipca.empty:
         fig.add_trace(go.Scatter(
             x=df_ipca["data"], y=df_ipca["valor"],
@@ -262,13 +257,12 @@ def cores_overlay_fig(df_ipca, nucleo_data, height=480):
             hovertemplate="%{x|%b/%Y}<br><b>IPCA: %{y:.2f}%</b><extra></extra>"
         ))
 
-    # Núcleos
     for key, (df_n, label, color) in nucleo_data.items():
         if not df_n.empty:
             fig.add_trace(go.Scatter(
                 x=df_n["data"], y=df_n["valor"],
                 mode="lines", name=f"{key} — {label}",
-                line=dict(color=color, width=1.6, dash="solid"),
+                line=dict(color=color, width=1.6),
                 hovertemplate=f"%{{x|%b/%Y}}<br><b>{key}: %{{y:.2f}}%</b><extra></extra>"
             ))
 
@@ -278,13 +272,15 @@ def cores_overlay_fig(df_ipca, nucleo_data, height=480):
         title="IPCA e Núcleos de Inflação (% ao mês)",
         hovermode="x unified",
         legend=dict(
-            orientation="h", yanchor="bottom", y=1.02,
+            orientation="h",
+            yanchor="top", y=-0.18,
             xanchor="left", x=0,
             font=dict(size=10, color="#374151"),
-            bgcolor="rgba(255,255,255,0.8)",
-            bordercolor="#e2e5e9", borderwidth=1,
+            bgcolor="rgba(255,255,255,0)",
         ),
+        margin=dict(l=52, r=16, t=44, b=90),
     )
+    fig.update_yaxes(range=[-2, 2], ticksuffix="%")
     fig = _add_rangeslider(fig, height, extra_top=40)
     return fig
 
@@ -366,23 +362,18 @@ def acum12m_meta_fig(df_ipca_full):
     df = df.dropna(subset=["acum12m"])
 
     fig = go.Figure()
-    # Banda de tolerância
     meta_val = 3.0
     fig.add_hrect(
         y0=meta_val - BCB_TOLE, y1=meta_val + BCB_TOLE,
-        fillcolor="rgba(22,163,74,0.06)", line_width=0,
+        fillcolor="rgba(22,163,74,0.08)", line_width=0,
         annotation_text=f"Banda ±{BCB_TOLE}pp", annotation_position="top right",
         annotation_font=dict(size=10, color="#16a34a"),
     )
-    # Linha da meta
     fig.add_hline(
         y=meta_val, line_dash="dot", line_color="#16a34a", line_width=1.5,
         annotation_text=f"Meta {meta_val:.1f}%", annotation_position="right",
         annotation_font=dict(size=10, color="#16a34a"),
     )
-    # Acumulado 12M
-    above = df["acum12m"] > (meta_val + BCB_TOLE)
-    colors_line = ["#dc2626" if a else "#1a2035" for a in above]
     fig.add_trace(go.Scatter(
         x=df["data"], y=df["acum12m"],
         mode="lines",
@@ -398,6 +389,7 @@ def acum12m_meta_fig(df_ipca_full):
         hovermode="x unified",
         showlegend=False,
     )
+    fig.update_yaxes(range=[0, 10], ticksuffix="%")
     fig = _add_rangeslider(fig, 320)
     return fig
 
@@ -869,7 +861,6 @@ elif st.session_state.pagina == "IPCA & Núcleos":
         _xmax = df_ipca_full["data"].max()
         _xmin = _xmax - pd.DateOffset(months=24)
         fig_cores.update_xaxes(range=[str(_xmin.date()), str(_xmax.date())])
-    fig_cores.update_yaxes(range=[None, 2])
     st.plotly_chart(fig_cores, use_container_width=True, config={**CHART_CFG_INT,
         "toImageButtonOptions": {"format":"png","filename":"ipca_nucleos","scale":2}})
 
@@ -977,21 +968,21 @@ elif st.session_state.pagina == "IPCA & Núcleos":
                 annotation_font=dict(size=10, color="#16a34a"),
             )
 
-            _layout_m = {**_B, "margin": dict(l=52, r=16, t=44, b=36)}
+            _layout_m = {**_B, "margin": dict(l=52, r=16, t=44, b=90)}
             fig_media.update_layout(
                 **_layout_m,
-                height=320,
+                height=340,
                 title="Variação Média dos Núcleos de Inflação — últimos 12 meses (% ao mês)",
                 hovermode="x unified",
                 legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02,
+                    orientation="h",
+                    yanchor="top", y=-0.22,
                     xanchor="left", x=0,
                     font=dict(size=10, color="#374151"),
-                    bgcolor="rgba(255,255,255,0.8)",
-                    bordercolor="#e2e5e9", borderwidth=1,
+                    bgcolor="rgba(255,255,255,0)",
                 ),
             )
-            fig_media.update_yaxes(ticksuffix="%", range=[None, 2])
+            fig_media.update_yaxes(ticksuffix="%", range=[-2, 2])
 
             # Anotação com valor mais recente da média
             _last_media = _df_12m["media"].iloc[-1]
@@ -1015,7 +1006,8 @@ elif st.session_state.pagina == "IPCA & Núcleos":
         _xmax_a = df_ipca_full["data"].max()
         _xmin_a = _xmax_a - pd.DateOffset(months=24)
         fig_acum.update_xaxes(range=[str(_xmin_a.date()), str(_xmax_a.date())])
-        fig_acum.update_yaxes(range=[None, 10])
+        st.plotly_chart(fig_acum, use_container_width=True, config={**CHART_CFG_INT,
+            "toImageButtonOptions": {"format":"png","filename":"ipca_acum12m_meta","scale":2}})
         st.plotly_chart(fig_acum, use_container_width=True, config={**CHART_CFG_INT,
             "toImageButtonOptions": {"format":"png","filename":"ipca_acum12m_meta","scale":2}})
 
