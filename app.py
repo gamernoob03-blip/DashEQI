@@ -78,7 +78,23 @@ BCB_META  = {2020:4.0, 2021:3.75, 2022:3.5, 2023:3.25, 2024:3.0, 2025:3.0, 2026:
 BCB_TOLE  = 1.5   # ± 1,5 pp
 
 # ── Grupos IPCA (IBGE SIDRA) ──────────────────────────────────────────────────
+# IDs da classificação 315, tabela 7060 — apenas os 9 grupos principais
+# (7169 = índice geral, usado como referência mas filtrado na exibição)
 IPCA_GRUPOS_IDS = "7169,7170,7445,7486,7625,7626,7627,7628,7629,7630"
+
+# Whitelist dos 9 grupos principais do IPCA (nomes exatos após remover prefixo numérico)
+IPCA_GRUPOS_PRINCIPAIS = {
+    "Alimentação e bebidas",
+    "Habitação",
+    "Artigos de residência",
+    "Vestuário",
+    "Transportes",
+    "Saúde e cuidados pessoais",
+    "Despesas pessoais",
+    "Educação",
+    "Comunicação",
+}
+
 IPCA_GRUPOS_CORES = {
     "Alimentação e bebidas":       "#d97706",
     "Habitação":                   "#0891b2",
@@ -463,8 +479,10 @@ def get_ipca_grupos(n_periodos: int = 24) -> pd.DataFrame:
                 grupo_id   = next(iter(cat_dict), None)
                 grupo_nome = next(iter(cat_dict.values()), None)
                 if grupo_nome and "." in grupo_nome:
-                    # Remove prefixo numérico: "1.Alimentação..." → "Alimentação..."
                     grupo_nome = grupo_nome.split(".", 1)[-1].strip()
+                # Filtra apenas índice geral e os 9 grupos principais
+                if grupo_nome not in IPCA_GRUPOS_PRINCIPAIS and grupo_id != "7169":
+                    continue
                 series_list = resultado.get("series", [])
                 if not series_list:
                     continue
@@ -515,6 +533,9 @@ def get_ipca_acum_grupo(n_periodos: int = 24) -> pd.DataFrame:
                 grupo_nome = next(iter(cat_dict.values()), None)
                 if grupo_nome and "." in grupo_nome:
                     grupo_nome = grupo_nome.split(".", 1)[-1].strip()
+                # Filtra apenas os 9 grupos principais (sem índice geral no acumulado)
+                if grupo_nome not in IPCA_GRUPOS_PRINCIPAIS:
+                    continue
                 series_list = resultado.get("series", [])
                 if not series_list:
                     continue
