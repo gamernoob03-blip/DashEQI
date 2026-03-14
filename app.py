@@ -865,6 +865,10 @@ elif st.session_state.pagina == "IPCA & Núcleos":
     )
 
     fig_cores = cores_overlay_fig(df_ipca_full, nucleo_data, height=480)
+    if not df_ipca_full.empty:
+        _xmax = df_ipca_full["data"].max()
+        _xmin = _xmax - pd.DateOffset(months=24)
+        fig_cores.update_xaxes(range=[str(_xmin.date()), str(_xmax.date())])
     st.plotly_chart(fig_cores, use_container_width=True, config={**CHART_CFG_INT,
         "toImageButtonOptions": {"format":"png","filename":"ipca_nucleos","scale":2}})
 
@@ -901,6 +905,9 @@ elif st.session_state.pagina == "IPCA & Núcleos":
     sec_title("Acumulado 12 Meses vs Meta BCB", "↻ diário", "badge-daily")
     if not df_ipca_full.empty:
         fig_acum = acum12m_meta_fig(df_ipca_full)
+        _xmax_a = df_ipca_full["data"].max()
+        _xmin_a = _xmax_a - pd.DateOffset(months=24)
+        fig_acum.update_xaxes(range=[str(_xmin_a.date()), str(_xmax_a.date())])
         st.plotly_chart(fig_acum, use_container_width=True, config={**CHART_CFG_INT,
             "toImageButtonOptions": {"format":"png","filename":"ipca_acum12m_meta","scale":2}})
 
