@@ -1076,47 +1076,34 @@ elif st.session_state.pagina == "IPCA & Núcleos":
                     )
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MERCADOS GLOBAIS — Terminal financeiro com tiles clicáveis
+# MERCADOS GLOBAIS — Terminal financeiro
 # ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.pagina == "Mercados Globais":
     page_header("Mercados Globais")
 
-    # ── CSS ───────────────────────────────────────────────────────────────────
     st.markdown("""<style>
     .terminal-cat{font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase;
                   letter-spacing:2.5px;margin:0 0 8px 2px;display:block}
-    /* Reset COMPLETO de estilos de link para os tiles */
-    a.tile,a.tile:link,a.tile:visited,a.tile:hover,a.tile:active,a.tile:focus{
-        display:block;text-decoration:none!important;color:inherit!important;
-        border-radius:6px;padding:10px 12px 9px;transition:filter .12s;
-        outline:0!important;
-    }
-    a.tile::before,a.tile::after{display:none!important;content:none!important}
-    a.tile *{text-decoration:none!important;color:inherit!important}
-    a.tile:hover{filter:brightness(1.14)!important}
-    div[data-testid="stMarkdown"] a.tile{color:inherit!important}
-    div[data-testid="stMarkdown"] a.tile *{color:inherit!important}
-    .tile-name{font-size:9px;font-weight:800;opacity:.6;
+    .tile{border-radius:6px;padding:10px 12px 9px}
+    .tile-name{font-size:9px;font-weight:800;color:rgba(255,255,255,.55);
                text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px;
                white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .tile-price{font-size:20px;font-weight:700;
+    .tile-price{font-size:20px;font-weight:700;color:#fff;
                 line-height:1.1;margin-bottom:6px;white-space:nowrap}
     .tile-hl{font-size:9.5px;font-weight:500;display:flex;
              justify-content:space-between;margin-bottom:2px}
     .tile-chg{font-size:9.5px;font-weight:700;display:flex;justify-content:space-between}
-    .up{background:#14522c;color:#fff}
-    .dn{background:#7f1d1d;color:#fff}
-    .neu{background:#1e2535;color:#fff}
-    .up .tile-hl,.up .tile-chg{color:#86efac}
-    .dn .tile-hl,.dn .tile-chg{color:#fca5a5}
+    .up {background:#14522c}
+    .dn {background:#7f1d1d}
+    .neu{background:#1e2535}
+    .up  .tile-hl,.up  .tile-chg{color:#86efac}
+    .dn  .tile-hl,.dn  .tile-chg{color:#fca5a5}
     .neu .tile-hl,.neu .tile-chg{color:#94a3b8}
-    a.tile.sel{outline:2px solid rgba(255,255,255,.85)!important;outline-offset:-2px}
     .tile-closed{font-size:8px;background:rgba(0,0,0,.3);border-radius:3px;
                  padding:1px 5px;color:rgba(255,255,255,.45);margin-left:5px;
                  font-weight:600;vertical-align:middle}
     </style>""", unsafe_allow_html=True)
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
     def _tfmt(v, unit):
         if v is None: return "—"
         if unit == "pts":
@@ -1126,25 +1113,17 @@ elif st.session_state.pagina == "Mercados Globais":
         return f"{v:,.{dec}f}".replace(",","X").replace(".",",").replace("X",".")
 
     def _tile_html(nome, d, unit):
-        """Retorna HTML de um tile como <a href> clicável."""
-        sel    = (st.session_state.mercados_ativo == nome)
         price  = d.get("price")
         chg_p  = d.get("chg_p")
         chg_v  = d.get("chg_v")
         dh     = d.get("day_high")
         dl     = d.get("day_low")
         closed = d.get("is_closed", False)
-
-        # URL com query param — ao clicar Streamlit relê ?mv=
-        import urllib.parse
-        href = "?" + urllib.parse.urlencode({"mv": nome})
-
         if price is None:
-            return (f"<a href='{href}' target='_self' class='tile neu{' sel' if sel else ''}'>"
+            return (f"<div class='tile neu'>"
                     f"<div class='tile-name'>{nome}</div>"
-                    f"<div class='tile-price' style='font-size:16px;opacity:.4'>—</div>"
-                    f"</a>")
-
+                    f"<div class='tile-price' style='opacity:.4'>—</div>"
+                    f"</div>")
         cls   = "up" if (chg_p or 0) >= 0 else "dn"
         arrow = "▲" if (chg_p or 0) >= 0 else "▼"
         px    = "R$ " if unit == "R$" else ("US$ " if "US$" in unit else "")
@@ -1154,15 +1133,13 @@ elif st.session_state.pagina == "Mercados Globais":
         h_str = f"H {_tfmt(dh, unit)}" if dh else "H —"
         l_str = f"L {_tfmt(dl, unit)}" if dl else "L —"
         badge = "<span class='tile-closed'>FEC</span>" if closed else ""
-        sel_cls = " sel" if sel else ""
-
         return (
-            f"<a href='{href}' target='_self' class='tile {cls}{sel_cls}'>"
+            f"<div class='tile {cls}'>"
             f"<div class='tile-name'>{nome}{badge}</div>"
             f"<div class='tile-price'>{p_str}</div>"
             f"<div class='tile-hl'><span>{h_str}</span><span>{v_str} {arrow}</span></div>"
             f"<div class='tile-chg'><span>{l_str}</span><span>{c_str}</span></div>"
-            f"</a>"
+            f"</div>"
         )
 
     def _group(label, ativos_list):
@@ -1170,28 +1147,23 @@ elif st.session_state.pagina == "Mercados Globais":
         cols = st.columns(len(ativos_list))
         for col, nome in zip(cols, ativos_list):
             sym, unit, _ = GLOBAL[nome]
-            d = get_quote(sym)
             with col:
-                st.markdown(_tile_html(nome, d, unit), unsafe_allow_html=True)
+                st.markdown(_tile_html(nome, get_quote(sym), unit), unsafe_allow_html=True)
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    # ── Renderização ──────────────────────────────────────────────────────────
     with st.spinner("Carregando cotações..."):
         _group("Índices", ["IBOVESPA","S&P 500","Nasdaq 100","Dow Jones","FTSE 100","DAX"])
-
         c_en, c_me = st.columns([2, 3])
         with c_en:
             _group("Energia", ["Petróleo Brent","Petróleo WTI"])
         with c_me:
             _group("Metais", ["Ouro","Prata","Cobre"])
-
         c_fx, c_cr = st.columns([2, 2])
         with c_fx:
             _group("Câmbio", ["Dólar (USD/BRL)","Euro (EUR/BRL)"])
         with c_cr:
             _group("Cripto", ["Bitcoin","Ethereum"])
 
-    # ── Timestamp ─────────────────────────────────────────────────────────────
     ts_now = now_brt().strftime("%d/%m/%Y %H:%M:%S")
     st.markdown(
         f"<div style='text-align:right;font-size:10px;color:#6b7280;margin-top:4px'>"
@@ -1199,34 +1171,29 @@ elif st.session_state.pagina == "Mercados Globais":
         unsafe_allow_html=True,
     )
 
-    # ── Gráfico do ativo selecionado ──────────────────────────────────────────
-    CORES_HIST = {
-        "^BVSP":"#0891b2","^GSPC":"#16a34a","^NDX":"#6366f1","^DJI":"#0891b2",
-        "^FTSE":"#d97706","^GDAXI":"#16a34a","BZ=F":"#d97706","CL=F":"#f59e0b",
-        "GC=F":"#b45309","SI=F":"#64748b","HG=F":"#dc2626",
-        "USDBRL=X":"#7c3aed","EURBRL=X":"#8b5cf6",
-        "BTC-USD":"#f59e0b","ETH-USD":"#6366f1",
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    sec_title("Histórico Interativo", "2 anos", "badge-daily")
+
+    hist_ativos = {
+        "IBOVESPA":        ("^BVSP",   "#0891b2", "pts"),
+        "S&P 500":         ("^GSPC",   "#16a34a", "pts"),
+        "Petróleo Brent":  ("BZ=F",    "#d97706", "US$"),
+        "Ouro":            ("GC=F",    "#b45309", "US$"),
+        "Dólar (USD/BRL)": ("USDBRL=X","#7c3aed", "R$"),
+        "Bitcoin":         ("BTC-USD", "#f59e0b", "US$"),
     }
-    ativo_sel = st.session_state.mercados_ativo
-    sym_sel, unit_sel, _ = GLOBAL[ativo_sel]
-    cor_sel = CORES_HIST.get(sym_sel, "#1a2035")
-
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-    sec_title(f"Histórico — {ativo_sel}", "2 anos interativo", "badge-daily")
-
-    with st.spinner(f"Carregando histórico de {ativo_sel}..."):
-        dfh = get_hist(sym_sel, 2)
-
-    if not dfh.empty:
-        st.plotly_chart(
-            line_fig(dfh, f"{ativo_sel} — 2 anos", cor_sel,
-                     suffix=f" {unit_sel}", height=340, inter=True),
-            use_container_width=True,
-            config={**CHART_CFG_INT,
-                    "toImageButtonOptions": {"format":"png","filename":ativo_sel,"scale":2}},
-        )
-    else:
-        st.warning("Histórico indisponível para este ativo.")
+    tabs_hist = st.tabs(list(hist_ativos.keys()))
+    for tab, (nome_h, (sym_h, cor_h, unit_h)) in zip(tabs_hist, hist_ativos.items()):
+        with tab:
+            dfh = get_hist(sym_h, 2)
+            if not dfh.empty:
+                st.plotly_chart(
+                    line_fig(dfh, f"{nome_h} — 2 anos", cor_h,
+                             suffix=f" {unit_h}", height=320, inter=True),
+                    use_container_width=True,
+                    config={**CHART_CFG_INT,
+                            "toImageButtonOptions": {"format":"png","filename":nome_h,"scale":2}},
+                )
 
     time.sleep(60)
     st.rerun()
