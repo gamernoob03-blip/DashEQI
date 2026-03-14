@@ -1085,24 +1085,32 @@ elif st.session_state.pagina == "Mercados Globais":
     st.markdown("""<style>
     .terminal-cat{font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase;
                   letter-spacing:2.5px;margin:0 0 8px 2px;display:block}
-    .tile{border-radius:6px;padding:10px 12px 9px;display:block;
-          text-decoration:none!important;transition:filter .12s}
-    .tile:hover{filter:brightness(1.14);text-decoration:none!important}
-    .tile-name{font-size:9px;font-weight:800;color:rgba(255,255,255,.55);
+    /* Reset COMPLETO de estilos de link para os tiles */
+    a.tile,a.tile:link,a.tile:visited,a.tile:hover,a.tile:active,a.tile:focus{
+        display:block;text-decoration:none!important;color:inherit!important;
+        border-radius:6px;padding:10px 12px 9px;transition:filter .12s;
+        outline:0!important;
+    }
+    a.tile::before,a.tile::after{display:none!important;content:none!important}
+    a.tile *{text-decoration:none!important;color:inherit!important}
+    a.tile:hover{filter:brightness(1.14)!important}
+    div[data-testid="stMarkdown"] a.tile{color:inherit!important}
+    div[data-testid="stMarkdown"] a.tile *{color:inherit!important}
+    .tile-name{font-size:9px;font-weight:800;opacity:.6;
                text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px;
                white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .tile-price{font-size:20px;font-weight:700;color:#fff;
+    .tile-price{font-size:20px;font-weight:700;
                 line-height:1.1;margin-bottom:6px;white-space:nowrap}
     .tile-hl{font-size:9.5px;font-weight:500;display:flex;
              justify-content:space-between;margin-bottom:2px}
     .tile-chg{font-size:9.5px;font-weight:700;display:flex;justify-content:space-between}
-    .up {background:#14522c}
-    .dn {background:#7f1d1d}
-    .neu{background:#1e2535}
-    .up  .tile-hl,.up  .tile-chg{color:#86efac}
-    .dn  .tile-hl,.dn  .tile-chg{color:#fca5a5}
+    .up{background:#14522c;color:#fff}
+    .dn{background:#7f1d1d;color:#fff}
+    .neu{background:#1e2535;color:#fff}
+    .up .tile-hl,.up .tile-chg{color:#86efac}
+    .dn .tile-hl,.dn .tile-chg{color:#fca5a5}
     .neu .tile-hl,.neu .tile-chg{color:#94a3b8}
-    .tile.sel{outline:2px solid rgba(255,255,255,.8);outline-offset:-2px}
+    a.tile.sel{outline:2px solid rgba(255,255,255,.85)!important;outline-offset:-2px}
     .tile-closed{font-size:8px;background:rgba(0,0,0,.3);border-radius:3px;
                  padding:1px 5px;color:rgba(255,255,255,.45);margin-left:5px;
                  font-weight:600;vertical-align:middle}
