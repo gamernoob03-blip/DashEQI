@@ -215,9 +215,11 @@ _B = dict(paper_bgcolor="#fff",plot_bgcolor="#fff",font_color="#6b7280",font_fam
           yaxis=dict(gridcolor="#f1f5f9",showline=False,tickfont=dict(size=10,color="#9ca3af"),zeroline=False,fixedrange=True),
           title_font=dict(color="#374151",size=12,family="Inter"),
           hoverlabel=dict(bgcolor="#1a2035",font_size=12,font_color="#e2e8f0"),dragmode=False)
+
+# _I: layout interativo — Y com autorange=True para reajustar ao zoom no X
 _I = {**_B,
       "xaxis":{**_B["xaxis"],"fixedrange":False},
-      "yaxis":{**_B["yaxis"],"fixedrange":False},
+      "yaxis":{**_B["yaxis"],"fixedrange":False,"autorange":True},
       "dragmode":"zoom"}
 
 _RS_BUTTONS = [
@@ -232,12 +234,18 @@ _RS_STYLE = dict(bgcolor="#f8fafc", bordercolor="#e2e5e9", borderwidth=1,
                  x=1.0, xanchor="right", y=1.0, yanchor="bottom", buttons=_RS_BUTTONS)
 
 def _rng(fig, df, sfx="", pad=0.08):
+    """Aplica range inicial. Para gráficos interativos, Y fica com autorange."""
     if df.empty: return fig
     mn,mx = df["valor"].min(),df["valor"].max()
     yd = (mx-mn)*pad if mx!=mn else abs(mx)*0.1 or 1
     xd = (df["data"].max()-df["data"].min())*0.02
     fig.update_xaxes(range=[df["data"].min()-xd, df["data"].max()+xd])
-    fig.update_yaxes(range=[mn-yd,mx+yd],tickformat=".2f",ticksuffix=sfx.strip())
+    # Só trava Y em gráficos estáticos (fixedrange=True)
+    xaxis_cfg = fig.layout.xaxis or {}
+    if getattr(xaxis_cfg, "fixedrange", True):
+        fig.update_yaxes(range=[mn-yd,mx+yd],tickformat=".2f",ticksuffix=sfx.strip())
+    else:
+        fig.update_yaxes(tickformat=".2f",ticksuffix=sfx.strip())
     return fig
 
 def _add_rangeslider(fig, height, extra_top=32):
@@ -245,7 +253,8 @@ def _add_rangeslider(fig, height, extra_top=32):
         rangeslider=dict(visible=True, thickness=0.05, bgcolor="#f1f5f9"),
         rangeselector=_RS_STYLE,
     )
-    fig.update_yaxes(fixedrange=False)
+    # Y livre + autorange para reajustar ao zoom/pan no X
+    fig.update_yaxes(fixedrange=False, autorange=True)
     fig.update_layout(height=height+40, margin=dict(t=40+extra_top))
     return fig
 
@@ -302,7 +311,7 @@ def cores_overlay_fig(df_ipca, nucleo_data, height=480):
             bgcolor="rgba(255,255,255,0)",
         ),
     )
-    fig.update_yaxes(range=[-2, 2], ticksuffix="%")
+    fig.update_yaxes(ticksuffix="%")
     fig = _add_rangeslider(fig, height, extra_top=40)
     return fig
 
@@ -411,7 +420,7 @@ def acum12m_meta_fig(df_ipca_full):
         hovermode="x unified",
         showlegend=False,
     )
-    fig.update_yaxes(range=[0, 10], ticksuffix="%")
+    fig.update_yaxes(ticksuffix="%")
     fig = _add_rangeslider(fig, 320)
     return fig
 
@@ -1023,7 +1032,7 @@ elif st.session_state.pagina == "Monitor Inflação":
                     bgcolor="rgba(255,255,255,0)",
                 ),
             )
-            fig_media.update_yaxes(ticksuffix="%", range=[0, 10])
+            fig_media.update_yaxes(ticksuffix="%")
             fig_media.update_xaxes(range=[str(_xmin_m.date()), str(_xmax_m.date())])
             fig_media = _add_rangeslider(fig_media, 360, extra_top=40)
 
