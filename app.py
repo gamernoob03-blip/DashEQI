@@ -473,8 +473,9 @@ elif st.session_state.pagina == "Gráficos":
             if d_ini < d_fim:
                 st.success(f"✅ {len(df_t)} obs. · {label_t} · {freq}")
                 use_bar = (tipo=="bar") and (periodo in ("Original","Mensal (original)","Var. trimestral (original)"))
-                fig = bar_fig(df_t,label_t,suffix=f" {unit_t}",height=440,inter=True) if use_bar else line_fig(df_t,label_t,"#004031",suffix=f" {unit_t}",height=440,inter=True)
+                fig = bar_fig(df_t,label_t,suffix=f" {unit_t}",height=440,inter=True) if use_bar else line_fig(df_t,label_t,cor,suffix=f" {unit_t}",height=440,inter=True)
                 fig.update_xaxes(range=[str(d_ini),str(d_fim)])
+                fig.update_yaxes(range=_y_range_for_window(df_t, d_ini, d_fim), ticksuffix=f" {unit_t}".strip())
                 render_chart(fig, f"{ind}_{periodo}")
                 dlo = df_t.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ind.replace(' ','_')}_{periodo.replace(' ','_')}.csv",mime="text/csv")
@@ -495,7 +496,9 @@ elif st.session_state.pagina == "Gráficos":
             with cy2: dy_fim = st.date_input("Exibir até",value=dmax_y,min_value=dmin_y,max_value=dmax_y,key="gyfim")
             if dy_ini < dy_fim:
                 st.success(f"✅ {len(dfg)} obs. · {ativo}")
-                fig_y = line_fig(dfg,f"{ativo}","#004031",suffix=f" {unit}",height=440,inter=True); fig_y.update_xaxes(range=[str(dy_ini),str(dy_fim)])
+                fig_y = line_fig(dfg,f"{ativo}","#004031",suffix=f" {unit}",height=440,inter=True)
+                fig_y.update_xaxes(range=[str(dy_ini),str(dy_fim)])
+                fig_y.update_yaxes(range=_y_range_for_window(dfg, dy_ini, dy_fim), ticksuffix=f" {unit}".strip())
                 render_chart(fig_y, ativo)
                 dlo = dfg.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV completo ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ativo.replace(' ','_')}_completo.csv",mime="text/csv")
