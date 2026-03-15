@@ -572,22 +572,16 @@ elif st.session_state.pagina == "Gráficos":
 
                 fig_comp.update_layout(**_layout_comp, height=460, title=" vs ".join(_selecionados))
                 fig_comp.update_xaxes(range=[str(dc_ini), str(dc_fim)])
-                # Y range para a janela visível — mesmo padrão do Monitor Inflação
-                _df_comp_all = pd.concat([
-                    _df_c.rename(columns={"valor": f"v{i}"})
-                    for i, (_nome, (_df_c, _)) in enumerate(_series_comp.items())
-                    if not _df_c.empty
-                ], axis=0)
-                if not _df_comp_all.empty:
-                    _vals_vis = pd.concat([
-                        _df_c[(_df_c["data"] >= pd.Timestamp(dc_ini)) &
-                              (_df_c["data"] <= pd.Timestamp(dc_fim))]["valor"]
-                        for _, (_df_c, _) in _series_comp.items() if not _df_c.empty
-                    ])
-                    if not _vals_vis.empty:
-                        _mn, _mx = float(_vals_vis.min()), float(_vals_vis.max())
-                        _pad = (_mx - _mn) * 0.15 if _mx != _mn else abs(_mx) * 0.2 or 1
-                        fig_comp.update_yaxes(range=[_mn - _pad, _mx + _pad])
+                # Y range — mesma função padrão do Monitor Inflação, aplicada ao df combinado
+                _df_comp_combined = pd.concat(
+                    [_df_c for _, (_df_c, _) in _series_comp.items() if not _df_c.empty],
+                    ignore_index=True
+                )
+                if not _df_comp_combined.empty:
+                    fig_comp.update_yaxes(
+                        range=_y_range_for_window(_df_comp_combined, dc_ini, dc_fim),
+                        fixedrange=False
+                    )
                 fig_comp = _add_rangeslider(fig_comp, 460)
                 render_chart(fig_comp, "comparacao_series")
 
