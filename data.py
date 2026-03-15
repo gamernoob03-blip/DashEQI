@@ -449,7 +449,7 @@ def get_all_quotes(symbols: tuple) -> dict:
 def get_quote(sym: str) -> dict:
     """Cotação individual — usa cache batch interno."""
     from settings import GLOBAL
-    return get_all_quotes(tuple(s for s, _, _, _ in GLOBAL.values())).get(sym, {})
+    return get_all_quotes(tuple(a.simbolo for a in GLOBAL.values())).get(sym, {})
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
