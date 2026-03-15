@@ -81,7 +81,7 @@ SGS = {
 # ── Ativos globais — Stooq ────────────────────────────────────────────────────
 # Formato: nome → (símbolo Stooq, unidade, sinal_invertido)
 GLOBAL = {
-    "IBOVESPA":        ("if.f",    "pts",    False),
+    "IBOVESPA":        ("^BVSP",   "pts",    False),
     "Dólar (USD/BRL)": ("usdbrl",  "R$",     True),
     "Euro (EUR/BRL)":  ("eurbrl",  "R$",     True),
     "S&P 500":         ("^spx",    "pts",    False),
