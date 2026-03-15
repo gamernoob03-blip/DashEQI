@@ -1075,10 +1075,13 @@ elif st.session_state.pagina == "Monitor Inflação":
         # Y range: baseado no acumulado 12M da janela de 24M + inclui a banda BCB
         _df_acum_tmp = df_ipca_full.copy().sort_values("data")
         _df_acum_tmp["acum12m"] = _df_acum_tmp["valor"].rolling(12).sum()
+        _df_acum_vis = (_df_acum_tmp.dropna(subset=["acum12m"])
+                        [["data","acum12m"]]
+                        .rename(columns={"acum12m":"valor"}))
         _yr_a = _y_range_for_window(
-            _df_acum_tmp.dropna(subset=["acum12m"]).rename(columns={"acum12m":"valor"}),
-            _xmin_a, _xmax_a, pad=0.15,
-            extra_min=BCB_TOLE, extra_max=meta_bcb + BCB_TOLE + 0.5
+            _df_acum_vis, _xmin_a, _xmax_a, pad=0.15,
+            extra_min=float(BCB_TOLE),
+            extra_max=float(meta_bcb + BCB_TOLE + 0.5)
         )
         fig_acum.update_yaxes(range=_yr_a, ticksuffix="%")
         st.plotly_chart(fig_acum, use_container_width=True, config={**CHART_CFG_INT,
