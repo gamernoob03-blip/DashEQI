@@ -66,7 +66,7 @@ with st.sidebar:
             st.rerun()
     st.divider()
     st.caption("Fontes: BCB/SGS · IBGE/SIDRA · Yahoo Finance")
-    st.caption("Mercados ↻60s · BCB/IBGE ↻1h")
+    st.caption("Mercados ↻15min · BCB/IBGE ↻1h")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # INÍCIO
@@ -89,7 +89,7 @@ if st.session_state.pagina == "Início":
         if st.button("↺ Tentar novamente"): st.cache_data.clear(); st.rerun()
         st.stop()
 
-    sec_title("Indicadores de Mercado", "↻ 60s", "badge-live")
+    sec_title("Indicadores de Mercado", "↻ 15min", "badge-live")
     c1, c2, c3 = st.columns(3)
     with c1:
         v = ibov.get("price")
@@ -384,8 +384,8 @@ elif st.session_state.pagina == "Mercados Globais":
             with col: st.markdown(_tile(nome, get_quote(sym), unit), unsafe_allow_html=True)
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    # ── Fragment: só os tiles e o timestamp atualizam a cada 60s ─────────────
-    @st.fragment(run_every=60)
+    # ── Fragment: tiles atualizam a cada 15min (cache do servidor) ───────────
+    @st.fragment(run_every=900)
     def _cotacoes():
         try:
             _group("Índices", ["IBOVESPA","S&P 500","Nasdaq 100","Dow Jones","FTSE 100","DAX"])
@@ -395,7 +395,7 @@ elif st.session_state.pagina == "Mercados Globais":
             c_fx, c_cr = st.columns([2,2])
             with c_fx: _group("Câmbio", ["Dólar (USD/BRL)","Euro (EUR/BRL)"])
             with c_cr: _group("Cripto", ["Bitcoin","Ethereum"])
-            st.markdown(f"<div style='text-align:right;font-size:10px;color:#6b7280;margin-top:4px'>Atualizado: {now_brt().strftime('%d/%m/%Y %H:%M:%S')} BRT &nbsp;·&nbsp; ↻ 60s</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:right;font-size:10px;color:#6b7280;margin-top:4px'>Atualizado: {now_brt().strftime('%d/%m/%Y %H:%M:%S')} BRT &nbsp;·&nbsp; ↻ 15min</div>", unsafe_allow_html=True)
         except Exception as e:
             logger.error("Mercados: %s", e)
             st.error("⚠️ Erro ao carregar cotações.")
