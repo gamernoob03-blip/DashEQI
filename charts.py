@@ -104,7 +104,7 @@ def _add_rangeslider(fig: go.Figure, height: int, extra_top: int = 32) -> go.Fig
 def line_fig(df: pd.DataFrame, title: str, color: str = "#1a2035",
              fill: bool = True, suffix: str = "", height: int = 260,
              inter: bool = False) -> go.Figure:
-    """Gráfico de linha simples. inter=True adiciona rangeslider."""
+    """Gráfico de linha. inter=True: rangeslider + Y auto-ajustável por janela."""
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=df["data"], y=df["valor"],
@@ -117,12 +117,15 @@ def line_fig(df: pd.DataFrame, title: str, color: str = "#1a2035",
     fig.update_layout(**(_I if inter else _B), title=title, height=height)
     if inter:
         fig = _add_rangeslider(fig, height)
+        # Y autorange: Plotly ajusta automaticamente conforme a janela X visível
+        fig.update_yaxes(autorange=True, fixedrange=False, ticksuffix=suffix.strip())
+        return fig
     return _rng(fig, df, suffix) if not df.empty else fig
 
 
 def bar_fig(df: pd.DataFrame, title: str, suffix: str = "",
             height: int = 260, inter: bool = False) -> go.Figure:
-    """Gráfico de barras com cor verde/vermelho por sinal. inter=True adiciona rangeslider."""
+    """Gráfico de barras. inter=True: rangeslider + Y auto-ajustável por janela."""
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=df["data"], y=df["valor"],
@@ -133,6 +136,8 @@ def bar_fig(df: pd.DataFrame, title: str, suffix: str = "",
     fig.update_layout(**(_I if inter else _B), title=title, height=height)
     if inter:
         fig = _add_rangeslider(fig, height)
+        fig.update_yaxes(autorange=True, fixedrange=False, ticksuffix=suffix.strip())
+        return fig
     return _rng(fig, df, suffix, 0.15) if not df.empty else fig
 
 
