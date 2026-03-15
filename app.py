@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from datetime import datetime, timedelta, date
 
-from config import (
+from settings import (
     logger, GLOBAL, SGS, NUCLEO_SGS, BCB_META, BCB_TOLE,
     IPCA_GRUPOS_IDS, NAV, NAV_SLUGS, CHART_CFG, CHART_CFG_INT,
 )
