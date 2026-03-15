@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
 
-from config import (
+from settings import (
     logger, HDRS,
     TTL_BCB, TTL_IBGE, TTL_MERCADOS, TTL_HIST,
     BCB_BASE, YAHOO_SNAP, YAHOO_HIST, IBGE_SIDRA,
