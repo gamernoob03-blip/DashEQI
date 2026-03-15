@@ -78,24 +78,24 @@ SGS = {
     "Swap DI×Pré 360d":   (7814,  "% a.a.",  "Diário",     "line"),
 }
 
-# ── Ativos globais Yahoo Finance ──────────────────────────────────────────────
-# Formato: nome → (símbolo, unidade, sinal_invertido)
+# ── Ativos globais — Stooq ────────────────────────────────────────────────────
+# Formato: nome → (símbolo Stooq, unidade, sinal_invertido)
 GLOBAL = {
-    "IBOVESPA":        ("^BVSP",    "pts",    False),
-    "Dólar (USD/BRL)": ("USDBRL=X", "R$",     True),
-    "Euro (EUR/BRL)":  ("EURBRL=X", "R$",     True),
-    "S&P 500":         ("^GSPC",    "pts",    False),
-    "Nasdaq 100":      ("^NDX",     "pts",    False),
-    "Dow Jones":       ("^DJI",     "pts",    False),
-    "FTSE 100":        ("^FTSE",    "pts",    False),
-    "DAX":             ("^GDAXI",   "pts",    False),
-    "Petróleo Brent":  ("BZ=F",     "US$",    True),
-    "Petróleo WTI":    ("CL=F",     "US$",    True),
-    "Ouro":            ("GC=F",     "US$",    False),
-    "Prata":           ("SI=F",     "US$",    False),
-    "Cobre":           ("HG=F",     "US$/lb", True),
-    "Bitcoin":         ("BTC-USD",  "US$",    False),
-    "Ethereum":        ("ETH-USD",  "US$",    False),
+    "IBOVESPA":        ("^bvsp",   "pts",    False),
+    "Dólar (USD/BRL)": ("usdbrl",  "R$",     True),
+    "Euro (EUR/BRL)":  ("eurbrl",  "R$",     True),
+    "S&P 500":         ("^spx",    "pts",    False),
+    "Nasdaq 100":      ("^ndx",    "pts",    False),
+    "Dow Jones":       ("^dji",    "pts",    False),
+    "FTSE 100":        ("^ftx",    "pts",    False),
+    "DAX":             ("^dax",    "pts",    False),
+    "Petróleo Brent":  ("bz.f",    "US$",    True),
+    "Petróleo WTI":    ("cl.f",    "US$",    True),
+    "Ouro":            ("gc.f",    "US$",    False),
+    "Prata":           ("si.f",    "US$",    False),
+    "Cobre":           ("hg.f",    "US$/lb", True),
+    "Bitcoin":         ("btc.v",   "US$",    False),
+    "Ethereum":        ("eth.v",   "US$",    False),
 }
 
 # ── Núcleos de inflação BCB ───────────────────────────────────────────────────
