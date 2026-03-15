@@ -56,17 +56,26 @@ CHART_CFG_INT = {
 # ── Séries BCB/SGS ────────────────────────────────────────────────────────────
 # Formato: nome → (código SGS, unidade, frequência, tipo de gráfico)
 SGS = {
-    "Selic":       (432,   "% a.a.",  "Mensal",     "line"),
-    "IPCA":        (433,   "% mês",   "Mensal",     "bar"),
-    "IBC-Br":      (24363, "índice",  "Mensal",     "line"),
-    "Dólar PTAX":  (1,     "R$",      "Diário",     "line"),
-    "PIB":         (4380,  "% trim.", "Trimestral", "bar"),
-    "Desemprego":  (24369, "%",       "Trimestral", "line"),
-    "IGP-M":       (189,   "% mês",   "Mensal",     "bar"),
-    "IPCA-15":     (7478,  "% mês",   "Mensal",     "bar"),
-    "Exportações": (2257,  "US$ mi",  "Mensal",     "bar"),
-    "Importações": (2258,  "US$ mi",  "Mensal",     "bar"),
-    "Dívida/PIB":  (4513,  "%",       "Mensal",     "line"),
+    # Indicadores gerais
+    "Selic":              (432,   "% a.a.",  "Mensal",     "line"),
+    "IPCA":               (433,   "% mês",   "Mensal",     "bar"),
+    "IBC-Br":             (24363, "índice",  "Mensal",     "line"),
+    "Dólar PTAX":         (1,     "R$",      "Diário",     "line"),
+    "PIB":                (4380,  "% trim.", "Trimestral", "bar"),
+    "Desemprego":         (24369, "%",       "Trimestral", "line"),
+    "IGP-M":              (189,   "% mês",   "Mensal",     "bar"),
+    "IPCA-15":            (7478,  "% mês",   "Mensal",     "bar"),
+    "Exportações":        (2257,  "US$ mi",  "Mensal",     "bar"),
+    "Importações":        (2258,  "US$ mi",  "Mensal",     "bar"),
+    "Dívida/PIB":         (4513,  "%",       "Mensal",     "line"),
+    # Expectativas Focus (Relatório de Mercado)
+    "Focus: IPCA 12M":    (13522, "%",       "Diário",     "line"),
+    "Focus: IPCA ano":    (13521, "%",       "Diário",     "line"),
+    "Focus: Selic ano":   (13426, "% a.a.", "Diário",     "line"),
+    "Focus: PIB ano":     (13291, "%",       "Diário",     "line"),
+    "Focus: Câmbio ano":  (13290, "R$",      "Diário",     "line"),
+    # Câmbio e swaps
+    "Swap DI×Pré 360d":   (7814,  "% a.a.",  "Diário",     "line"),
 }
 
 # ── Ativos globais Yahoo Finance ──────────────────────────────────────────────
