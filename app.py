@@ -44,9 +44,14 @@ if "pagina"         not in st.session_state: st.session_state.pagina         = "
 if "tabela_aberta"  not in st.session_state: st.session_state.tabela_aberta  = False
 if "mercados_ativo" not in st.session_state: st.session_state.mercados_ativo = "IBOVESPA"
 
-_qp = st.query_params.get("mv", None)
-if _qp and _qp in GLOBAL:
-    st.session_state.mercados_ativo = _qp
+# ── Query params → session state (link direto para página/ativo) ──────────────
+_NAV_SLUG_INV = {v: k for k, v in NAV_SLUGS.items()}  # "monitor-inflacao" → "Monitor Inflação"
+_qp_page = st.query_params.get("page", None)
+_qp_mv   = st.query_params.get("mv",   None)
+if _qp_page and _qp_page in _NAV_SLUG_INV:
+    st.session_state.pagina = _NAV_SLUG_INV[_qp_page]
+if _qp_mv and _qp_mv in GLOBAL:
+    st.session_state.mercados_ativo = _qp_mv
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -56,7 +61,9 @@ with st.sidebar:
         slug = NAV_SLUGS.get(label, label.lower())
         st.markdown(f"<div class='nav-marker nav-{slug}'></div>", unsafe_allow_html=True)
         if st.button(label, key=f"nav_{label}", type="primary" if st.session_state.pagina == label else "secondary", use_container_width=True):
-            st.session_state.pagina = label; st.rerun()
+            st.session_state.pagina = label
+            st.query_params["page"] = NAV_SLUGS.get(label, label.lower())
+            st.rerun()
     st.divider()
     st.caption("Fontes: BCB/SGS · IBGE/SIDRA · Yahoo Finance")
     st.caption("Mercados ↻60s · BCB/IBGE ↻1h")
@@ -365,8 +372,10 @@ elif st.session_state.pagina == "Mercados Globais":
             with col: st.markdown(_tile(nome, get_quote(sym), unit), unsafe_allow_html=True)
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    try:
-        with st.spinner("Carregando cotações..."):
+    # ── Fragment: só os tiles e o timestamp atualizam a cada 60s ─────────────
+    @st.fragment(run_every=60)
+    def _cotacoes():
+        try:
             _group("Índices", ["IBOVESPA","S&P 500","Nasdaq 100","Dow Jones","FTSE 100","DAX"])
             c_en, c_me = st.columns([2,3])
             with c_en: _group("Energia", ["Petróleo Brent","Petróleo WTI"])
@@ -374,11 +383,15 @@ elif st.session_state.pagina == "Mercados Globais":
             c_fx, c_cr = st.columns([2,2])
             with c_fx: _group("Câmbio", ["Dólar (USD/BRL)","Euro (EUR/BRL)"])
             with c_cr: _group("Cripto", ["Bitcoin","Ethereum"])
-    except Exception as e:
-        logger.error("Mercados: %s", e); st.error("⚠️ Erro ao carregar cotações.")
-        if st.button("↺ Tentar novamente"): st.cache_data.clear(); st.rerun()
+            st.markdown(f"<div style='text-align:right;font-size:10px;color:#6b7280;margin-top:4px'>Atualizado: {now_brt().strftime('%d/%m/%Y %H:%M:%S')} BRT &nbsp;·&nbsp; ↻ 60s</div>", unsafe_allow_html=True)
+        except Exception as e:
+            logger.error("Mercados: %s", e)
+            st.error("⚠️ Erro ao carregar cotações.")
+            if st.button("↺ Tentar novamente"): st.cache_data.clear(); st.rerun()
 
-    st.markdown(f"<div style='text-align:right;font-size:10px;color:#6b7280;margin-top:4px'>Atualizado: {now_brt().strftime('%d/%m/%Y %H:%M:%S')} BRT &nbsp;·&nbsp; ↻ 60s</div>", unsafe_allow_html=True)
+    _cotacoes()
+
+    # ── Gráficos históricos — fora do fragment, não piscam ───────────────────
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
     sec_title("Histórico Interativo", "2 anos", "badge-daily")
     _H = {"IBOVESPA":("^BVSP","#0891b2","pts"),"S&P 500":("^GSPC","#16a34a","pts"),"Petróleo Brent":("BZ=F","#d97706","US$"),"Ouro":("GC=F","#b45309","US$"),"Dólar (USD/BRL)":("USDBRL=X","#7c3aed","R$"),"Bitcoin":("BTC-USD","#f59e0b","US$")}
@@ -387,7 +400,6 @@ elif st.session_state.pagina == "Mercados Globais":
             dfh = get_hist(sym_h,2)
             if not dfh.empty:
                 st.plotly_chart(line_fig(dfh,f"{nome_h} — 2 anos",cor_h,suffix=f" {unit_h}",height=320,inter=True),use_container_width=True,config={**CHART_CFG_INT,"toImageButtonOptions":{"format":"png","filename":nome_h,"scale":2}})
-    time.sleep(60); st.rerun()
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GRÁFICOS
