@@ -38,20 +38,21 @@ HDRS = {
 }
 
 # ── Configuração dos gráficos Plotly ─────────────────────────────────────────
+# Config único — todos os gráficos usam o mesmo padrão interativo.
+# Para gráficos de snapshot (sem eixo de tempo), render_chart em components.py
+# passa staticPlot=True automaticamente.
 CHART_CFG = {
-    "displayModeBar": False,
-    "scrollZoom":     False,
-    "staticPlot":     False,
-    "responsive":     True,
-}
-CHART_CFG_INT = {
     "displayModeBar":           True,
     "scrollZoom":               True,
     "modeBarButtonsToRemove":   ["select2d", "lasso2d", "autoScale2d", "resetScale2d"],
     "modeBarButtonsToAdd":      ["zoomIn2d", "zoomOut2d"],
     "displaylogo":              False,
     "toImageButtonOptions":     {"format": "png", "scale": 2},
+    "responsive":               True,
 }
+
+# Alias para compatibilidade — ambos apontam para o mesmo dict
+CHART_CFG_INT = CHART_CFG
 
 # ── Séries BCB/SGS ────────────────────────────────────────────────────────────
 # Formato: nome → (código SGS, unidade, frequência, tipo de gráfico)
