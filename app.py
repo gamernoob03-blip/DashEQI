@@ -216,10 +216,10 @@ _B = dict(paper_bgcolor="#fff",plot_bgcolor="#fff",font_color="#6b7280",font_fam
           title_font=dict(color="#374151",size=12,family="Inter"),
           hoverlabel=dict(bgcolor="#1a2035",font_size=12,font_color="#e2e8f0"),dragmode=False)
 
-# _I: layout interativo — Y com autorange=True para reajustar ao zoom no X
+# _I: layout interativo — Y livre (fixedrange=False), range inicial definido pela janela visível
 _I = {**_B,
       "xaxis":{**_B["xaxis"],"fixedrange":False},
-      "yaxis":{**_B["yaxis"],"fixedrange":False,"autorange":True},
+      "yaxis":{**_B["yaxis"],"fixedrange":False},
       "dragmode":"zoom"}
 
 _RS_BUTTONS = [
@@ -233,19 +233,26 @@ _RS_STYLE = dict(bgcolor="#f8fafc", bordercolor="#e2e5e9", borderwidth=1,
                  font=dict(size=11, color="#374151"), activecolor="#e6f0ed",
                  x=1.0, xanchor="right", y=1.0, yanchor="bottom", buttons=_RS_BUTTONS)
 
+def _y_range_for_window(df, x_min, x_max, value_col="valor", pad=0.15,
+                         extra_min=None, extra_max=None):
+    """Calcula range Y baseado apenas nos dados dentro da janela X visível."""
+    mask = (df["data"] >= pd.Timestamp(x_min)) & (df["data"] <= pd.Timestamp(x_max))
+    visible = df[mask][value_col].dropna()
+    if visible.empty:
+        visible = df[value_col].dropna()
+    mn, mx = visible.min(), visible.max()
+    if extra_min is not None: mn = min(mn, extra_min)
+    if extra_max is not None: mx = max(mx, extra_max)
+    gap = (mx - mn) * pad if mx != mn else abs(mx) * 0.2 or 1
+    return [mn - gap, mx + gap]
+
 def _rng(fig, df, sfx="", pad=0.08):
-    """Aplica range inicial. Para gráficos interativos, Y fica com autorange."""
     if df.empty: return fig
     mn,mx = df["valor"].min(),df["valor"].max()
     yd = (mx-mn)*pad if mx!=mn else abs(mx)*0.1 or 1
     xd = (df["data"].max()-df["data"].min())*0.02
     fig.update_xaxes(range=[df["data"].min()-xd, df["data"].max()+xd])
-    # Só trava Y em gráficos estáticos (fixedrange=True)
-    xaxis_cfg = fig.layout.xaxis or {}
-    if getattr(xaxis_cfg, "fixedrange", True):
-        fig.update_yaxes(range=[mn-yd,mx+yd],tickformat=".2f",ticksuffix=sfx.strip())
-    else:
-        fig.update_yaxes(tickformat=".2f",ticksuffix=sfx.strip())
+    fig.update_yaxes(range=[mn-yd,mx+yd],tickformat=".2f",ticksuffix=sfx.strip())
     return fig
 
 def _add_rangeslider(fig, height, extra_top=32):
@@ -253,8 +260,7 @@ def _add_rangeslider(fig, height, extra_top=32):
         rangeslider=dict(visible=True, thickness=0.05, bgcolor="#f1f5f9"),
         rangeselector=_RS_STYLE,
     )
-    # Y livre + autorange para reajustar ao zoom/pan no X
-    fig.update_yaxes(fixedrange=False, autorange=True)
+    fig.update_yaxes(fixedrange=False)
     fig.update_layout(height=height+40, margin=dict(t=40+extra_top))
     return fig
 
@@ -893,6 +899,9 @@ elif st.session_state.pagina == "Monitor Inflação":
         _xmax = df_ipca_full["data"].max()
         _xmin = _xmax - pd.DateOffset(months=24)
         fig_cores.update_xaxes(range=[str(_xmin.date()), str(_xmax.date())])
+        # Y range baseado nos dados visíveis na janela de 24M
+        _yr = _y_range_for_window(df_ipca_full, _xmin, _xmax, pad=0.2)
+        fig_cores.update_yaxes(range=_yr, ticksuffix="%")
     st.plotly_chart(fig_cores, use_container_width=True, config={**CHART_CFG_INT,
         "toImageButtonOptions": {"format":"png","filename":"ipca_nucleos","scale":2}})
 
@@ -1034,6 +1043,11 @@ elif st.session_state.pagina == "Monitor Inflação":
             )
             fig_media.update_yaxes(ticksuffix="%")
             fig_media.update_xaxes(range=[str(_xmin_m.date()), str(_xmax_m.date())])
+            # Y range baseado nos dados visíveis na janela de 24M
+            _df_media_vis = _df_all[["data","media_a12"]].rename(columns={"media_a12":"valor"})
+            _yr_m = _y_range_for_window(_df_media_vis, _xmin_m, _xmax_m, pad=0.2,
+                                         extra_min=0, extra_max=meta_bcb + BCB_TOLE + 0.5)
+            fig_media.update_yaxes(range=_yr_m, ticksuffix="%")
             fig_media = _add_rangeslider(fig_media, 360, extra_top=40)
 
             # Anotação com valor mais recente da média
@@ -1058,6 +1072,15 @@ elif st.session_state.pagina == "Monitor Inflação":
         _xmax_a = df_ipca_full["data"].max()
         _xmin_a = _xmax_a - pd.DateOffset(months=24)
         fig_acum.update_xaxes(range=[str(_xmin_a.date()), str(_xmax_a.date())])
+        # Y range: baseado no acumulado 12M da janela de 24M + inclui a banda BCB
+        _df_acum_tmp = df_ipca_full.copy().sort_values("data")
+        _df_acum_tmp["acum12m"] = _df_acum_tmp["valor"].rolling(12).sum()
+        _yr_a = _y_range_for_window(
+            _df_acum_tmp.dropna(subset=["acum12m"]).rename(columns={"acum12m":"valor"}),
+            _xmin_a, _xmax_a, pad=0.15,
+            extra_min=BCB_TOLE, extra_max=meta_bcb + BCB_TOLE + 0.5
+        )
+        fig_acum.update_yaxes(range=_yr_a, ticksuffix="%")
         st.plotly_chart(fig_acum, use_container_width=True, config={**CHART_CFG_INT,
             "toImageButtonOptions": {"format":"png","filename":"ipca_acum12m_meta","scale":2}})
 
