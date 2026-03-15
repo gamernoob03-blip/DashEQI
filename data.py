@@ -1,9 +1,9 @@
 """
-data.py — Camada de dados: BCB/SGS, IBGE/SIDRA, Yahoo Finance.
+data.py — Camada de dados: BCB/SGS, IBGE/SIDRA, mercados via Twelve Data + CoinGecko.
 Todas as funções retornam DataFrames ou dicts prontos para consumo pelas páginas.
 Nenhuma lógica de UI aqui.
 """
-import re, time, warnings
+import re, time, warnings, os
 import requests, urllib3
 import pandas as pd
 import streamlit as st
@@ -264,124 +264,79 @@ def get_ipca_acum_grupo(n_periodos: int = 60) -> pd.DataFrame:
 # URL de cotação:  https://stooq.com/q/l/?s=SYMBOL&f=sd2t2ohlcv&h&e=csv
 # URL de histórico: https://stooq.com/q/d/l/?s=SYMBOL&i=d
 
-STOOQ_QUOTE = "https://stooq.com/q/l/?s={s}&f=sd2t2ohlcv&h&e=csv"
-STOOQ_HIST  = "https://stooq.com/q/d/l/?s={s}&i=d"
-BRAPI_QUOTE = "https://brapi.dev/api/quote/{s}?interval=1d"
+# ── Cotações de mercado — Twelve Data + CoinGecko ─────────────────────────────
+#
+# Twelve Data (twelvedata.com):
+#   - Plano gratuito: 800 créditos/dia, sem cartão de crédito
+#   - Configure em Streamlit Cloud → Manage app → Secrets:
+#       TWELVE_DATA_KEY = "sua_chave_aqui"
+#   - Cobre: índices, forex, commodities, cripto
+#
+# CoinGecko: BTC e ETH como fallback (completamente gratuito, sem chave)
 
-_STOOQ_HDRS = {
+TD_BATCH    = "https://api.twelvedata.com/quote?symbol={syms}&apikey={key}"
+TD_HIST     = "https://api.twelvedata.com/time_series?symbol={sym}&interval=1day&outputsize={n}&apikey={key}"
+CG_PRICE    = "https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true"
+CG_HIST     = "https://api.coingecko.com/api/v3/coins/{id}/market_chart?vs_currency=usd&days={days}"
+
+_HDRS_JSON = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Accept": "text/html,application/xhtml+xml,*/*",
+    "Accept": "application/json",
 }
 
-# Símbolos que usam brapi.dev em vez do Stooq (ativos brasileiros em BRL)
-_BRAPI_SYMBOLS = {"^BVSP"}
+# Mapa símbolo → id CoinGecko (para BTC e ETH)
+_COINGECKO_IDS = {
+    "BTC": "bitcoin",
+    "ETH": "ethereum",
+}
+
+# Mapa símbolo Stooq/interno → símbolo Twelve Data
+_TD_SYMBOLS = {
+    "^BVSP":  "IBOV:Index",
+    "usdbrl": "USD/BRL:Forex",
+    "eurbrl": "EUR/BRL:Forex",
+    "^spx":   "SPX:Index",
+    "^ndx":   "NDX:Index",
+    "^dji":   "DJI:Index",
+    "^ukx":   "UKX:Index",
+    "^dax":   "DAX:Index",
+    "sc.f":   "USOIL:Commodity",
+    "cl.f":   "WTI:Commodity",
+    "gc.f":   "XAU/USD:Forex",
+    "si.f":   "XAG/USD:Forex",
+    "hg.f":   "XCU/USD:Forex",
+    "btc.v":  "BTC/USD:Forex",
+    "eth.v":  "ETH/USD:Forex",
+}
 
 
-def _fetch_brapi_quote(sym: str) -> dict | None:
-    """Busca cotação via brapi.dev — funciona para IBOVESPA em BRL sem bloqueio."""
+def _get_td_key() -> str:
+    """Lê a chave Twelve Data dos secrets do Streamlit (ou variável de ambiente)."""
     try:
-        # brapi aceita ^BVSP direto na URL sem encoding
-        r = requests.get(BRAPI_QUOTE.format(s=sym),
-                         headers=_STOOQ_HDRS, timeout=10, verify=False)
-        if r.status_code != 200:
-            logger.warning("brapi HTTP %s para %s", r.status_code, sym)
-            return None
-        data    = r.json()
-        results = data.get("results", [])
-        if not results:
-            logger.warning("brapi: resultado vazio para %s — %s", sym, data)
-            return None
-        q     = results[0]
-        price = q.get("regularMarketPrice")
-        prev  = q.get("regularMarketPreviousClose") or price
+        return st.secrets.get("TWELVE_DATA_KEY", "")
+    except Exception:
+        return os.environ.get("TWELVE_DATA_KEY", "")
+
+
+def _parse_td_quote(sym_internal: str, q: dict) -> dict | None:
+    """Converte resposta Twelve Data para o formato padrão."""
+    try:
+        price = float(q.get("close") or q.get("price") or 0)
+        prev  = float(q.get("previous_close") or price)
         if not price:
-            logger.warning("brapi: sem preço para %s — %s", sym, q)
             return None
-        price, prev = float(price), float(prev)
-        dh        = q.get("regularMarketDayHigh")
-        dl        = q.get("regularMarketDayLow")
-        rt        = q.get("regularMarketTime")
-        last_date = datetime.fromtimestamp(rt).date() if rt else now_brt().date()
+        dt_str    = q.get("datetime", "")
+        try:
+            last_date = datetime.strptime(dt_str[:10], "%Y-%m-%d").date()
+        except Exception:
+            last_date = now_brt().date()
         is_today  = (last_date == now_brt().date())
         chg_p     = ((price - prev) / prev * 100) if prev else None
         return {
             "price":      price, "prev": prev,
             "chg_p":      chg_p, "chg_v": (price - prev) if prev else None,
-            "day_high":   float(dh) if dh else None,
-            "day_low":    float(dl) if dl else None,
-            "market":     "REGULAR" if is_today else "CLOSED",
-            "is_live":    is_today, "is_extended": False, "is_closed": not is_today,
-            "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
-        }
-    except Exception as e:
-        logger.warning("brapi %s: %s", sym, e)
-        return None
-
-
-def _stooq_last_close(sym: str) -> dict | None:
-    """Busca o último fechamento histórico quando o Stooq retorna N/D (fim de semana/feriado).
-    O Stooq retorna dados em ordem descendente (mais recente primeiro).
-    """
-    try:
-        r = requests.get(STOOQ_HIST.format(s=sym),
-                         headers=_STOOQ_HDRS, timeout=15, verify=False)
-        if r.status_code != 200:
-            return None
-        lines = r.text.strip().splitlines()
-        if len(lines) < 3:
-            return None
-        headers = [h.strip() for h in lines[0].split(",")]
-        def parse_row(line):
-            vals = [v.strip() for v in line.split(",")]
-            return dict(zip(headers, vals))
-        # lines[1] = mais recente, lines[2] = anterior (ordem descendente)
-        last     = parse_row(lines[1])
-        prev_row = parse_row(lines[2])
-        price = float(last.get("Close", 0) or 0)
-        prev  = float(prev_row.get("Close", 0) or 0) or price
-        if not price:
-            return None
-        date_str  = last.get("Date", "")
-        last_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        chg_p     = ((price - prev) / prev * 100) if prev else None
-        return {
-            "price":      price, "prev": prev,
-            "chg_p":      chg_p, "chg_v": (price - prev) if prev else None,
-            "day_high":   float(last.get("High", price) or price),
-            "day_low":    float(last.get("Low",  price) or price),
-            "market":     "CLOSED",
-            "is_live":    False, "is_extended": False, "is_closed": True,
-            "close_date": last_date.strftime("%d/%m/%Y"),
-        }
-    except Exception as e:
-        logger.warning("Stooq hist fallback %s: %s", sym, e)
-        return None
-
-
-def _parse_stooq_quote(sym: str, row: dict) -> dict | None:
-    """Converte uma linha CSV do Stooq para o formato padrão de cotação."""
-    try:
-        close_raw = row.get("Close") or row.get("close") or ""
-        # N/D = mercado fechado (fim de semana/feriado) → usa histórico
-        if close_raw.strip() in ("N/D", "N/A", "", "-"):
-            return _stooq_last_close(sym)
-        price = float(close_raw)
-        if not price:
-            return None
-        prev  = float(row.get("Open")  or row.get("open")  or price)
-        high  = float(row.get("High")  or row.get("high")  or price)
-        low   = float(row.get("Low")   or row.get("low")   or price)
-        date_str = row.get("Date") or row.get("date") or ""
-        try:
-            last_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        except Exception:
-            last_date = now_brt().date()
-        is_today = (last_date == now_brt().date())
-        chg_p    = ((price - prev) / prev * 100) if prev else None
-        return {
-            "price":      price, "prev": prev,
-            "chg_p":      chg_p, "chg_v": (price - prev) if prev else None,
-            "day_high":   high,  "day_low": low,
+            "day_high":   float(q["high"])  if q.get("high")  else None,
+            "day_low":    float(q["low"])   if q.get("low")   else None,
             "market":     "REGULAR" if is_today else "CLOSED",
             "is_live":    is_today, "is_extended": False, "is_closed": not is_today,
             "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
@@ -390,42 +345,101 @@ def _parse_stooq_quote(sym: str, row: dict) -> dict | None:
         return None
 
 
+def _fetch_td_quotes(symbols_internal: list[str], key: str) -> dict[str, dict]:
+    """Busca cotações em batch via Twelve Data."""
+    td_syms   = [_TD_SYMBOLS[s] for s in symbols_internal if s in _TD_SYMBOLS]
+    sym_map   = {_TD_SYMBOLS[s]: s for s in symbols_internal if s in _TD_SYMBOLS}
+    if not td_syms or not key:
+        return {}
+    try:
+        r = requests.get(
+            TD_BATCH.format(syms=",".join(td_syms), key=key),
+            headers=_HDRS_JSON, timeout=20, verify=False,
+        )
+        if r.status_code != 200:
+            logger.warning("Twelve Data HTTP %s", r.status_code)
+            return {}
+        data = r.json()
+        out  = {}
+        # Resposta pode ser dict único (1 símbolo) ou dict de dicts (vários)
+        if "symbol" in data:
+            data = {data["symbol"]: data}
+        for td_sym, q in data.items():
+            if isinstance(q, dict) and q.get("status") != "error":
+                internal = sym_map.get(td_sym)
+                if internal:
+                    parsed = _parse_td_quote(internal, q)
+                    if parsed:
+                        out[internal] = parsed
+        return out
+    except Exception as e:
+        logger.warning("Twelve Data batch: %s", e)
+        return {}
+
+
+def _fetch_coingecko_quotes(syms_btc_eth: list[str]) -> dict[str, dict]:
+    """Cotações de BTC e ETH via CoinGecko (gratuito, sem chave)."""
+    id_map = {}
+    for s in syms_btc_eth:
+        # btc.v → BTC, eth.v → ETH
+        ticker = s.split(".")[0].upper()
+        if ticker in _COINGECKO_IDS:
+            id_map[_COINGECKO_IDS[ticker]] = s
+    if not id_map:
+        return {}
+    try:
+        r = requests.get(
+            CG_PRICE.format(ids=",".join(id_map.keys())),
+            headers=_HDRS_JSON, timeout=10, verify=False,
+        )
+        if r.status_code != 200:
+            logger.warning("CoinGecko HTTP %s", r.status_code)
+            return {}
+        data = r.json()
+        out  = {}
+        for cg_id, internal_sym in id_map.items():
+            q = data.get(cg_id, {})
+            price = float(q.get("usd", 0))
+            if not price:
+                continue
+            chg_p = float(q.get("usd_24h_change", 0))
+            prev  = price / (1 + chg_p / 100) if chg_p else price
+            out[internal_sym] = {
+                "price":      price, "prev": prev,
+                "chg_p":      chg_p, "chg_v": (price - prev),
+                "day_high":   None, "day_low": None,
+                "market":     "REGULAR",
+                "is_live":    True, "is_extended": False, "is_closed": False,
+                "close_date": None,
+            }
+        return out
+    except Exception as e:
+        logger.warning("CoinGecko: %s", e)
+        return {}
+
+
 @st.cache_data(ttl=TTL_MERCADOS, show_spinner=False)
 def get_all_quotes(symbols: tuple) -> dict:
-    """Cotações em batch. Usa brapi para ativos BR, Stooq para o resto."""
-    out = {}
-    stooq_syms = []
-    # Separa símbolos por fonte
-    for sym in symbols:
-        if sym in _BRAPI_SYMBOLS:
-            result = _fetch_brapi_quote(sym)
-            if result:
-                out[sym] = result
-            else:
-                logger.warning("brapi: cotação indisponível para %s", sym)
-        else:
-            stooq_syms.append(sym)
-    # Busca o restante via Stooq
-    for sym in stooq_syms:
-        try:
-            r = requests.get(STOOQ_QUOTE.format(s=sym),
-                             headers=_STOOQ_HDRS, timeout=10, verify=False)
-            if r.status_code != 200:
-                logger.warning("Stooq: HTTP %s para %s", r.status_code, sym)
-                continue
-            lines = r.text.strip().splitlines()
-            if len(lines) < 2:
-                continue
-            headers = [h.strip() for h in lines[0].split(",")]
-            values  = [v.strip() for v in lines[1].split(",")]
-            row     = dict(zip(headers, values))
-            parsed  = _parse_stooq_quote(sym, row)
-            if parsed:
-                out[sym] = parsed
-            else:
-                logger.warning("Stooq: cotação indisponível para %s — %s", sym, row)
-        except Exception as e:
-            logger.warning("Stooq: erro para %s — %s", sym, e)
+    """
+    Cotações em batch.
+    - Twelve Data (requer TWELVE_DATA_KEY nos secrets) para índices/forex/commodities
+    - CoinGecko como fallback gratuito para BTC e ETH
+    """
+    key  = _get_td_key()
+    syms = list(symbols)
+    out  = {}
+
+    if key:
+        out = _fetch_td_quotes(syms, key)
+    else:
+        logger.warning("TWELVE_DATA_KEY não configurado — sem cotações de mercado")
+
+    # CoinGecko para cripto (gratuito, independente da chave)
+    crypto_syms = [s for s in syms if s in ("btc.v", "eth.v")]
+    if crypto_syms:
+        cg = _fetch_coingecko_quotes(crypto_syms)
+        out.update(cg)
+
     for sym in symbols:
         if sym not in out:
             logger.warning("Cotação indisponível para %s", sym)
@@ -433,7 +447,7 @@ def get_all_quotes(symbols: tuple) -> dict:
 
 
 def get_quote(sym: str) -> dict:
-    """Cotação individual via cache batch do Stooq."""
+    """Cotação individual via cache batch."""
     from settings import GLOBAL
     all_syms = tuple(s for s, _, _ in GLOBAL.values())
     return get_all_quotes(all_syms).get(sym, {})
@@ -441,55 +455,58 @@ def get_quote(sym: str) -> dict:
 
 @st.cache_data(ttl=TTL_HIST, show_spinner=False)
 def get_hist(sym: str, years: int = 5) -> pd.DataFrame:
-    """Histórico de fechamento. Usa brapi para IBOVESPA, Stooq para o resto."""
-    # brapi para IBOVESPA em BRL
-    if sym in _BRAPI_SYMBOLS:
+    """
+    Histórico de fechamento.
+    - Twelve Data para todos os ativos (requer TWELVE_DATA_KEY)
+    - CoinGecko como fallback para BTC e ETH
+    """
+    key = _get_td_key()
+    td_sym = _TD_SYMBOLS.get(sym)
+
+    # Twelve Data
+    if key and td_sym:
         try:
+            outputsize = min(years * 260, 5000)  # ~260 dias úteis/ano, max 5000
             r = requests.get(
-                f"https://brapi.dev/api/quote/{sym}?range={years}y&interval=1d",
-                headers=_STOOQ_HDRS, timeout=20, verify=False,
+                TD_HIST.format(sym=td_sym, n=outputsize, key=key),
+                headers=_HDRS_JSON, timeout=20, verify=False,
             )
             if r.status_code == 200:
-                results = r.json().get("results", [])
-                if results and results[0].get("historicalDataPrice"):
-                    rows = []
-                    for p in results[0]["historicalDataPrice"]:
-                        try:
-                            rows.append({"data": datetime.fromtimestamp(p["date"]), "valor": float(p["close"])})
-                        except Exception:
-                            continue
-                    if rows:
-                        return pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
+                data   = r.json()
+                values = data.get("values", [])
+                rows   = []
+                for v in values:
+                    try:
+                        rows.append({
+                            "data":  datetime.strptime(v["datetime"][:10], "%Y-%m-%d"),
+                            "valor": float(v["close"]),
+                        })
+                    except Exception:
+                        continue
+                if rows:
+                    return (pd.DataFrame(rows)
+                              .sort_values("data")
+                              .reset_index(drop=True))
         except Exception as e:
-            logger.warning("brapi hist %s: %s", sym, e)
+            logger.warning("Twelve Data hist %s: %s", sym, e)
 
-    # Stooq para demais ativos
-    try:
-        r = requests.get(STOOQ_HIST.format(s=sym), headers=_STOOQ_HDRS, timeout=20, verify=False)
-        if r.status_code != 200:
-            logger.warning("Stooq hist: HTTP %s para %s", r.status_code, sym)
-            return pd.DataFrame(columns=["data", "valor"])
-        lines = r.text.strip().splitlines()
-        if len(lines) < 2:
-            return pd.DataFrame(columns=["data", "valor"])
-        headers = [h.strip() for h in lines[0].split(",")]
-        rows = []
-        for line in lines[1:]:
-            vals = [v.strip() for v in line.split(",")]
-            row  = dict(zip(headers, vals))
-            try:
-                dt    = datetime.strptime(row.get("Date", ""), "%Y-%m-%d")
-                close = float(row.get("Close", 0) or 0)
-                if close:
-                    rows.append({"data": dt, "valor": close})
-            except Exception:
-                continue
-        if not rows:
-            return pd.DataFrame(columns=["data", "valor"])
-        df     = pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
-        cutoff = datetime.now() - timedelta(days=years * 365 + 5)
-        return df[df["data"] >= cutoff].reset_index(drop=True)
-    except Exception as e:
-        logger.warning("Stooq hist %s: %s", sym, e)
-        return pd.DataFrame(columns=["data", "valor"])
-        return pd.DataFrame(columns=["data", "valor"])
+    # CoinGecko fallback para cripto
+    ticker = sym.split(".")[0].upper()
+    cg_id  = _COINGECKO_IDS.get(ticker)
+    if cg_id:
+        try:
+            days = years * 365
+            r = requests.get(
+                CG_HIST.format(id=cg_id, days=days),
+                headers=_HDRS_JSON, timeout=20, verify=False,
+            )
+            if r.status_code == 200:
+                prices = r.json().get("prices", [])
+                rows   = [{"data": datetime.fromtimestamp(p[0]/1000), "valor": float(p[1])}
+                          for p in prices]
+                if rows:
+                    return pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
+        except Exception as e:
+            logger.warning("CoinGecko hist %s: %s", sym, e)
+
+    return pd.DataFrame(columns=["data", "valor"])
