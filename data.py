@@ -107,18 +107,19 @@ def aplicar_periodo(df: pd.DataFrame, periodo: str, ind_nome: str):
 
 
 # ── Cache de fallback (dados antigos quando API está fora) ────────────────────
+# Armazena sempre a série completa — get_bcb_full é a única função de fetch.
 _bcb_stale_cache: dict[int, tuple[pd.DataFrame, datetime]] = {}
+
 
 def _build_with_fallback(raw: list, c: int) -> pd.DataFrame:
     """
-    Constrói DataFrame. Se raw estiver vazio, tenta retornar dado anterior em cache.
-    O DataFrame retornado em fallback terá o atributo 'stale_since' com a data do dado.
+    Constrói DataFrame. Se raw estiver vazio, retorna a última série completa
+    do cache com o atributo 'stale_since' para exibir o aviso ao usuário.
     """
     df = _build(raw)
     if not df.empty:
         _bcb_stale_cache[c] = (df.copy(), datetime.now())
         return df
-    # Fallback: retorna dado anterior se existir
     if c in _bcb_stale_cache:
         df_old, fetched_at = _bcb_stale_cache[c]
         df_old = df_old.copy()
@@ -131,37 +132,14 @@ def _build_with_fallback(raw: list, c: int) -> pd.DataFrame:
 # ── BCB/SGS ───────────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=TTL_BCB, show_spinner=False)
-def get_bcb(c: int, n: int) -> pd.DataFrame:
-    """Últimos n registros da série BCB c."""
-    raw = _fetch(BCB_BASE.format(c=c) + f"/ultimos/{n}?formato=json")
-    if not raw:
-        hoje = datetime.today()
-        raw = _fetch(
-            BCB_BASE.format(c=c) +
-            f"?formato=json"
-            f"&dataInicial={(hoje - timedelta(days=n * 45)).strftime('%d/%m/%Y')}"
-            f"&dataFinal={hoje.strftime('%d/%m/%Y')}"
-        )
-    if not raw:
-        logger.warning("BCB: série %s indisponível (últimos %s registros)", c, n)
-    return _build_with_fallback(raw, c)
-
-
-@st.cache_data(ttl=TTL_BCB, show_spinner=False)
 def get_bcb_full(c: int) -> pd.DataFrame:
-    """Série completa BCB c."""
+    """
+    Série completa BCB c — única função de fetch BCB no sistema.
+    Toda filtragem por período é feita em memória nas páginas que consomem os dados.
+    """
     raw = _fetch(BCB_BASE.format(c=c) + "?formato=json")
     if not raw:
         logger.warning("BCB: série completa %s indisponível", c)
-    return _build_with_fallback(raw, c)
-
-
-@st.cache_data(ttl=TTL_BCB, show_spinner=False)
-def get_bcb_range(c: int, ini: str, fim: str) -> pd.DataFrame:
-    """Série BCB c no intervalo [ini, fim] (formato dd/mm/YYYY)."""
-    raw = _fetch(BCB_BASE.format(c=c) + f"?formato=json&dataInicial={ini}&dataFinal={fim}")
-    if not raw:
-        logger.warning("BCB: série %s indisponível para %s→%s", c, ini, fim)
     return _build_with_fallback(raw, c)
 
 
