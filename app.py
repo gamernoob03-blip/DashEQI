@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, date
 
 from settings import (
     logger, GLOBAL, SGS, NUCLEO_SGS, BCB_META, BCB_TOLE,
-    IPCA_GRUPOS_IDS, NAV, NAV_SLUGS,
+    IPCA_GRUPOS_IDS, NAV, NAV_SLUGS, HOME_CHARTS, HOME_KPIS,
 )
 from data import (
     get_quote, get_hist, get_bcb_full,
@@ -78,13 +78,11 @@ if st.session_state.pagina == "Início":
             ibov = get_quote(GLOBAL["IBOVESPA"][0])
             usd  = get_quote(GLOBAL["Dólar (USD/BRL)"][0])
             eur  = get_quote(GLOBAL["Euro (EUR/BRL)"][0])
-            # Carrega séries completas — filtra na exibição
-            dsel  = get_bcb_full(432)
-            dipca = get_bcb_full(433)
-            dibc  = get_bcb_full(24363)
-            dcam  = get_bcb_full(1)
-            dpib  = get_bcb_full(4380)
-            ddes  = get_bcb_full(24369)
+            # Carrega séries completas de uma vez — filtro na exibição
+            _home_data = {
+                nome: get_bcb_full(SGS[nome][0])
+                for nome, _ in HOME_CHARTS
+            }
     except Exception as e:
         logger.error("Início: %s", e); st.error("⚠️ Erro ao carregar dados.")
         if st.button("↺ Tentar novamente"): st.cache_data.clear(); st.rerun()
@@ -106,51 +104,39 @@ if st.session_state.pagina == "Início":
                  sub=f"Ant.: R$ {fmt(eur.get('prev'),4)}" if v else "", invert=True, d=eur)
 
     sec_title("Indicadores Econômicos", "↻ diário", "badge-daily")
-    stale_banner(dsel, "Selic"); stale_banner(dipca, "IPCA"); stale_banner(ddes, "Desemprego")
-    c4, c5, c6 = st.columns(3)
-    with c4:
-        if not dsel.empty:
-            vs = dsel["valor"].iloc[-1]; ds = float(vs - dsel["valor"].iloc[-2]) if len(dsel) >= 2 else None
-            kpi_card("Selic", f"{fmt(vs)}% a.a.", chg_p=ds, sub=f"Ref: {dsel['data'].iloc[-1].strftime('%b/%Y')}")
-        else: kpi_card("Selic", "—", sub="BCB indisponível")
-    with c5:
-        if not dipca.empty:
-            v = dipca["valor"].iloc[-1]; d2 = float(v - dipca["valor"].iloc[-2]) if len(dipca) >= 2 else None
-            kpi_card("IPCA", f"{fmt(v)}% mês", chg_p=d2, sub=f"Ref: {dipca['data'].iloc[-1].strftime('%b/%Y')}")
-        else: kpi_card("IPCA", "—", sub="BCB indisponível")
-    with c6:
-        if not ddes.empty:
-            vd = ddes["valor"].iloc[-1]; dd = float(vd - ddes["valor"].iloc[-2]) if len(ddes) >= 2 else None
-            kpi_card("Desemprego (PNAD)", f"{fmt(vd)}%", chg_p=dd, sub=f"Ref: {ddes['data'].iloc[-1].strftime('%b/%Y')}")
-        else: kpi_card("Desemprego (PNAD)", "—", sub="BCB indisponível")
+    for nome, _, _ in HOME_KPIS:
+        stale_banner(_home_data.get(nome, pd.DataFrame()), nome)
+    kpi_cols = st.columns(len(HOME_KPIS))
+    for col, (nome, label, fmt_str) in zip(kpi_cols, HOME_KPIS):
+        df_k = _home_data.get(nome, pd.DataFrame())
+        with col:
+            if not df_k.empty:
+                v  = df_k["valor"].iloc[-1]
+                d2 = float(v - df_k["valor"].iloc[-2]) if len(df_k) >= 2 else None
+                kpi_card(label, fmt_str.format(v=fmt(v), u=SGS[nome][1]),
+                         chg_p=d2, sub=f"Ref: {df_k['data'].iloc[-1].strftime('%b/%Y')}")
+            else:
+                kpi_card(label, "—", sub="BCB indisponível")
 
     st.markdown('<div class="sec-title">Histórico — 12 meses <span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px">→ análise completa em Monitor Inflação</span></div>', unsafe_allow_html=True)
 
-    # Filtros de exibição — série completa no cache, recorte só na renderização
-    def _tail_months(df, n=13):
-        return df.tail(n) if not df.empty else df
+    def _since(df, months):
+        if df.empty: return df
+        cutoff = df["data"].max() - pd.DateOffset(months=months)
+        return df[df["data"] >= cutoff].reset_index(drop=True)
 
-    ca, cb = st.columns(2)
-    with ca:
-        _d = _tail_months(dsel)
-        if not _d.empty: render_chart(line_fig(_d, "Selic (% a.a.)", "#1a2035", suffix="%"), "selic", static=True)
-    with cb:
-        _d = _tail_months(dipca)
-        if not _d.empty: render_chart(bar_fig(_d, "IPCA (% ao mês)", suffix="%"), "ipca", static=True)
-    cc, cd = st.columns(2)
-    with cc:
-        _d = dcam.tail(30) if not dcam.empty else dcam
-        if not _d.empty: render_chart(line_fig(_d, "Dólar PTAX — 30 dias (R$)", "#d97706", suffix=" R$"), "dolar_ptax", static=True)
-    with cd:
-        _d = _tail_months(dibc)
-        if not _d.empty: render_chart(line_fig(_d, "IBC-Br", "#0891b2", fill=False), "ibc_br", static=True)
-    ce, cf = st.columns(2)
-    with ce:
-        _d = _tail_months(dpib, n=8)  # trimestral — 8 obs ≈ 2 anos
-        if not _d.empty: render_chart(bar_fig(_d, "PIB — variação trimestral (%)", suffix="%"), "pib", static=True)
-    with cf:
-        _d = _tail_months(ddes, n=8)  # trimestral
-        if not _d.empty: render_chart(line_fig(_d, "Desemprego PNAD (%)", "#dc2626", suffix="%"), "desemprego", static=True)
+    # Renderiza em grade de 2 colunas, driven por HOME_CHARTS em settings.py
+    _chart_pairs = list(zip(HOME_CHARTS[::2], HOME_CHARTS[1::2]))
+    for (nome_a, meses_a), (nome_b, meses_b) in _chart_pairs:
+        col_a, col_b = st.columns(2)
+        for col, nome, meses in [(col_a, nome_a, meses_a), (col_b, nome_b, meses_b)]:
+            cod, unit, freq, tipo, cor = SGS[nome]
+            df = _since(_home_data.get(nome, pd.DataFrame()), meses)
+            titulo = f"{nome} ({unit})"
+            with col:
+                if not df.empty:
+                    fig = bar_fig(df, titulo, suffix=f" {unit}") if tipo == "bar" else line_fig(df, titulo, cor, suffix=f" {unit}")
+                    render_chart(fig, nome.lower().replace(" ", "_"), static=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MONITOR INFLAÇÃO
