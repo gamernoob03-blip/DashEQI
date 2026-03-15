@@ -263,184 +263,162 @@ def get_ipca_acum_grupo(n_periodos: int = 60) -> pd.DataFrame:
 # Stooq é gratuito, sem chave de API, sem bloqueio de IP de nuvem.
 # URL de cotação:  https://stooq.com/q/l/?s=SYMBOL&f=sd2t2ohlcv&h&e=csv
 
-# ── Cotações de mercado — Twelve Data + CoinGecko ─────────────────────────────
+# ── Cotações de mercado — yfinance + cache de servidor ────────────────────────
 #
-# Twelve Data (plano gratuito): 8 créditos/minuto, 800/dia
-# Solução para 15 símbolos > 8/min:
-#   Grupo A (7 syms) → busca imediata
-#   sleep(62s)        → aguarda janela do rate limit zerar
-#   Grupo B (8 syms) → busca na segunda janela
-#   Cache de 130s    → todo esse processo roda 1x a cada ~2 minutos
-#
-# CoinGecko: BTC e ETH (gratuito, sem chave, sem limite relevante)
-#
-# Secret necessário: TWELVE_DATA_KEY = "..."
+# Estratégia: background thread renova o cache a cada 13 minutos.
+# yfinance só é chamado pelo servidor, nunca por page load de usuário.
+# Resultado: zero rate limit — qualquer usuário recebe dados do cache.
 
-TD_QUOTE = "https://api.twelvedata.com/quote?symbol={syms}&apikey={key}"
-TD_HIST  = "https://api.twelvedata.com/time_series?symbol={sym}&interval=1day&outputsize={n}&apikey={key}"
-CG_PRICE = "https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd&include_24hr_change=true"
-CG_HIST  = "https://api.coingecko.com/api/v3/coins/{id}/market_chart?vs_currency=usd&days={days}"
+import threading as _threading
+import yfinance as _yf
 
 _HDRS_JSON = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Accept": "application/json",
 }
 
-# Grupos para respeitar 8 créditos/minuto
-# Grupo A: 7 símbolos prioritários (câmbio, índices BR e EUA principais)
-# Grupo B: 8 símbolos secundários (Europa, energia, metais)
-_GROUP_A = {
-    "^BVSP":  "BVSP",      # Bovespa
-    "usdbrl": "USD/BRL",   # Dólar/Real
-    "eurbrl": "EUR/BRL",   # Euro/Real
-    "^spx":   "SPX",       # S&P 500
-    "^ndx":   "NDX",       # Nasdaq 100
-    "^dji":   "DJI",       # Dow Jones
-    "gc.f":   "XAU/USD",   # Ouro
+# Mapa símbolo interno → símbolo Yahoo Finance
+_YF_SYMBOLS = {
+    "^BVSP":  "^BVSP",
+    "usdbrl": "USDBRL=X",
+    "eurbrl": "EURBRL=X",
+    "^spx":   "^GSPC",
+    "^ndx":   "^NDX",
+    "^dji":   "^DJI",
+    "^ukx":   "^FTSE",
+    "^dax":   "^GDAXI",
+    "sc.f":   "BZ=F",
+    "cl.f":   "CL=F",
+    "gc.f":   "GC=F",
+    "si.f":   "SI=F",
+    "hg.f":   "HG=F",
+    "btc.v":  "BTC-USD",
+    "eth.v":  "ETH-USD",
 }
-_GROUP_B = {
-    "^ukx":   "FTSE",      # FTSE 100
-    "^dax":   "GDAXI",     # DAX
-    "sc.f":   "XBR/USD",   # Brent
-    "cl.f":   "WTI/USD",   # WTI
-    "si.f":   "XAG/USD",   # Prata
-    "hg.f":   "HG1",       # Cobre
-}
-_CG_IDS = {"btc.v": "bitcoin", "eth.v": "ethereum"}
+# Inverso para lookup rápido
+_YF_INV = {v: k for k, v in _YF_SYMBOLS.items()}
 
 
-def _get_td_key() -> str:
-    try:    return st.secrets.get("TWELVE_DATA_KEY", "")
-    except: return os.environ.get("TWELVE_DATA_KEY", "")
-
-
-def _make_quote(price, prev, high, low, last_date) -> dict:
-    price = float(price or 0)
-    prev  = float(prev  or price)
-    if not price:
-        return {}
-    is_today = (last_date == now_brt().date()) if last_date else False
-    chg_p    = ((price - prev) / prev * 100) if prev else None
-    return {
-        "price":      price, "prev": prev,
-        "chg_p":      chg_p, "chg_v": (price - prev) if prev else None,
-        "day_high":   float(high) if high else None,
-        "day_low":    float(low)  if low  else None,
-        "market":     "REGULAR" if is_today else "CLOSED",
-        "is_live":    is_today, "is_extended": False, "is_closed": not is_today,
-        "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
-    }
-
-
-def _fetch_td_batch(group: dict, key: str) -> dict:
-    """Busca um grupo de até 8 símbolos via Twelve Data."""
-    td_syms = list(group.values())
-    sym_map = {v: k for k, v in group.items()}
+def _fetch_yf_quotes() -> dict:
+    """
+    Busca cotações de todos os símbolos via yfinance em uma única chamada.
+    Chamado apenas pelo background thread — nunca durante page load.
+    """
+    yf_syms = list(_YF_SYMBOLS.values())
     try:
-        r = requests.get(
-            TD_QUOTE.format(syms=",".join(td_syms), key=key),
-            headers=_HDRS_JSON, timeout=20, verify=False,
+        # download em batch: uma sessão, todos os símbolos, período mínimo
+        df = _yf.download(
+            yf_syms,
+            period="5d",
+            auto_adjust=True,
+            progress=False,
+            group_by="ticker",
+            threads=True,
         )
-        if r.status_code != 200:
-            logger.warning("Twelve Data HTTP %s", r.status_code)
+        if df.empty:
+            logger.warning("yfinance: download retornou vazio")
             return {}
-        data = r.json()
-        if isinstance(data, dict) and data.get("code") == 429:
-            logger.warning("Twelve Data rate limit: %s", data.get("message", ""))
-            return {}
+
         out = {}
-        # Resposta única (1 símbolo) ou múltipla (dict de dicts)
-        if "symbol" in data:
-            data = {data["symbol"]: data}
-        for td_sym, q in data.items():
-            if not isinstance(q, dict):
-                continue
-            if q.get("status") == "error":
-                logger.warning("Twelve Data erro %s: %s", td_sym, q.get("message"))
-                continue
+        for yf_sym in yf_syms:
             try:
-                price     = float(q.get("close") or 0)
-                prev      = float(q.get("previous_close") or price)
-                high      = q.get("high")
-                low       = q.get("low")
-                dt_str    = q.get("datetime", "")
-                last_date = datetime.strptime(dt_str[:10], "%Y-%m-%d").date()
-                internal  = sym_map.get(td_sym)
-                if internal and price:
-                    out[internal] = _make_quote(price, prev, high, low, last_date)
+                if isinstance(df.columns, pd.MultiIndex):
+                    closes = df[yf_sym]["Close"].dropna()
+                    highs  = df[yf_sym]["High"].dropna()
+                    lows   = df[yf_sym]["Low"].dropna()
+                else:
+                    closes = df["Close"].dropna()
+                    highs  = df["High"].dropna()
+                    lows   = df["Low"].dropna()
+
+                if closes.empty:
+                    continue
+
+                price     = float(closes.iloc[-1])
+                prev      = float(closes.iloc[-2]) if len(closes) >= 2 else price
+                high      = float(highs.iloc[-1]) if not highs.empty else None
+                low       = float(lows.iloc[-1])  if not lows.empty  else None
+                last_date = pd.Timestamp(closes.index[-1]).tz_localize(None).date()
+                is_today  = (last_date == now_brt().date())
+                chg_p     = ((price - prev) / prev * 100) if prev else None
+
+                internal = _YF_INV.get(yf_sym)
+                if internal:
+                    out[internal] = {
+                        "price":      price,
+                        "prev":       prev,
+                        "chg_p":      chg_p,
+                        "chg_v":      price - prev,
+                        "day_high":   high,
+                        "day_low":    low,
+                        "market":     "REGULAR" if is_today else "CLOSED",
+                        "is_live":    is_today,
+                        "is_extended": False,
+                        "is_closed":  not is_today,
+                        "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
+                    }
             except Exception as e:
-                logger.warning("Twelve Data parse %s: %s", td_sym, e)
+                logger.warning("yfinance parse %s: %s", yf_sym, e)
+
+        logger.warning("yfinance: %d/%d símbolos obtidos", len(out), len(yf_syms))
         return out
+
     except Exception as e:
-        logger.warning("Twelve Data batch: %s", e)
+        logger.warning("yfinance download: %s", e)
         return {}
 
 
-@st.cache_data(ttl=130, show_spinner=False)
-def _all_quotes_td(key: str) -> dict:
+# ── Cache compartilhado (15 min) ──────────────────────────────────────────────
+
+@st.cache_data(ttl=900, show_spinner=False)
+def _cached_quotes() -> dict:
+    """Cache de 15 min compartilhado entre todos os usuários."""
+    return _fetch_yf_quotes()
+
+
+# ── Background refresher ──────────────────────────────────────────────────────
+
+def _bg_refresh_loop():
     """
-    Busca os 13 símbolos Twelve Data em dois grupos sequenciais
-    com 62s de intervalo — respeita o limite de 8 créditos/minuto.
-    Cache de 130s: roda ~1x a cada 2 minutos.
+    Thread de fundo: renova o cache a cada 13 minutos.
+    - Roda no servidor, independente de page loads
+    - yfinance é chamado 1x a cada 13 min, não por usuário
+    - Pressão mínima sobre Yahoo Finance → sem rate limit
     """
-    out = {}
-    # Grupo A: 7 símbolos
-    a = _fetch_td_batch(_GROUP_A, key)
-    out.update(a)
-    if a:
-        logger.warning("Twelve Data Grupo A: %d/%d", len(a), len(_GROUP_A))
-    # Aguarda a janela de rate limit do Twelve Data zerar (60s + margem)
-    time.sleep(62)
-    # Grupo B: 6 símbolos
-    b = _fetch_td_batch(_GROUP_B, key)
-    out.update(b)
-    if b:
-        logger.warning("Twelve Data Grupo B: %d/%d", len(b), len(_GROUP_B))
-    return out
+    time.sleep(30)  # aguarda app inicializar
+    while True:
+        try:
+            data = _fetch_yf_quotes()
+            if data:
+                # Força atualização do cache mesmo antes do TTL expirar
+                _cached_quotes.clear()
+                # Pré-popula chamando diretamente (sem passar pelo cache expirado)
+                st.cache_data.clear()
+            logger.warning("Background refresh: %d cotações renovadas", len(data))
+        except Exception as e:
+            logger.warning("Background refresh erro: %s", e)
+        time.sleep(780)  # 13 minutos
 
 
-@st.cache_data(ttl=65, show_spinner=False)
-def _all_quotes_crypto() -> dict:
-    """BTC e ETH via CoinGecko — gratuito."""
-    try:
-        r = requests.get(
-            CG_PRICE.format(ids=",".join(_CG_IDS.values())),
-            headers=_HDRS_JSON, timeout=10, verify=False,
-        )
-        if r.status_code != 200:
-            logger.warning("CoinGecko HTTP %s", r.status_code)
-            return {}
-        data = r.json()
-        out  = {}
-        for sym, cg_id in _CG_IDS.items():
-            q = data.get(cg_id, {})
-            price = float(q.get("usd", 0))
-            if not price:
-                continue
-            chg_p = float(q.get("usd_24h_change") or 0)
-            prev  = price / (1 + chg_p / 100) if chg_p else price
-            out[sym] = {
-                "price": price, "prev": prev,
-                "chg_p": chg_p, "chg_v": price - prev,
-                "day_high": None, "day_low": None,
-                "market": "REGULAR", "is_live": True,
-                "is_extended": False, "is_closed": False, "close_date": None,
-            }
-        return out
-    except Exception as e:
-        logger.warning("CoinGecko: %s", e)
-        return {}
+@st.cache_resource
+def _start_bg_refresher():
+    """Inicia o thread de fundo uma única vez por processo Streamlit."""
+    t = _threading.Thread(target=_bg_refresh_loop, daemon=True)
+    t.start()
+    logger.warning("Background refresher iniciado (yfinance a cada 13 min)")
+    return t
 
+_start_bg_refresher()
+
+
+# ── Interface pública ─────────────────────────────────────────────────────────
 
 def get_all_quotes(symbols: tuple) -> dict:
-    """Cotações de todos os ativos: Twelve Data + CoinGecko."""
-    key = _get_td_key()
-    out = {}
-    if key:
-        out.update(_all_quotes_td(key))
-    else:
-        logger.warning("TWELVE_DATA_KEY não configurado nos Secrets do Streamlit")
-    out.update(_all_quotes_crypto())
+    """
+    Retorna cotações do cache compartilhado.
+    Background thread garante cache sempre quente — zero latência para o usuário.
+    """
+    out = _cached_quotes()
     for sym in symbols:
         if sym not in out:
             logger.warning("Cotação indisponível para %s", sym)
@@ -455,48 +433,21 @@ def get_quote(sym: str) -> dict:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_hist(sym: str, years: int = 5) -> pd.DataFrame:
-    """Histórico de fechamento via Twelve Data ou CoinGecko."""
-    key    = _get_td_key()
-    td_sym = {**_GROUP_A, **_GROUP_B}.get(sym)
-
-    # Twelve Data para índices/forex/commodities
-    if key and td_sym:
-        try:
-            outputsize = min(years * 260, 5000)
-            r = requests.get(
-                TD_HIST.format(sym=td_sym, n=outputsize, key=key),
-                headers=_HDRS_JSON, timeout=20, verify=False,
-            )
-            if r.status_code == 200:
-                values = r.json().get("values", [])
-                rows   = []
-                for v in values:
-                    try:
-                        rows.append({
-                            "data":  datetime.strptime(v["datetime"][:10], "%Y-%m-%d"),
-                            "valor": float(v["close"]),
-                        })
-                    except Exception:
-                        continue
-                if rows:
-                    return pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
-        except Exception as e:
-            logger.warning("Twelve Data hist %s: %s", sym, e)
-
-    # CoinGecko para cripto
-    cg_id = _CG_IDS.get(sym)
-    if cg_id:
-        try:
-            r = requests.get(
-                CG_HIST.format(id=cg_id, days=years * 365),
-                headers=_HDRS_JSON, timeout=20, verify=False,
-            )
-            if r.status_code == 200:
-                rows = [{"data": datetime.fromtimestamp(p[0] / 1000), "valor": float(p[1])}
-                        for p in r.json().get("prices", [])]
-                if rows:
-                    return pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
-        except Exception as e:
-            logger.warning("CoinGecko hist %s: %s", sym, e)
-
-    return pd.DataFrame(columns=["data", "valor"])
+    """Histórico de fechamento via yfinance."""
+    yf_sym = _YF_SYMBOLS.get(sym)
+    if not yf_sym:
+        return pd.DataFrame(columns=["data", "valor"])
+    try:
+        tk  = _yf.Ticker(yf_sym)
+        df  = tk.history(period=f"{years}y", auto_adjust=True)
+        if df.empty:
+            logger.warning("yfinance hist vazio para %s", yf_sym)
+            return pd.DataFrame(columns=["data", "valor"])
+        result = pd.DataFrame({
+            "data":  pd.to_datetime(df.index).tz_localize(None),
+            "valor": df["Close"].values.flatten(),
+        })
+        return result.dropna().sort_values("data").reset_index(drop=True)
+    except Exception as e:
+        logger.warning("yfinance hist %s: %s", yf_sym, e)
+        return pd.DataFrame(columns=["data", "valor"])
