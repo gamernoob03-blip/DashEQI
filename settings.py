@@ -1,9 +1,10 @@
 """
-config.py — Constantes, TTLs e configuração de logging.
+settings.py — Constantes, TTLs e configuração declarativa do dashboard.
 Nenhuma dependência de Streamlit ou lógica de negócio aqui.
 """
 import logging
 from zoneinfo import ZoneInfo
+from typing import NamedTuple
 
 # ── Timezone ──────────────────────────────────────────────────────────────────
 TZ_BRT = ZoneInfo("America/Sao_Paulo")
@@ -36,9 +37,6 @@ HDRS = {
 }
 
 # ── Configuração dos gráficos Plotly ─────────────────────────────────────────
-# Config único — todos os gráficos usam o mesmo padrão interativo.
-# Para gráficos de snapshot (sem eixo de tempo), render_chart em components.py
-# passa staticPlot=True automaticamente.
 CHART_CFG = {
     "displayModeBar":           True,
     "scrollZoom":               True,
@@ -48,100 +46,142 @@ CHART_CFG = {
     "toImageButtonOptions":     {"format": "png", "scale": 2},
     "responsive":               True,
 }
+CHART_CFG_INT = CHART_CFG  # alias de compatibilidade
 
-# Alias para compatibilidade — ambos apontam para o mesmo dict
-CHART_CFG_INT = CHART_CFG
+# ── Transformações disponíveis por série (períodos) ───────────────────────────
+# Constantes de string para evitar repetição literal em app.py
+P_ORIGINAL      = "Original"
+P_MENSAL        = "Mensal (original)"
+P_NIVEL         = "Nível (original)"
+P_TRIM_ORIG     = "Var. trimestral (original)"
+P_ACUM_12M      = "Acumulado 12M"
+P_ACUM_ANO      = "Acumulado no ano"
+P_VAR_MM        = "Var. mensal (m/m)"
+P_VAR_TT        = "Var. trimestral (t/t)"
+P_VAR_AA        = "Var. anual (a/a)"
+P_ACUM_4TRI     = "Acumulado 4 trimestres"
 
-# ── Séries BCB/SGS ────────────────────────────────────────────────────────────
-# Formato: nome → (código SGS, unidade, frequência, tipo de gráfico, cor hex)
-SGS = {
-    # Indicadores gerais
-    "Selic":              (432,   "% a.a.",  "Mensal",     "line", "#1a2035"),
-    "IPCA":               (433,   "% mês",   "Mensal",     "bar",  "#dc2626"),
-    "IBC-Br":             (24363, "índice",  "Mensal",     "line", "#0891b2"),
-    "Dólar PTAX":         (1,     "R$",      "Diário",     "line", "#d97706"),
-    "PIB":                (4380,  "% trim.", "Trimestral", "bar",  "#16a34a"),
-    "Desemprego":         (24369, "%",       "Trimestral", "line", "#dc2626"),
-    "IGP-M":              (189,   "% mês",   "Mensal",     "bar",  "#7c3aed"),
-    "IPCA-15":            (7478,  "% mês",   "Mensal",     "bar",  "#d97706"),
-    "Exportações":        (2257,  "US$ mi",  "Mensal",     "bar",  "#16a34a"),
-    "Importações":        (2258,  "US$ mi",  "Mensal",     "bar",  "#dc2626"),
-    "Dívida/PIB":         (4513,  "%",       "Mensal",     "line", "#374151"),
-    # Expectativas Focus (Relatório de Mercado)
-    "Focus: IPCA 12M":    (13522, "%",       "Diário",     "line", "#0891b2"),
-    "Focus: IPCA ano":    (13521, "%",       "Diário",     "line", "#06b6d4"),
-    "Focus: Selic ano":   (13426, "% a.a.",  "Diário",     "line", "#1a2035"),
-    "Focus: PIB ano":     (13291, "%",       "Diário",     "line", "#16a34a"),
-    "Focus: Câmbio ano":  (13290, "R$",      "Diário",     "line", "#d97706"),
-    # Câmbio e swaps
-    "Swap DI×Pré 360d":   (7814,  "% a.a.",  "Diário",     "line", "#7c3aed"),
+# Períodos que representam a série "original" (sem transformação acumulada)
+PERIODOS_ORIGINAIS = {P_ORIGINAL, P_MENSAL, P_NIVEL, P_TRIM_ORIG}
+
+# Mapeamento série → transformações disponíveis (única fonte da verdade)
+SGS_PERIODOS = {
+    "Selic":             [P_ORIGINAL],
+    "IPCA":              [P_MENSAL,    P_ACUM_12M, P_ACUM_ANO],
+    "IBC-Br":            [P_NIVEL,     P_VAR_MM,   P_VAR_TT,   P_VAR_AA],
+    "Dólar PTAX":        [P_ORIGINAL],
+    "PIB":               [P_TRIM_ORIG, P_VAR_AA,   P_ACUM_4TRI],
+    "Desemprego":        [P_ORIGINAL],
+    "IGP-M":             [P_MENSAL,    P_ACUM_12M],
+    "IPCA-15":           [P_MENSAL,    P_ACUM_12M],
+    "Exportações":       [P_ORIGINAL,  P_VAR_MM,   P_VAR_AA],
+    "Importações":       [P_ORIGINAL,  P_VAR_MM,   P_VAR_AA],
+    "Dívida/PIB":        [P_ORIGINAL,  P_VAR_MM],
+    "Focus: IPCA 12M":   [P_ORIGINAL],
+    "Focus: IPCA ano":   [P_ORIGINAL],
+    "Focus: Selic ano":  [P_ORIGINAL],
+    "Focus: PIB ano":    [P_ORIGINAL],
+    "Focus: Câmbio ano": [P_ORIGINAL],
+    "Swap DI×Pré 360d":  [P_ORIGINAL],
 }
 
-# ── KPIs da página Início ─────────────────────────────────────────────────────
-# Formato: (nome_no_SGS, label_exibição, formato_valor)
-# formato_valor: string Python com {v} para o valor e {u} para a unidade
+# ── Séries BCB/SGS ────────────────────────────────────────────────────────────
+class SerieSGS(NamedTuple):
+    codigo:    int
+    unidade:   str
+    frequencia: str
+    tipo:      str   # "line" | "bar"
+    cor:       str   # hex
+
+SGS = {
+    # Indicadores gerais
+    "Selic":              SerieSGS(432,   "% a.a.",  "Mensal",     "line", "#1a2035"),
+    "IPCA":               SerieSGS(433,   "% mês",   "Mensal",     "bar",  "#dc2626"),
+    "IBC-Br":             SerieSGS(24363, "índice",  "Mensal",     "line", "#0891b2"),
+    "Dólar PTAX":         SerieSGS(1,     "R$",      "Diário",     "line", "#d97706"),
+    "PIB":                SerieSGS(4380,  "% trim.", "Trimestral", "bar",  "#16a34a"),
+    "Desemprego":         SerieSGS(24369, "%",       "Trimestral", "line", "#dc2626"),
+    "IGP-M":              SerieSGS(189,   "% mês",   "Mensal",     "bar",  "#7c3aed"),
+    "IPCA-15":            SerieSGS(7478,  "% mês",   "Mensal",     "bar",  "#d97706"),
+    "Exportações":        SerieSGS(2257,  "US$ mi",  "Mensal",     "bar",  "#16a34a"),
+    "Importações":        SerieSGS(2258,  "US$ mi",  "Mensal",     "bar",  "#dc2626"),
+    "Dívida/PIB":         SerieSGS(4513,  "%",       "Mensal",     "line", "#374151"),
+    # Expectativas Focus
+    "Focus: IPCA 12M":    SerieSGS(13522, "%",       "Diário",     "line", "#0891b2"),
+    "Focus: IPCA ano":    SerieSGS(13521, "%",       "Diário",     "line", "#06b6d4"),
+    "Focus: Selic ano":   SerieSGS(13426, "% a.a.",  "Diário",     "line", "#1a2035"),
+    "Focus: PIB ano":     SerieSGS(13291, "%",       "Diário",     "line", "#16a34a"),
+    "Focus: Câmbio ano":  SerieSGS(13290, "R$",      "Diário",     "line", "#d97706"),
+    # Câmbio e swaps
+    "Swap DI×Pré 360d":   SerieSGS(7814,  "% a.a.",  "Diário",     "line", "#7c3aed"),
+}
+
+# ── KPIs e gráficos da página Início ─────────────────────────────────────────
 HOME_KPIS = [
-    ("Selic",      "Selic",           "{v}% a.a."),
-    ("IPCA",       "IPCA",            "{v}% mês"),
+    ("Selic",      "Selic",            "{v}% a.a."),
+    ("IPCA",       "IPCA",             "{v}% mês"),
     ("Desemprego", "Desemprego (PNAD)", "{v}%"),
 ]
-# Formato: (nome_no_SGS, meses_exibidos)
-# A série é sempre carregada completa do cache — só a janela de exibição varia.
 HOME_CHARTS = [
-    ("Selic",       13),   # mensal   — últimos 13 meses
-    ("IPCA",        13),   # mensal   — últimos 13 meses
-    ("Dólar PTAX",   1),   # diário   — último mês (~30 dias úteis)
-    ("IBC-Br",      13),   # mensal   — últimos 13 meses
-    ("PIB",         24),   # trimestral — últimos 24 meses (8 trimestres)
-    ("Desemprego",  24),   # trimestral — últimos 24 meses
+    ("Selic",      13),
+    ("IPCA",       13),
+    ("Dólar PTAX",  1),
+    ("IBC-Br",     13),
+    ("PIB",        24),
+    ("Desemprego", 24),
 ]
 
 # ── Ativos globais ────────────────────────────────────────────────────────────
-# Formato: nome → (símbolo interno, unidade, sinal_invertido, cor hex)
+class AtivoGlobal(NamedTuple):
+    simbolo:  str
+    unidade:  str
+    invertido: bool   # True = queda de preço é positivo (ex: USD/BRL)
+    cor:      str
+
 GLOBAL = {
-    "IBOVESPA":        ("^BVSP",   "pts",    False, "#0891b2"),
-    "Dólar (USD/BRL)": ("usdbrl",  "R$",     True,  "#7c3aed"),
-    "Euro (EUR/BRL)":  ("eurbrl",  "R$",     True,  "#d97706"),
-    "S&P 500":         ("^spx",    "pts",    False, "#16a34a"),
-    "Nasdaq 100":      ("^ndx",    "pts",    False, "#6366f1"),
-    "Dow Jones":       ("^dji",    "pts",    False, "#0891b2"),
-    "FTSE 100":        ("^ukx",    "pts",    False, "#374151"),
-    "DAX":             ("^dax",    "pts",    False, "#374151"),
-    "Petróleo Brent":  ("sc.f",    "US$",    True,  "#d97706"),
-    "Petróleo WTI":    ("cl.f",    "US$",    True,  "#f59e0b"),
-    "Ouro":            ("gc.f",    "US$",    False, "#b45309"),
-    "Prata":           ("si.f",    "US$",    False, "#64748b"),
-    "Cobre":           ("hg.f",    "US$/lb", True,  "#dc2626"),
-    "Bitcoin":         ("btc.v",   "US$",    False, "#f59e0b"),
-    "Ethereum":        ("eth.v",   "US$",    False, "#6366f1"),
+    "IBOVESPA":        AtivoGlobal("^BVSP",  "pts",    False, "#0891b2"),
+    "Dólar (USD/BRL)": AtivoGlobal("usdbrl", "R$",     True,  "#7c3aed"),
+    "Euro (EUR/BRL)":  AtivoGlobal("eurbrl", "R$",     True,  "#d97706"),
+    "S&P 500":         AtivoGlobal("^spx",   "pts",    False, "#16a34a"),
+    "Nasdaq 100":      AtivoGlobal("^ndx",   "pts",    False, "#6366f1"),
+    "Dow Jones":       AtivoGlobal("^dji",   "pts",    False, "#0891b2"),
+    "FTSE 100":        AtivoGlobal("^ukx",   "pts",    False, "#374151"),
+    "DAX":             AtivoGlobal("^dax",   "pts",    False, "#374151"),
+    "Petróleo Brent":  AtivoGlobal("sc.f",   "US$",    True,  "#d97706"),
+    "Petróleo WTI":    AtivoGlobal("cl.f",   "US$",    True,  "#f59e0b"),
+    "Ouro":            AtivoGlobal("gc.f",   "US$",    False, "#b45309"),
+    "Prata":           AtivoGlobal("si.f",   "US$",    False, "#64748b"),
+    "Cobre":           AtivoGlobal("hg.f",   "US$/lb", True,  "#dc2626"),
+    "Bitcoin":         AtivoGlobal("btc.v",  "US$",    False, "#f59e0b"),
+    "Ethereum":        AtivoGlobal("eth.v",  "US$",    False, "#6366f1"),
 }
 
-# ── Gráficos históricos na página Mercados Globais ────────────────────────────
-# Formato: nome (deve existir em GLOBAL)
 MERCADOS_HIST = ["IBOVESPA", "S&P 500", "Petróleo Brent", "Ouro", "Dólar (USD/BRL)", "Bitcoin"]
+CORES_COMP    = ["#1a2035", "#dc2626", "#0891b2", "#16a34a", "#d97706", "#7c3aed"]
 
-# ── Paleta para Comparar Séries (aba Gráficos) ────────────────────────────────
-CORES_COMP = ["#1a2035", "#dc2626", "#0891b2", "#16a34a", "#d97706", "#7c3aed"]
-
-# ── Cores fixas para gráficos específicos do Monitor Inflação ─────────────────
-COR_IPCA_LINHA  = "#1a2035"   # linha IPCA headline nos gráficos de núcleos
-COR_MEDIA_NUCL  = "#7c3aed"   # linha média dos núcleos acum. 12M
+# ── Cores fixas Monitor Inflação ──────────────────────────────────────────────
+COR_IPCA_LINHA = "#1a2035"
+COR_MEDIA_NUCL = "#7c3aed"
 
 # ── Núcleos de inflação BCB ───────────────────────────────────────────────────
-# Formato: sigla → (código SGS, descrição, cor hex)
+class NucleoSGS(NamedTuple):
+    codigo:    int
+    descricao: str
+    cor:       str
+
 NUCLEO_SGS = {
-    "MA-S": (4466,  "Médias Aparadas c/ Suavização", "#0891b2"),
-    "MA":   (11426, "Médias Aparadas s/ Suavização", "#06b6d4"),
-    "DP":   (4467,  "Dupla Ponderação",              "#16a34a"),
-    "EX":   (11427, "Exclusão",                      "#d97706"),
-    "P55":  (28750, "Percentil 55",                  "#7c3aed"),
+    "MA-S": NucleoSGS(4466,  "Médias Aparadas c/ Suavização", "#0891b2"),
+    "MA":   NucleoSGS(11426, "Médias Aparadas s/ Suavização", "#06b6d4"),
+    "DP":   NucleoSGS(4467,  "Dupla Ponderação",              "#16a34a"),
+    "EX":   NucleoSGS(11427, "Exclusão",                      "#d97706"),
+    "P55":  NucleoSGS(28750, "Percentil 55",                  "#7c3aed"),
 }
 
 # ── Metas BCB ─────────────────────────────────────────────────────────────────
 BCB_META = {2020: 4.0, 2021: 3.75, 2022: 3.5, 2023: 3.25, 2024: 3.0, 2025: 3.0, 2026: 3.0}
-BCB_TOLE = 1.5  # tolerância ± pp
+BCB_TOLE = 1.5
 
-# ── Grupos IPCA (IBGE SIDRA — classificação 315) ──────────────────────────────
+# ── Grupos IPCA (IBGE SIDRA) ──────────────────────────────────────────────────
 IPCA_GRUPOS_IDS = "7170,7445,7486,7558,7625,7660,7712,7766,7786"
 
 IPCA_GRUPOS_CORES = {
@@ -159,7 +199,7 @@ IPCA_GRUPOS_CORES = {
 # ── Navegação ─────────────────────────────────────────────────────────────────
 NAV = ["Início", "Monitor Inflação", "Mercados Globais", "Gráficos", "Exportar"]
 NAV_SLUGS = {
-    "Início":          "inicio",
+    "Início":           "inicio",
     "Monitor Inflação": "ipca",
     "Mercados Globais": "mercados",
     "Gráficos":         "graficos",
