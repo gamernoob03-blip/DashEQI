@@ -450,7 +450,7 @@ elif st.session_state.pagina == "Gráficos":
         with col1: ind = st.selectbox("Indicador",list(SGS.keys()),key="gind")
         opts = PERIODOS.get(ind,["Original"])
         with col2: periodo = st.selectbox("Período / Transformação",opts,key="gperiodo") if len(opts)>1 else opts[0]
-        cod,unit,freq,tipo = SGS[ind]
+        cod,unit,freq,tipo,cor = SGS[ind]
         try:
             with st.spinner(f"Carregando {ind}..."): df_f = get_bcb_full(cod)
         except Exception as e:
@@ -521,7 +521,7 @@ elif st.session_state.pagina == "Gráficos":
         # Carrega séries
         _series_comp = {}
         for _nome in _selecionados:
-            _cod, _unit, _freq, _ = SGS[_nome]
+            _cod, _unit, _freq, _, _ = SGS[_nome]
             try:
                 with st.spinner(f"Carregando {_nome}..."): _df_c = get_bcb_full(_cod)
             except Exception as e:
@@ -626,7 +626,7 @@ else:
         with c4: d_fim = st.date_input("Até",value=datetime.today(),key="efim")
         modo = st.radio("Dados:",["Filtrar pelo intervalo acima","Série completa desde o início"],horizontal=True,key="emodo")
         if st.button("Gerar CSV",type="primary",key="ebtn"):
-            cod,unit,freq,_ = SGS[ind]
+            cod,unit,freq,_,_ = SGS[ind]
             try:
                 with st.spinner(f"Carregando {ind}..."):
                     # Sempre busca série completa — filtra em memória se necessário
