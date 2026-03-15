@@ -190,22 +190,3 @@ def render_chart(fig, filename: str = "grafico", static: bool = False) -> None:
     else:
         cfg = {**CHART_CFG, "toImageButtonOptions": {**CHART_CFG["toImageButtonOptions"], "filename": filename}}
     st.plotly_chart(fig, use_container_width=True, config=cfg)
-    """
-    Exibe um aviso amarelo se o DataFrame veio do cache stale (API indisponível).
-    O atributo df.attrs['stale_since'] é setado por data._build_with_fallback.
-    """
-    import pandas as pd
-    from datetime import datetime
-    stale_since = df.attrs.get("stale_since")
-    if stale_since is None:
-        return
-    delta = datetime.now() - stale_since
-    horas = int(delta.total_seconds() // 3600)
-    mins  = int((delta.total_seconds() % 3600) // 60)
-    tempo = f"{horas}h {mins}min" if horas else f"{mins}min"
-    nome  = f" — {label}" if label else ""
-    st.warning(
-        f"⚠️ **API BCB temporariamente indisponível{nome}.** "
-        f"Exibindo último dado disponível (obtido há {tempo}).",
-        icon=None,
-    )
