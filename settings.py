@@ -159,6 +159,17 @@ GLOBAL = {
 MERCADOS_HIST = ["IBOVESPA", "S&P 500", "Petróleo Brent", "Ouro", "Dólar (USD/BRL)", "Bitcoin"]
 CORES_COMP    = ["#1a2035", "#dc2626", "#0891b2", "#16a34a", "#d97706", "#7c3aed"]
 
+# ── Alturas dos gráficos (px) ─────────────────────────────────────────────────
+H_SMALL   = 260   # gráficos pequenos (página Início)
+H_MEDIUM  = 320   # gráficos médios (Mercados histórico, acumulado 12M)
+H_LARGE   = 440   # gráficos grandes (aba Gráficos)
+H_XLARGE  = 480   # gráficos extra grandes (Monitor Inflação — núcleos)
+H_MONITOR = 360   # Monitor Inflação — média núcleos
+H_ACUM    = 320   # acumulado 12M vs meta (alias de H_MEDIUM)
+H_COMP    = 460   # comparação de séries
+H_GROUP   = 340   # grupos snapshot
+H_GRUPOS  = 420   # grupos evolução
+
 # ── Cores fixas Monitor Inflação ──────────────────────────────────────────────
 COR_IPCA_LINHA = "#1a2035"
 COR_MEDIA_NUCL = "#7c3aed"
