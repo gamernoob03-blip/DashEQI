@@ -260,105 +260,131 @@ def get_ipca_acum_grupo(n_periodos: int = 60) -> pd.DataFrame:
 
 # ── Yahoo Finance ─────────────────────────────────────────────────────────────
 
-def _yf_quote_raw(sym: str) -> dict | None:
-    """Cotação via yfinance (biblioteca)."""
-    try:
-        import yfinance as yf
-        tk   = yf.Ticker(sym)
-        hist = tk.history(period="5d", auto_adjust=True)
-        if hist.empty:
-            return None
-        fi    = tk.fast_info
-        price = None
-        try:    price = float(fi.last_price)
-        except: pass
-        if not price:
-            price = float(hist["Close"].iloc[-1])
-        prev = None
-        try:    prev = float(fi.previous_close)
-        except: pass
-        if not prev and len(hist) >= 2:
-            prev = float(hist["Close"].iloc[-2])
-        last_date = pd.Timestamp(hist.index[-1]).tz_localize(None).date()
-        day_high = day_low = None
-        try:    day_high = float(fi.day_high)
-        except: pass
-        try:    day_low  = float(fi.day_low)
-        except: pass
-        if not day_high and not hist.empty:
-            day_high = float(hist["High"].iloc[-1])
-            day_low  = float(hist["Low"].iloc[-1])
-        return {"price": price, "prev": prev, "last_date": last_date,
-                "day_high": day_high, "day_low": day_low}
-    except Exception:
-        return None
+# Cache em memória para todas as cotações — evita rate limit buscando em batch
+_quotes_cache: dict[str, dict] = {}
+_quotes_cache_ts: datetime | None = None
 
 
-def _http_quote_raw(sym: str) -> dict | None:
-    """Cotação via HTTP direto (fallback)."""
-    for url in [
-        f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=5d",
-        f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={sym}",
-    ]:
+def _fetch_all_quotes_batch(symbols: list[str]) -> dict[str, dict]:
+    """
+    Busca cotações de todos os símbolos em UMA única chamada à API do Yahoo Finance.
+    Muito menos suscetível a rate limit do que N chamadas individuais.
+    """
+    syms_str = ",".join(symbols)
+
+    # Tenta v7 (suporta múltiplos símbolos nativamente)
+    for base in ["https://query1.finance.yahoo.com", "https://query2.finance.yahoo.com"]:
         try:
-            r = requests.get(url, headers=HDRS, timeout=10, verify=False)
+            r = requests.get(
+                f"{base}/v7/finance/quote?symbols={syms_str}",
+                headers=HDRS, timeout=20, verify=False,
+            )
             if r.status_code != 200:
                 continue
             data = r.json()
-            if "chart" in data:
-                meta  = data["chart"]["result"][0]["meta"]
-                price = meta.get("regularMarketPrice") or meta.get("previousClose")
-                prev  = meta.get("chartPreviousClose") or meta.get("previousClose")
-                rt    = meta.get("regularMarketTime")
-                if price:
-                    return {
-                        "price":      float(price),
-                        "prev":       float(prev) if prev else None,
-                        "last_date":  datetime.fromtimestamp(rt).date() if rt else None,
-                        "day_high":   float(h) if (h := meta.get("regularMarketDayHigh")) else None,
-                        "day_low":    float(l) if (l := meta.get("regularMarketDayLow"))  else None,
-                    }
-            if "quoteResponse" in data:
-                q = data["quoteResponse"]["result"][0]
+            results = data.get("quoteResponse", {}).get("result", [])
+            if not results:
+                continue
+            out = {}
+            for q in results:
+                sym   = q.get("symbol", "")
                 price = q.get("regularMarketPrice")
-                if price:
-                    return {
-                        "price":     float(price),
-                        "prev":      float(q["regularMarketPreviousClose"]) if q.get("regularMarketPreviousClose") else None,
-                        "last_date": now_brt().date(),
-                        "day_high":  float(h) if (h := q.get("regularMarketDayHigh")) else None,
-                        "day_low":   float(l) if (l := q.get("regularMarketDayLow"))  else None,
-                    }
-        except Exception:
+                prev  = q.get("regularMarketPreviousClose") or q.get("regularMarketOpen")
+                if not price:
+                    continue
+                price, prev = float(price), float(prev) if prev else float(price)
+                chg_p = ((price - prev) / prev * 100) if prev else None
+                rt    = q.get("regularMarketTime")
+                last_date = datetime.fromtimestamp(rt).date() if rt else now_brt().date()
+                is_today  = (last_date == now_brt().date())
+                out[sym] = {
+                    "price":      price,
+                    "prev":       prev,
+                    "chg_p":      chg_p,
+                    "chg_v":      (price - prev) if prev else None,
+                    "day_high":   float(h) if (h := q.get("regularMarketDayHigh")) else None,
+                    "day_low":    float(l) if (l := q.get("regularMarketDayLow"))  else None,
+                    "market":     "REGULAR" if is_today else "CLOSED",
+                    "is_live":    is_today,
+                    "is_extended": False,
+                    "is_closed":  not is_today,
+                    "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
+                }
+            if out:
+                logger.warning("Yahoo batch: %d/%d símbolos obtidos", len(out), len(symbols))
+                return out
+        except Exception as e:
+            logger.warning("Yahoo batch v7 (%s): %s", base, e)
             continue
-    return None
+
+    # Fallback: yfinance download em batch (um período curto)
+    try:
+        import yfinance as yf
+        df = yf.download(symbols, period="5d", auto_adjust=True,
+                         progress=False, group_by="ticker", threads=False)
+        if df.empty:
+            return {}
+        out = {}
+        for sym in symbols:
+            try:
+                if isinstance(df.columns, pd.MultiIndex):
+                    closes = df[sym]["Close"].dropna()
+                    highs  = df[sym]["High"].dropna()
+                    lows   = df[sym]["Low"].dropna()
+                else:
+                    closes = df["Close"].dropna()
+                    highs  = df["High"].dropna()
+                    lows   = df["Low"].dropna()
+                if closes.empty:
+                    continue
+                price     = float(closes.iloc[-1])
+                prev      = float(closes.iloc[-2]) if len(closes) >= 2 else price
+                last_date = pd.Timestamp(closes.index[-1]).tz_localize(None).date()
+                is_today  = (last_date == now_brt().date())
+                chg_p     = ((price - prev) / prev * 100) if prev else None
+                out[sym] = {
+                    "price":      price,
+                    "prev":       prev,
+                    "chg_p":      chg_p,
+                    "chg_v":      (price - prev),
+                    "day_high":   float(highs.iloc[-1]) if not highs.empty else None,
+                    "day_low":    float(lows.iloc[-1])  if not lows.empty  else None,
+                    "market":     "REGULAR" if is_today else "CLOSED",
+                    "is_live":    is_today,
+                    "is_extended": False,
+                    "is_closed":  not is_today,
+                    "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
+                }
+            except Exception:
+                continue
+        return out
+    except Exception as e:
+        logger.warning("Yahoo batch yfinance: %s", e)
+        return {}
 
 
 @st.cache_data(ttl=TTL_MERCADOS, show_spinner=False)
+def get_all_quotes(symbols: tuple[str, ...]) -> dict[str, dict]:
+    """
+    Retorna cotações de todos os símbolos em uma única chamada.
+    Usar tuple para ser hashável pelo cache do Streamlit.
+    """
+    result = _fetch_all_quotes_batch(list(symbols))
+    for sym in symbols:
+        if sym not in result:
+            logger.warning("Yahoo Finance: cotação indisponível para %s", sym)
+    return result
+
+
 def get_quote(sym: str) -> dict:
-    """Cotação atual + variação dia + high/low para um símbolo Yahoo Finance."""
-    raw = _yf_quote_raw(sym) or _http_quote_raw(sym)
-    if not raw or not raw.get("price"):
-        logger.warning("Yahoo Finance: cotação indisponível para %s", sym)
-        return {}
-    price     = raw["price"]
-    prev      = raw.get("prev") or price
-    last_date = raw.get("last_date")
-    is_today  = (last_date == now_brt().date()) if last_date else False
-    chg_p = ((price - prev) / prev * 100) if (prev and prev != 0) else None
-    return {
-        "price":      price,
-        "prev":       prev,
-        "chg_p":      chg_p,
-        "chg_v":      (price - prev) if prev else None,
-        "day_high":   raw.get("day_high"),
-        "day_low":    raw.get("day_low"),
-        "market":     "REGULAR" if is_today else "CLOSED",
-        "is_live":    is_today,
-        "is_extended": False,
-        "is_closed":  not is_today,
-        "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
-    }
+    """
+    Retorna cotação de um símbolo específico.
+    Internamente usa o cache batch — não faz requisição individual.
+    """
+    from settings import GLOBAL
+    all_syms = tuple(s for s, _, _ in GLOBAL.values())
+    all_data = get_all_quotes(all_syms)
+    return all_data.get(sym, {})
 
 
 @st.cache_data(ttl=TTL_HIST, show_spinner=False)
@@ -375,7 +401,7 @@ def get_hist(sym: str, years: int = 5) -> pd.DataFrame:
     except Exception as e:
         logger.warning("yfinance: histórico de %s indisponível — %s", sym, e)
     try:
-        r   = requests.get(
+        r = requests.get(
             f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range={years}y",
             headers=HDRS, timeout=15, verify=False,
         )
