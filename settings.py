@@ -78,8 +78,8 @@ SGS = {
     "Swap DI×Pré 360d":   (7814,  "% a.a.",  "Diário",     "line"),
 }
 
-# ── Ativos globais — Stooq ────────────────────────────────────────────────────
-# Formato: nome → (símbolo Stooq, unidade, sinal_invertido)
+# ── Ativos globais ────────────────────────────────────────────────────────────
+# Formato: nome → (símbolo interno, unidade, sinal_invertido)
 GLOBAL = {
     "IBOVESPA":        ("^BVSP",   "pts",    False),
     "Dólar (USD/BRL)": ("usdbrl",  "R$",     True),
