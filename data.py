@@ -364,25 +364,55 @@ def _cached_quotes() -> dict:
 
 # ── Background refresher ──────────────────────────────────────────────────────
 
+def _prewarm_home_bcb() -> None:
+    """
+    Pré-aquece as séries BCB usadas na página Início.
+    Busca somente as séries de HOME_CHARTS + HOME_KPIS — não todas do SGS.
+    TTL de 1h — renova a cada 55min para nunca expirar durante o uso.
+    """
+    from settings import HOME_CHARTS, HOME_KPIS, SGS
+    # Códigos únicos das séries da página Início
+    codigos = list(dict.fromkeys(
+        SGS[nome][0]
+        for nome, *_ in list(HOME_CHARTS) + list(HOME_KPIS)
+        if nome in SGS
+    ))
+    for cod in codigos:
+        try:
+            get_bcb_full(cod)
+        except Exception as e:
+            logger.warning("Pré-aquecimento BCB %s: %s", cod, e)
+    logger.warning("Pré-aquecimento BCB: %d séries da página Início prontas", len(codigos))
+
+
 def _bg_refresh_loop():
     """
-    Thread de fundo: renova o cache a cada 13 minutos.
-    - Roda no servidor, independente de page loads
-    - yfinance é chamado 1x a cada 13 min, não por usuário
-    - Pressão mínima sobre Yahoo Finance → sem rate limit
+    Thread de fundo: renova cotações (13 min) e séries BCB do Início (55 min).
+    Zero latência para qualquer usuário — cache sempre quente.
     """
-    time.sleep(30)  # aguarda app inicializar
+    time.sleep(30)  # aguarda app inicializar completamente
+    _prewarm_home_bcb()  # pré-aquece BCB logo na primeira vez
+
+    _bcb_counter = 0
     while True:
         try:
+            # Cotações yfinance — a cada 13 min
             data = _fetch_yf_quotes()
             if data:
-                # Força atualização do cache mesmo antes do TTL expirar
                 _cached_quotes.clear()
-                # Pré-popula chamando diretamente (sem passar pelo cache expirado)
                 st.cache_data.clear()
             logger.warning("Background refresh: %d cotações renovadas", len(data))
         except Exception as e:
-            logger.warning("Background refresh erro: %s", e)
+            logger.warning("Background refresh cotações: %s", e)
+
+        _bcb_counter += 1
+        if _bcb_counter >= 4:  # 4 × 13 min = 52 min ≈ antes do TTL de 1h
+            try:
+                _prewarm_home_bcb()
+            except Exception as e:
+                logger.warning("Background refresh BCB: %s", e)
+            _bcb_counter = 0
+
         time.sleep(780)  # 13 minutos
 
 
@@ -391,7 +421,7 @@ def _start_bg_refresher():
     """Inicia o thread de fundo uma única vez por processo Streamlit."""
     t = _threading.Thread(target=_bg_refresh_loop, daemon=True)
     t.start()
-    logger.warning("Background refresher iniciado (yfinance a cada 13 min)")
+    logger.warning("Background refresher iniciado (cotações 13min · BCB Início 55min)")
     return t
 
 _start_bg_refresher()
