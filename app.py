@@ -351,13 +351,9 @@ def grupos_bar_fig(df_grupos, ultimo_mes):
 
 # ── Figura grupos: linhas — evolução por período (interativa) ─────────────────
 def grupos_linhas_fig(df_grupos, d_ini=None, d_fim=None, height=420):
-    df_f = df_grupos[df_grupos["grupo_id"].isin(["7170","7445","7486","7558","7625","7660","7712","7766","7786"])].copy()
-    if df_f.empty:
-        return go.Figure()
-    if d_ini:
-        df_f = df_f[df_f["data"] >= pd.Timestamp(d_ini)]
-    if d_fim:
-        df_f = df_f[df_f["data"] <= pd.Timestamp(d_fim)]
+    """Plota série completa; d_ini/d_fim controlam apenas a janela inicial visível."""
+    df_f = df_grupos[df_grupos["grupo_id"].isin(
+        ["7170","7445","7486","7558","7625","7660","7712","7766","7786"])].copy()
     if df_f.empty:
         return go.Figure()
 
@@ -373,6 +369,7 @@ def grupos_linhas_fig(df_grupos, d_ini=None, d_fim=None, height=420):
             marker=dict(size=5, color=color),
             hovertemplate=f"%{{x|%b/%Y}}<br><b>{grupo}: %{{y:.2f}}%</b><extra></extra>",
         ))
+
     _layout_l = {**_I, "margin": dict(l=52, r=16, t=80, b=36)}
     fig.update_layout(**_layout_l,
         height=height,
@@ -386,8 +383,19 @@ def grupos_linhas_fig(df_grupos, d_ini=None, d_fim=None, height=420):
             bordercolor="#e2e5e9", borderwidth=1,
         ),
     )
-    fig.update_yaxes(ticksuffix="%")
+
+    # Define janela inicial X
+    x_max = df_f["data"].max()
+    x_min = pd.Timestamp(d_ini) if d_ini else (x_max - pd.DateOffset(months=24))
+    x_fim = pd.Timestamp(d_fim) if d_fim else x_max
+
+    # Y range baseado na janela visível
+    _yr = _y_range_for_window(df_f, x_min, x_fim, pad=0.2)
+    fig.update_yaxes(ticksuffix="%", range=_yr)
+
     fig = _add_rangeslider(fig, height, extra_top=50)
+    # Aplica range X inicial após o rangeslider (override o autorange)
+    fig.update_xaxes(range=[str(x_min.date()), str(x_fim.date())])
     return fig
 
 # ── Figura acumulado 12M vs meta ──────────────────────────────────────────────
