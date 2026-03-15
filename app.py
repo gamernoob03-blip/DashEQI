@@ -413,7 +413,7 @@ elif st.session_state.pagina == "Mercados Globais":
                 _xmin_h = _xmax_h - pd.DateOffset(years=2)
                 fig_h = line_fig(dfh, f"{nome_h} — 2 anos", cor_h, suffix=f" {unit_h}", height=320, inter=True)
                 fig_h.update_xaxes(range=[str(_xmin_h.date()), str(_xmax_h.date())])
-                fig_h.update_yaxes(range=_y_range_for_window(dfh, _xmin_h, _xmax_h), ticksuffix=f" {unit_h}".strip())
+                fig_h.update_yaxes(range=_y_range_for_window(dfh, _xmin_h, _xmax_h), fixedrange=False, ticksuffix=f" {unit_h}".strip())
                 render_chart(fig_h, nome_h)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -470,8 +470,8 @@ elif st.session_state.pagina == "Gráficos":
                 st.success(f"✅ {len(df_t)} obs. · {label_t} · {freq}")
                 use_bar = (tipo=="bar") and (periodo in ("Original","Mensal (original)","Var. trimestral (original)"))
                 fig = bar_fig(df_t,label_t,suffix=f" {unit_t}",height=440,inter=True) if use_bar else line_fig(df_t,label_t,cor,suffix=f" {unit_t}",height=440,inter=True)
-                fig.update_xaxes(range=[str(d_ini),str(d_fim)])
-                fig.update_yaxes(range=_y_range_for_window(df_t, d_ini, d_fim), ticksuffix=f" {unit_t}".strip())
+                fig.update_xaxes(range=[str(d_ini), str(d_fim)])
+                fig.update_yaxes(range=_y_range_for_window(df_t, d_ini, d_fim), fixedrange=False, ticksuffix=f" {unit_t}".strip())
                 render_chart(fig, f"{ind}_{periodo}")
                 dlo = df_t.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ind.replace(' ','_')}_{periodo.replace(' ','_')}.csv",mime="text/csv")
@@ -494,7 +494,7 @@ elif st.session_state.pagina == "Gráficos":
                 st.success(f"✅ {len(dfg)} obs. · {ativo}")
                 fig_y = line_fig(dfg, f"{ativo}", cor, suffix=f" {unit}", height=440, inter=True)
                 fig_y.update_xaxes(range=[str(dy_ini), str(dy_fim)])
-                fig_y.update_yaxes(range=_y_range_for_window(dfg, dy_ini, dy_fim), ticksuffix=f" {unit}".strip())
+                fig_y.update_yaxes(range=_y_range_for_window(dfg, dy_ini, dy_fim), fixedrange=False, ticksuffix=f" {unit}".strip())
                 render_chart(fig_y, ativo)
                 dlo = dfg.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV completo ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ativo.replace(' ','_')}_completo.csv",mime="text/csv")
