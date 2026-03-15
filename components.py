@@ -155,7 +155,24 @@ def render_sidebar() -> None:
         st.caption("Mercados ↻60s · BCB/IBGE ↻1h")
 
 
-def stale_banner(df: "pd.DataFrame", label: str = "") -> None:
+def render_chart(fig, filename: str = "grafico", static: bool = False) -> None:
+    """
+    Renderiza uma figura Plotly com configuração padronizada.
+
+    static=False (padrão) — gráfico dinâmico:
+        rangeslider, botões 6M/1A/2A/5A/Tudo, zoom, pan, download PNG.
+        Usado em: Monitor Inflação, Mercados, Gráficos, Exportar.
+
+    static=True — gráfico estático:
+        sem controles, sem barra de ferramentas. Leve e limpo.
+        Usado em: Início (visão rápida) e snapshots de um único período.
+    """
+    from settings import CHART_CFG
+    if static:
+        cfg = {"displayModeBar": False, "staticPlot": False, "responsive": True}
+    else:
+        cfg = {**CHART_CFG, "toImageButtonOptions": {**CHART_CFG["toImageButtonOptions"], "filename": filename}}
+    st.plotly_chart(fig, use_container_width=True, config=cfg)
     """
     Exibe um aviso amarelo se o DataFrame veio do cache stale (API indisponível).
     O atributo df.attrs['stale_since'] é setado por data._build_with_fallback.
