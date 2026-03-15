@@ -263,54 +263,49 @@ def get_ipca_acum_grupo(n_periodos: int = 60) -> pd.DataFrame:
 # Stooq é gratuito, sem chave de API, sem bloqueio de IP de nuvem.
 # URL de cotação:  https://stooq.com/q/l/?s=SYMBOL&f=sd2t2ohlcv&h&e=csv
 
-# ── Cotações de mercado ────────────────────────────────────────────────────────
+# ── Cotações de mercado — Twelve Data + CoinGecko ─────────────────────────────
 #
-# Twelve Data  → IBOVESPA (1 crédito/req — plano gratuito: 800/dia)
-# Polygon.io   → todos os internacionais (sem rate limit no gratuito)
-# CoinGecko    → BTC e ETH (completamente gratuito, sem chave)
+# Twelve Data (plano gratuito): 8 créditos/minuto, 800/dia
+# Solução para 15 símbolos > 8/min:
+#   Grupo A (7 syms) → busca imediata
+#   sleep(62s)        → aguarda janela do rate limit zerar
+#   Grupo B (8 syms) → busca na segunda janela
+#   Cache de 130s    → todo esse processo roda 1x a cada ~2 minutos
 #
-# Secrets necessários no Streamlit Cloud:
-#   TWELVE_DATA_KEY = "..."
-#   POLYGON_KEY     = "..."
+# CoinGecko: BTC e ETH (gratuito, sem chave, sem limite relevante)
+#
+# Secret necessário: TWELVE_DATA_KEY = "..."
 
-TD_QUOTE  = "https://api.twelvedata.com/quote?symbol={sym}&apikey={key}"
-TD_HIST   = "https://api.twelvedata.com/time_series?symbol={sym}&interval=1day&outputsize={n}&apikey={key}"
-
-PG_SNAP   = "https://api.polygon.io/v2/snapshot/locale/global/markets/forex/tickers?tickers={tickers}&apiKey={key}"
-PG_IDX    = "https://api.polygon.io/v3/snapshot?ticker.any_of={tickers}&apiKey={key}"
-PG_PREV   = "https://api.polygon.io/v2/aggs/ticker/{ticker}/prev?adjusted=true&apiKey={key}"
-PG_HIST   = "https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{from_d}/{to_d}?adjusted=true&sort=asc&limit=5000&apiKey={key}"
-
-CG_PRICE  = "https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd&include_24hr_change=true"
-CG_HIST   = "https://api.coingecko.com/api/v3/coins/{id}/market_chart?vs_currency=usd&days={days}"
+TD_QUOTE = "https://api.twelvedata.com/quote?symbol={syms}&apikey={key}"
+TD_HIST  = "https://api.twelvedata.com/time_series?symbol={sym}&interval=1day&outputsize={n}&apikey={key}"
+CG_PRICE = "https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd&include_24hr_change=true"
+CG_HIST  = "https://api.coingecko.com/api/v3/coins/{id}/market_chart?vs_currency=usd&days={days}"
 
 _HDRS_JSON = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Accept": "application/json",
 }
 
-# ── Twelve Data: só IBOVESPA ──────────────────────────────────────────────────
-_TD_SYM = "BVSP"   # símbolo Twelve Data para o Bovespa
-
-# ── Polygon.io: todos os internacionais ───────────────────────────────────────
-# Formato: símbolo interno → ticker Polygon
-# Índices:    I:SPX    Forex: C:USDBRL    Commodities: C:XAUUSD    Crypto: X:BTCUSD
-_PG_SYMBOLS = {
-    "usdbrl": ("C:USDBRL",  "forex"),
-    "eurbrl": ("C:EURBRL",  "forex"),
-    "^spx":   ("I:SPX",     "index"),
-    "^ndx":   ("I:NDX",     "index"),
-    "^dji":   ("I:DJI",     "index"),
-    "^ukx":   ("I:FTSE",    "index"),
-    "^dax":   ("I:DAX",     "index"),
-    "sc.f":   ("C:XBRUSD",  "forex"),   # Brent Spot
-    "cl.f":   ("C:WTIUSD",  "forex"),   # WTI Spot
-    "gc.f":   ("C:XAUUSD",  "forex"),   # Ouro
-    "si.f":   ("C:XAGUSD",  "forex"),   # Prata
-    "hg.f":   ("C:XPTUSD",  "forex"),   # Cobre (usando platina como proxy se não disponível)
+# Grupos para respeitar 8 créditos/minuto
+# Grupo A: 7 símbolos prioritários (câmbio, índices BR e EUA principais)
+# Grupo B: 8 símbolos secundários (Europa, energia, metais)
+_GROUP_A = {
+    "^BVSP":  "BVSP",      # Bovespa
+    "usdbrl": "USD/BRL",   # Dólar/Real
+    "eurbrl": "EUR/BRL",   # Euro/Real
+    "^spx":   "SPX",       # S&P 500
+    "^ndx":   "NDX",       # Nasdaq 100
+    "^dji":   "DJI",       # Dow Jones
+    "gc.f":   "XAU/USD",   # Ouro
 }
-
-# CoinGecko IDs para cripto
+_GROUP_B = {
+    "^ukx":   "FTSE",      # FTSE 100
+    "^dax":   "GDAXI",     # DAX
+    "sc.f":   "XBR/USD",   # Brent
+    "cl.f":   "WTI/USD",   # WTI
+    "si.f":   "XAG/USD",   # Prata
+    "hg.f":   "HG1",       # Cobre
+}
 _CG_IDS = {"btc.v": "bitcoin", "eth.v": "ethereum"}
 
 
@@ -319,14 +314,11 @@ def _get_td_key() -> str:
     except: return os.environ.get("TWELVE_DATA_KEY", "")
 
 
-def _get_pg_key() -> str:
-    try:    return st.secrets.get("POLYGON_KEY", "")
-    except: return os.environ.get("POLYGON_KEY", "")
-
-
 def _make_quote(price, prev, high, low, last_date) -> dict:
-    """Monta dict de cotação no formato padrão."""
-    price, prev = float(price), float(prev or price)
+    price = float(price or 0)
+    prev  = float(prev  or price)
+    if not price:
+        return {}
     is_today = (last_date == now_brt().date()) if last_date else False
     chg_p    = ((price - prev) / prev * 100) if prev else None
     return {
@@ -340,87 +332,81 @@ def _make_quote(price, prev, high, low, last_date) -> dict:
     }
 
 
-# ── Twelve Data: IBOVESPA ─────────────────────────────────────────────────────
-
-@st.cache_data(ttl=TTL_MERCADOS, show_spinner=False)
-def _quote_bovespa(key: str) -> dict:
-    """Cotação do IBOVESPA via Twelve Data."""
+def _fetch_td_batch(group: dict, key: str) -> dict:
+    """Busca um grupo de até 8 símbolos via Twelve Data."""
+    td_syms = list(group.values())
+    sym_map = {v: k for k, v in group.items()}
     try:
-        r = requests.get(TD_QUOTE.format(sym=_TD_SYM, key=key),
-                         headers=_HDRS_JSON, timeout=10, verify=False)
+        r = requests.get(
+            TD_QUOTE.format(syms=",".join(td_syms), key=key),
+            headers=_HDRS_JSON, timeout=20, verify=False,
+        )
         if r.status_code != 200:
-            logger.warning("Twelve Data BVSP HTTP %s", r.status_code)
+            logger.warning("Twelve Data HTTP %s", r.status_code)
             return {}
-        q = r.json()
-        if q.get("status") == "error" or q.get("code") == 429:
-            logger.warning("Twelve Data BVSP: %s", q.get("message", ""))
+        data = r.json()
+        if isinstance(data, dict) and data.get("code") == 429:
+            logger.warning("Twelve Data rate limit: %s", data.get("message", ""))
             return {}
-        price = float(q.get("close") or 0)
-        if not price:
-            return {}
-        dt_str    = q.get("datetime", "")
-        last_date = datetime.strptime(dt_str[:10], "%Y-%m-%d").date()
-        return _make_quote(price, q.get("previous_close") or price,
-                           q.get("high"), q.get("low"), last_date)
+        out = {}
+        # Resposta única (1 símbolo) ou múltipla (dict de dicts)
+        if "symbol" in data:
+            data = {data["symbol"]: data}
+        for td_sym, q in data.items():
+            if not isinstance(q, dict):
+                continue
+            if q.get("status") == "error":
+                logger.warning("Twelve Data erro %s: %s", td_sym, q.get("message"))
+                continue
+            try:
+                price     = float(q.get("close") or 0)
+                prev      = float(q.get("previous_close") or price)
+                high      = q.get("high")
+                low       = q.get("low")
+                dt_str    = q.get("datetime", "")
+                last_date = datetime.strptime(dt_str[:10], "%Y-%m-%d").date()
+                internal  = sym_map.get(td_sym)
+                if internal and price:
+                    out[internal] = _make_quote(price, prev, high, low, last_date)
+            except Exception as e:
+                logger.warning("Twelve Data parse %s: %s", td_sym, e)
+        return out
     except Exception as e:
-        logger.warning("Twelve Data BVSP: %s", e)
+        logger.warning("Twelve Data batch: %s", e)
         return {}
 
 
-# ── Polygon.io: internacionais ────────────────────────────────────────────────
-
-def _pg_parse_prev(ticker_pg: str, data: dict) -> dict | None:
-    """Parseia resposta do endpoint /prev do Polygon.io."""
-    try:
-        results = data.get("results", [])
-        if not results:
-            return None
-        r = results[0]
-        price     = float(r.get("c", 0))  # close
-        prev      = float(r.get("o", 0))  # open como proxy do prev close
-        high      = r.get("h")
-        low       = r.get("l")
-        ts        = r.get("t", 0)
-        last_date = datetime.fromtimestamp(ts / 1000).date() if ts else None
-        if not price:
-            return None
-        return _make_quote(price, prev, high, low, last_date)
-    except Exception:
-        return None
-
-
-@st.cache_data(ttl=TTL_MERCADOS, show_spinner=False)
-def _quotes_polygon(key: str) -> dict:
-    """Cotações de todos os internacionais via Polygon.io (prev close endpoint)."""
+@st.cache_data(ttl=130, show_spinner=False)
+def _all_quotes_td(key: str) -> dict:
+    """
+    Busca os 13 símbolos Twelve Data em dois grupos sequenciais
+    com 62s de intervalo — respeita o limite de 8 créditos/minuto.
+    Cache de 130s: roda ~1x a cada 2 minutos.
+    """
     out = {}
-    for sym_int, (pg_ticker, _) in _PG_SYMBOLS.items():
-        try:
-            r = requests.get(PG_PREV.format(ticker=pg_ticker, key=key),
-                             headers=_HDRS_JSON, timeout=10, verify=False)
-            if r.status_code == 200:
-                parsed = _pg_parse_prev(pg_ticker, r.json())
-                if parsed:
-                    out[sym_int] = parsed
-                else:
-                    logger.warning("Polygon: sem dados para %s (%s)", sym_int, pg_ticker)
-            elif r.status_code == 403:
-                logger.warning("Polygon: acesso negado para %s — verifique o plano", pg_ticker)
-            else:
-                logger.warning("Polygon: HTTP %s para %s", r.status_code, pg_ticker)
-        except Exception as e:
-            logger.warning("Polygon %s: %s", pg_ticker, e)
+    # Grupo A: 7 símbolos
+    a = _fetch_td_batch(_GROUP_A, key)
+    out.update(a)
+    if a:
+        logger.warning("Twelve Data Grupo A: %d/%d", len(a), len(_GROUP_A))
+    # Aguarda a janela de rate limit do Twelve Data zerar (60s + margem)
+    time.sleep(62)
+    # Grupo B: 6 símbolos
+    b = _fetch_td_batch(_GROUP_B, key)
+    out.update(b)
+    if b:
+        logger.warning("Twelve Data Grupo B: %d/%d", len(b), len(_GROUP_B))
     return out
 
 
-# ── CoinGecko: cripto ─────────────────────────────────────────────────────────
-
-@st.cache_data(ttl=TTL_MERCADOS, show_spinner=False)
-def _quotes_crypto() -> dict:
-    """BTC e ETH via CoinGecko — gratuito, sem chave."""
+@st.cache_data(ttl=65, show_spinner=False)
+def _all_quotes_crypto() -> dict:
+    """BTC e ETH via CoinGecko — gratuito."""
     try:
-        ids = ",".join(_CG_IDS.values())
-        r   = requests.get(CG_PRICE.format(ids=ids),
-                           headers=_HDRS_JSON, timeout=10, verify=False)
+        r = requests.get(
+            CG_PRICE.format(ids=",".join(_CG_IDS.values())),
+            headers=_HDRS_JSON, timeout=10, verify=False,
+        )
         if r.status_code != 200:
             logger.warning("CoinGecko HTTP %s", r.status_code)
             return {}
@@ -431,7 +417,7 @@ def _quotes_crypto() -> dict:
             price = float(q.get("usd", 0))
             if not price:
                 continue
-            chg_p = float(q.get("usd_24h_change", 0) or 0)
+            chg_p = float(q.get("usd_24h_change") or 0)
             prev  = price / (1 + chg_p / 100) if chg_p else price
             out[sym] = {
                 "price": price, "prev": prev,
@@ -446,33 +432,15 @@ def _quotes_crypto() -> dict:
         return {}
 
 
-# ── Interface pública ─────────────────────────────────────────────────────────
-
 def get_all_quotes(symbols: tuple) -> dict:
-    """
-    Cotações de todos os ativos:
-    - IBOVESPA → Twelve Data (1 crédito/req)
-    - Internacionais → Polygon.io (sem rate limit)
-    - BTC, ETH → CoinGecko (gratuito)
-    """
-    td_key = _get_td_key()
-    pg_key = _get_pg_key()
-    out    = {}
-
-    if td_key:
-        bvsp = _quote_bovespa(td_key)
-        if bvsp:
-            out["^BVSP"] = bvsp
+    """Cotações de todos os ativos: Twelve Data + CoinGecko."""
+    key = _get_td_key()
+    out = {}
+    if key:
+        out.update(_all_quotes_td(key))
     else:
-        logger.warning("TWELVE_DATA_KEY não configurado")
-
-    if pg_key:
-        out.update(_quotes_polygon(pg_key))
-    else:
-        logger.warning("POLYGON_KEY não configurado")
-
-    out.update(_quotes_crypto())
-
+        logger.warning("TWELVE_DATA_KEY não configurado nos Secrets do Streamlit")
+    out.update(_all_quotes_crypto())
     for sym in symbols:
         if sym not in out:
             logger.warning("Cotação indisponível para %s", sym)
@@ -485,72 +453,50 @@ def get_quote(sym: str) -> dict:
     return get_all_quotes(tuple(s for s, _, _ in GLOBAL.values())).get(sym, {})
 
 
-@st.cache_data(ttl=TTL_HIST, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def get_hist(sym: str, years: int = 5) -> pd.DataFrame:
-    """
-    Histórico de fechamento.
-    - IBOVESPA → Twelve Data
-    - Internacionais → Polygon.io
-    - Cripto → CoinGecko
-    """
-    td_key = _get_td_key()
-    pg_key = _get_pg_key()
+    """Histórico de fechamento via Twelve Data ou CoinGecko."""
+    key    = _get_td_key()
+    td_sym = {**_GROUP_A, **_GROUP_B}.get(sym)
 
-    # IBOVESPA via Twelve Data
-    if sym == "^BVSP" and td_key:
+    # Twelve Data para índices/forex/commodities
+    if key and td_sym:
         try:
             outputsize = min(years * 260, 5000)
-            r = requests.get(TD_HIST.format(sym=_TD_SYM, n=outputsize, key=td_key),
-                             headers=_HDRS_JSON, timeout=20, verify=False)
+            r = requests.get(
+                TD_HIST.format(sym=td_sym, n=outputsize, key=key),
+                headers=_HDRS_JSON, timeout=20, verify=False,
+            )
             if r.status_code == 200:
                 values = r.json().get("values", [])
                 rows   = []
                 for v in values:
                     try:
-                        rows.append({"data":  datetime.strptime(v["datetime"][:10], "%Y-%m-%d"),
-                                     "valor": float(v["close"])})
+                        rows.append({
+                            "data":  datetime.strptime(v["datetime"][:10], "%Y-%m-%d"),
+                            "valor": float(v["close"]),
+                        })
                     except Exception:
                         continue
                 if rows:
                     return pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
         except Exception as e:
-            logger.warning("Twelve Data hist BVSP: %s", e)
+            logger.warning("Twelve Data hist %s: %s", sym, e)
 
-    # Cripto via CoinGecko
+    # CoinGecko para cripto
     cg_id = _CG_IDS.get(sym)
     if cg_id:
         try:
-            r = requests.get(CG_HIST.format(id=cg_id, days=years*365),
-                             headers=_HDRS_JSON, timeout=20, verify=False)
+            r = requests.get(
+                CG_HIST.format(id=cg_id, days=years * 365),
+                headers=_HDRS_JSON, timeout=20, verify=False,
+            )
             if r.status_code == 200:
-                prices = r.json().get("prices", [])
-                rows   = [{"data": datetime.fromtimestamp(p[0]/1000), "valor": float(p[1])}
-                          for p in prices]
+                rows = [{"data": datetime.fromtimestamp(p[0] / 1000), "valor": float(p[1])}
+                        for p in r.json().get("prices", [])]
                 if rows:
                     return pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
         except Exception as e:
             logger.warning("CoinGecko hist %s: %s", sym, e)
-
-    # Internacionais via Polygon.io
-    pg_ticker = _PG_SYMBOLS.get(sym, (None,))[0]
-    if pg_ticker and pg_key:
-        try:
-            to_d   = datetime.now().strftime("%Y-%m-%d")
-            from_d = (datetime.now() - timedelta(days=years*365+10)).strftime("%Y-%m-%d")
-            r = requests.get(PG_HIST.format(ticker=pg_ticker, from_d=from_d, to_d=to_d, key=pg_key),
-                             headers=_HDRS_JSON, timeout=20, verify=False)
-            if r.status_code == 200:
-                results = r.json().get("results", [])
-                rows    = []
-                for v in results:
-                    try:
-                        rows.append({"data":  datetime.fromtimestamp(v["t"]/1000),
-                                     "valor": float(v["c"])})
-                    except Exception:
-                        continue
-                if rows:
-                    return pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
-        except Exception as e:
-            logger.warning("Polygon hist %s: %s", pg_ticker, e)
 
     return pd.DataFrame(columns=["data", "valor"])
