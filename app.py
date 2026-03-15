@@ -18,6 +18,7 @@ from settings import (
     IPCA_GRUPOS_IDS, NAV, NAV_SLUGS, HOME_CHARTS, HOME_KPIS,
     MERCADOS_HIST, CORES_COMP, COR_IPCA_LINHA, COR_MEDIA_NUCL,
     PERIODOS_ORIGINAIS, P_ORIGINAL,
+    H_MEDIUM, H_LARGE, H_XLARGE,
 )
 from data import (
     get_quote, get_hist, get_bcb_full,
@@ -186,7 +187,7 @@ elif st.session_state.pagina == "Monitor Inflação":
 
     _xmax = df_ipca_full["data"].max() if not df_ipca_full.empty else None
     _xmin = (_xmax - pd.DateOffset(months=24)) if _xmax is not None else None
-    fig_cores = cores_overlay_fig(df_ipca_full, nucleo_data, height=480, x_ini=_xmin, x_fim=_xmax)
+    fig_cores = cores_overlay_fig(df_ipca_full, nucleo_data, height=H_XLARGE, x_ini=_xmin, x_fim=_xmax)
     render_chart(fig_cores, "ipca_nucleos")
 
     tab_rows = []
@@ -272,7 +273,7 @@ elif st.session_state.pagina == "Monitor Inflação":
                 for _,row in df_ult.tail(3).iterrows(): _mini_card(row["grupo"],row["valor"])
 
             st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-            render_chart(grupos_linhas_fig(df_grupos_mensal,d_ini=g_ini,d_fim=g_fim,height=440), "ipca_grupos_evolucao")
+            render_chart(grupos_linhas_fig(df_grupos_mensal,d_ini=g_ini,d_fim=g_fim,height=H_LARGE), "ipca_grupos_evolucao")
 
             if not df_grupos_acum.empty:
                 st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
@@ -382,7 +383,7 @@ elif st.session_state.pagina == "Mercados Globais":
             if not dfh.empty:
                 _xmax_h = dfh["data"].max()
                 _xmin_h = _xmax_h - pd.DateOffset(years=2)
-                fig_h = line_fig(dfh, f"{nome_h} — 2 anos", cor_h, suffix=f" {unit_h}", height=320, inter=True, x_ini=_xmin_h, x_fim=_xmax_h)
+                fig_h = line_fig(dfh, f"{nome_h} — 2 anos", cor_h, suffix=f" {unit_h}", height=H_MEDIUM, inter=True, x_ini=_xmin_h, x_fim=_xmax_h)
                 render_chart(fig_h, nome_h)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -419,8 +420,8 @@ elif st.session_state.pagina == "Gráficos":
             if d_ini < d_fim:
                 st.success(f"✅ {len(df_t)} obs. · {label_t} · {freq}")
                 use_bar = (tipo=="bar") and (periodo in PERIODOS_ORIGINAIS)
-                fig = bar_fig(df_t, label_t, suffix=f" {unit_t}", height=440, inter=True, x_ini=d_ini, x_fim=d_fim) if use_bar \
-                    else line_fig(df_t, label_t, cor, suffix=f" {unit_t}", height=440, inter=True, x_ini=d_ini, x_fim=d_fim)
+                fig = bar_fig(df_t, label_t, suffix=f" {unit_t}", height=H_LARGE, inter=True, x_ini=d_ini, x_fim=d_fim) if use_bar \
+                    else line_fig(df_t, label_t, cor, suffix=f" {unit_t}", height=H_LARGE, inter=True, x_ini=d_ini, x_fim=d_fim)
                 render_chart(fig, f"{ind}_{periodo}")
                 dlo = df_t.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ind.replace(' ','_')}_{periodo.replace(' ','_')}.csv",mime="text/csv")
@@ -441,7 +442,7 @@ elif st.session_state.pagina == "Gráficos":
             with cy2: dy_fim = st.date_input("Exibir até",value=dmax_y,min_value=dmin_y,max_value=dmax_y,key="gyfim")
             if dy_ini < dy_fim:
                 st.success(f"✅ {len(dfg)} obs. · {ativo}")
-                fig_y = line_fig(dfg, f"{ativo}", cor, suffix=f" {unit}", height=440, inter=True, x_ini=dy_ini, x_fim=dy_fim)
+                fig_y = line_fig(dfg, f"{ativo}", cor, suffix=f" {unit}", height=H_LARGE, inter=True, x_ini=dy_ini, x_fim=dy_fim)
                 render_chart(fig_y, ativo)
                 dlo = dfg.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV completo ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ativo.replace(' ','_')}_completo.csv",mime="text/csv")
