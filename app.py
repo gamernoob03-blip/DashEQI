@@ -240,9 +240,9 @@ def _y_range_for_window(df, x_min, x_max, value_col="valor", pad=0.15,
     visible = df[mask][value_col].dropna()
     if visible.empty:
         visible = df[value_col].dropna()
-    mn, mx = visible.min(), visible.max()
-    if extra_min is not None: mn = min(mn, extra_min)
-    if extra_max is not None: mx = max(mx, extra_max)
+    mn, mx = float(visible.min()), float(visible.max())
+    if extra_min is not None: mn = min(mn, float(extra_min))
+    if extra_max is not None: mx = max(mx, float(extra_max))
     gap = (mx - mn) * pad if mx != mn else abs(mx) * 0.2 or 1
     return [mn - gap, mx + gap]
 
