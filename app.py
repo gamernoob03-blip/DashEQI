@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, date
 from settings import (
     logger, GLOBAL, SGS, NUCLEO_SGS, BCB_META, BCB_TOLE,
     IPCA_GRUPOS_IDS, NAV, NAV_SLUGS, HOME_CHARTS, HOME_KPIS,
+    MERCADOS_HIST, CORES_COMP, COR_IPCA_LINHA, COR_MEDIA_NUCL,
 )
 from data import (
     get_quote, get_hist, get_bcb_full,
@@ -237,8 +238,8 @@ elif st.session_state.pagina == "Monitor Inflação":
                 if col_a in _df_all.columns:
                     fig_media.add_trace(go.Scatter(x=_df_all["data"],y=_df_all[col_a],mode="lines",name=key,line=dict(color=color,width=1,dash="dot"),opacity=0.55,hovertemplate=f"%{{x|%b/%Y}}<br>{key} acum. 12M: %{{y:.2f}}%<extra></extra>"))
             if not _ipca_a12.empty:
-                fig_media.add_trace(go.Scatter(x=_ipca_a12["data"],y=_ipca_a12["acum12m"],mode="lines",name="IPCA acum. 12M",line=dict(color="#1a2035",width=1.8,dash="dash"),hovertemplate="%{x|%b/%Y}<br>IPCA acum. 12M: %{y:.2f}%<extra></extra>"))
-            fig_media.add_trace(go.Scatter(x=_df_all["data"],y=_df_all["media_a12"],mode="lines+markers",name="Média Núcleos acum. 12M",line=dict(color="#7c3aed",width=2.5),marker=dict(size=6,color="#7c3aed"),hovertemplate="%{x|%b/%Y}<br><b>Média acum. 12M: %{y:.2f}%</b><extra></extra>"))
+                fig_media.add_trace(go.Scatter(x=_ipca_a12["data"],y=_ipca_a12["acum12m"],mode="lines",name="IPCA acum. 12M",line=dict(color=COR_IPCA_LINHA,width=1.8,dash="dash"),hovertemplate="%{x|%b/%Y}<br>IPCA acum. 12M: %{y:.2f}%<extra></extra>"))
+            fig_media.add_trace(go.Scatter(x=_df_all["data"],y=_df_all["media_a12"],mode="lines+markers",name="Média Núcleos acum. 12M",line=dict(color=COR_MEDIA_NUCL,width=2.5),marker=dict(size=6,color=COR_MEDIA_NUCL),hovertemplate="%{x|%b/%Y}<br><b>Média acum. 12M: %{y:.2f}%</b><extra></extra>"))
             fig_media.add_hrect(y0=piso_meta,y1=teto_meta,fillcolor="rgba(22,163,74,0.07)",line_width=0)
             fig_media.add_hline(y=meta_bcb,line_dash="dot",line_color="#16a34a",line_width=1.2,annotation_text=f"Meta {meta_bcb:.1f}%",annotation_position="right",annotation_font=dict(size=10,color="#16a34a"))
             fig_media.update_layout(**{**_I,"margin":dict(l=52,r=16,t=44,b=90)},height=360,title="Núcleos de Inflação — Acumulado 12 Meses (%) vs Meta BCB",hovermode="x unified",legend=dict(orientation="h",yanchor="top",y=-0.22,xanchor="left",x=0,font=dict(size=10,color="#374151"),bgcolor="rgba(255,255,255,0)"))
@@ -247,7 +248,7 @@ elif st.session_state.pagina == "Monitor Inflação":
             fig_media.update_yaxes(range=_yr_m,ticksuffix="%"); fig_media.update_xaxes(range=[str(_xmin_m.date()),str(_xmax_m.date())])
             fig_media = _add_rangeslider(fig_media,360,extra_top=40)
             _last = _df_all["media_a12"].iloc[-1]
-            fig_media.add_annotation(x=_df_all["data"].iloc[-1],y=_last,text=f"  {fmt(_last)}%",showarrow=False,font=dict(size=11,color="#7c3aed",family="Inter"),xanchor="left")
+            fig_media.add_annotation(x=_df_all["data"].iloc[-1],y=_last,text=f"  {fmt(_last)}%",showarrow=False,font=dict(size=11,color=COR_MEDIA_NUCL,family="Inter"),xanchor="left")
             render_chart(fig_media, "nucleos_acum12m")
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
@@ -377,7 +378,7 @@ elif st.session_state.pagina == "Mercados Globais":
         st.markdown(f"<span class='terminal-cat'>{label}</span>", unsafe_allow_html=True)
         cols = st.columns(len(lst))
         for col, nome in zip(cols, lst):
-            sym, unit, _ = GLOBAL[nome]
+            sym, unit, _, cor = GLOBAL[nome]
             with col: st.markdown(_tile(nome, get_quote(sym), unit), unsafe_allow_html=True)
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
@@ -403,22 +404,17 @@ elif st.session_state.pagina == "Mercados Globais":
     # ── Gráficos históricos — fora do fragment, não piscam ───────────────────
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
     sec_title("Histórico Interativo", "2 anos", "badge-daily")
-    _H = {
-        nome: (GLOBAL[nome][0], cor, GLOBAL[nome][1])
-        for nome, cor in [
-            ("IBOVESPA",        "#0891b2"),
-            ("S&P 500",         "#16a34a"),
-            ("Petróleo Brent",  "#d97706"),
-            ("Ouro",            "#b45309"),
-            ("Dólar (USD/BRL)", "#7c3aed"),
-            ("Bitcoin",         "#f59e0b"),
-        ]
-    }
-    for tab,(nome_h,(sym_h,cor_h,unit_h)) in zip(st.tabs(list(_H.keys())),_H.items()):
+    _hist_tabs = {nome: GLOBAL[nome] for nome in MERCADOS_HIST}
+    for tab, (nome_h, (sym_h, unit_h, _, cor_h)) in zip(st.tabs(list(_hist_tabs.keys())), _hist_tabs.items()):
         with tab:
-            dfh = get_hist(sym_h,2)
+            dfh = get_hist(sym_h, 2)
             if not dfh.empty:
-                render_chart(line_fig(dfh,f"{nome_h} — 2 anos",cor_h,suffix=f" {unit_h}",height=320,inter=True), nome_h)
+                _xmax_h = dfh["data"].max()
+                _xmin_h = _xmax_h - pd.DateOffset(years=2)
+                fig_h = line_fig(dfh, f"{nome_h} — 2 anos", cor_h, suffix=f" {unit_h}", height=320, inter=True)
+                fig_h.update_xaxes(range=[str(_xmin_h.date()), str(_xmax_h.date())])
+                fig_h.update_yaxes(range=_y_range_for_window(dfh, _xmin_h, _xmax_h), ticksuffix=f" {unit_h}".strip())
+                render_chart(fig_h, nome_h)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GRÁFICOS
@@ -482,7 +478,7 @@ elif st.session_state.pagina == "Gráficos":
     with t2:
         co1,_ = st.columns([2,3])
         with co1: ativo = st.selectbox("Ativo",list(GLOBAL.keys()),key="gativo")
-        sym,unit,_ = GLOBAL[ativo]
+        sym,unit,_,cor = GLOBAL[ativo]
         try:
             with st.spinner(f"Carregando {ativo}..."): dfg = get_hist(sym,years=10)
         except Exception as e:
@@ -496,8 +492,8 @@ elif st.session_state.pagina == "Gráficos":
             with cy2: dy_fim = st.date_input("Exibir até",value=dmax_y,min_value=dmin_y,max_value=dmax_y,key="gyfim")
             if dy_ini < dy_fim:
                 st.success(f"✅ {len(dfg)} obs. · {ativo}")
-                fig_y = line_fig(dfg,f"{ativo}","#004031",suffix=f" {unit}",height=440,inter=True)
-                fig_y.update_xaxes(range=[str(dy_ini),str(dy_fim)])
+                fig_y = line_fig(dfg, f"{ativo}", cor, suffix=f" {unit}", height=440, inter=True)
+                fig_y.update_xaxes(range=[str(dy_ini), str(dy_fim)])
                 fig_y.update_yaxes(range=_y_range_for_window(dfg, dy_ini, dy_fim), ticksuffix=f" {unit}".strip())
                 render_chart(fig_y, ativo)
                 dlo = dfg.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
@@ -510,7 +506,7 @@ elif st.session_state.pagina == "Gráficos":
 
     # ── Aba Comparar Séries ───────────────────────────────────────────────────
     with t3:
-        _CORES_COMP = ["#1a2035","#dc2626","#0891b2","#16a34a","#d97706","#7c3aed"]
+        # cores from settings.py
         st.markdown("<div style='font-size:12px;color:#6b7280;margin:0 0 14px'>Selecione 2 ou 3 indicadores BCB para comparar no mesmo gráfico. Séries com unidades diferentes usam eixo Y duplo.</div>", unsafe_allow_html=True)
 
         _ind_lista = list(SGS.keys())
@@ -552,7 +548,7 @@ elif st.session_state.pagina == "Gráficos":
                 fig_comp = go.Figure()
                 for i, (_nome, (_df_c, _unit)) in enumerate(_series_comp.items()):
                     if _df_c.empty: continue
-                    _cor  = _CORES_COMP[i % len(_CORES_COMP)]
+                    _cor  = CORES_COMP[i % len(CORES_COMP)]
                     _yref = "y2" if (_usa_y2 and _unit != _unidades[0]) else "y"
                     fig_comp.add_trace(go.Scatter(
                         x=_df_c["data"], y=_df_c["valor"],
@@ -576,6 +572,22 @@ elif st.session_state.pagina == "Gráficos":
 
                 fig_comp.update_layout(**_layout_comp, height=460, title=" vs ".join(_selecionados))
                 fig_comp.update_xaxes(range=[str(dc_ini), str(dc_fim)])
+                # Y range para a janela visível — mesmo padrão do Monitor Inflação
+                _df_comp_all = pd.concat([
+                    _df_c.rename(columns={"valor": f"v{i}"})
+                    for i, (_nome, (_df_c, _)) in enumerate(_series_comp.items())
+                    if not _df_c.empty
+                ], axis=0)
+                if not _df_comp_all.empty:
+                    _vals_vis = pd.concat([
+                        _df_c[(_df_c["data"] >= pd.Timestamp(dc_ini)) &
+                              (_df_c["data"] <= pd.Timestamp(dc_fim))]["valor"]
+                        for _, (_df_c, _) in _series_comp.items() if not _df_c.empty
+                    ])
+                    if not _vals_vis.empty:
+                        _mn, _mx = float(_vals_vis.min()), float(_vals_vis.max())
+                        _pad = (_mx - _mn) * 0.15 if _mx != _mn else abs(_mx) * 0.2 or 1
+                        fig_comp.update_yaxes(range=[_mn - _pad, _mx + _pad])
                 fig_comp = _add_rangeslider(fig_comp, 460)
                 render_chart(fig_comp, "comparacao_series")
 
@@ -660,7 +672,7 @@ else:
         with co1: ativo = st.selectbox("Ativo",list(GLOBAL.keys()),key="eativo")
         with co2: anos = st.select_slider("Período (anos)",[1,2,3,5,10],value=5,key="eanos")
         if st.button("Gerar CSV",type="primary",key="ebtn2"):
-            sym,unit,_ = GLOBAL[ativo]
+            sym,unit,_,cor = GLOBAL[ativo]
             try:
                 with st.spinner(f"Buscando {ativo}..."): dfe = get_hist(sym,anos)
             except Exception as e:
