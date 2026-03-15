@@ -3,6 +3,9 @@ app.py — EQI Dashboard Macro
 Importa de config, data, charts e components.
 Toda lógica de página fica aqui, inline.
 """
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import time
 import warnings
 import urllib3
