@@ -273,10 +273,52 @@ _STOOQ_HDRS = {
 }
 
 
+def _stooq_last_close(sym: str) -> dict | None:
+    """Busca o último fechamento histórico quando o Stooq retorna N/D (fim de semana/feriado)."""
+    try:
+        r = requests.get(STOOQ_HIST.format(s=sym),
+                         headers=_STOOQ_HDRS, timeout=15, verify=False)
+        if r.status_code != 200:
+            return None
+        lines = r.text.strip().splitlines()
+        if len(lines) < 3:
+            return None
+        headers = [h.strip() for h in lines[0].split(",")]
+        # Pega as duas últimas linhas para calcular variação
+        def parse_row(line):
+            vals = [v.strip() for v in line.split(",")]
+            return dict(zip(headers, vals))
+        last = parse_row(lines[-1])
+        prev_row = parse_row(lines[-2]) if len(lines) >= 3 else last
+        price = float(last.get("Close", 0))
+        prev  = float(prev_row.get("Close", 0)) or price
+        if not price:
+            return None
+        date_str  = last.get("Date", "")
+        last_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        chg_p     = ((price - prev) / prev * 100) if prev else None
+        return {
+            "price":      price, "prev": prev,
+            "chg_p":      chg_p, "chg_v": (price - prev) if prev else None,
+            "day_high":   float(last.get("High", price) or price),
+            "day_low":    float(last.get("Low",  price) or price),
+            "market":     "CLOSED",
+            "is_live":    False, "is_extended": False, "is_closed": True,
+            "close_date": last_date.strftime("%d/%m/%Y"),
+        }
+    except Exception as e:
+        logger.warning("Stooq hist fallback %s: %s", sym, e)
+        return None
+
+
 def _parse_stooq_quote(sym: str, row: dict) -> dict | None:
     """Converte uma linha CSV do Stooq para o formato padrão de cotação."""
     try:
-        price = float(row.get("Close") or row.get("close") or 0)
+        close_raw = row.get("Close") or row.get("close") or ""
+        # N/D = mercado fechado (fim de semana/feriado) → usa histórico
+        if close_raw.strip() in ("N/D", "N/A", "", "-"):
+            return _stooq_last_close(sym)
+        price = float(close_raw)
         if not price:
             return None
         prev  = float(row.get("Open")  or row.get("open")  or price)
