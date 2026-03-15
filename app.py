@@ -19,7 +19,7 @@ from settings import (
     IPCA_GRUPOS_IDS, NAV, NAV_SLUGS,
 )
 from data import (
-    get_quote, get_hist, get_bcb_full, get_bcb_range,
+    get_quote, get_hist, get_bcb_full,
     get_ipca_grupos, get_ipca_acum_grupo, aplicar_periodo,
 )
 from charts import (
@@ -75,17 +75,16 @@ if st.session_state.pagina == "Início":
     page_header("EQI Dashboard Macro")
     try:
         with st.spinner("Carregando..."):
-            ibov  = get_quote(GLOBAL["IBOVESPA"][0])
-            usd   = get_quote(GLOBAL["Dólar (USD/BRL)"][0])
-            eur   = get_quote(GLOBAL["Euro (EUR/BRL)"][0])
-            hoje  = datetime.today()
-            ini13 = (hoje - timedelta(days=400)).strftime("%d/%m/%Y")
-            ini30 = (hoje - timedelta(days=45)).strftime("%d/%m/%Y")
-            ini3a = (hoje - timedelta(days=3*365)).strftime("%d/%m/%Y")
-            fim   = hoje.strftime("%d/%m/%Y")
-            dsel  = get_bcb_range(432,   ini13, fim); dipca = get_bcb_range(433,   ini13, fim)
-            dibc  = get_bcb_range(24363, ini13, fim); dcam  = get_bcb_range(1,     ini30, fim)
-            dpib  = get_bcb_range(4380,  ini3a, fim); ddes  = get_bcb_range(24369, ini3a, fim)
+            ibov = get_quote(GLOBAL["IBOVESPA"][0])
+            usd  = get_quote(GLOBAL["Dólar (USD/BRL)"][0])
+            eur  = get_quote(GLOBAL["Euro (EUR/BRL)"][0])
+            # Carrega séries completas — filtra na exibição
+            dsel  = get_bcb_full(432)
+            dipca = get_bcb_full(433)
+            dibc  = get_bcb_full(24363)
+            dcam  = get_bcb_full(1)
+            dpib  = get_bcb_full(4380)
+            ddes  = get_bcb_full(24369)
     except Exception as e:
         logger.error("Início: %s", e); st.error("⚠️ Erro ao carregar dados.")
         if st.button("↺ Tentar novamente"): st.cache_data.clear(); st.rerun()
@@ -126,22 +125,32 @@ if st.session_state.pagina == "Início":
         else: kpi_card("Desemprego (PNAD)", "—", sub="BCB indisponível")
 
     st.markdown('<div class="sec-title">Histórico — 12 meses <span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px">→ análise completa em Monitor Inflação</span></div>', unsafe_allow_html=True)
+
+    # Filtros de exibição — série completa no cache, recorte só na renderização
+    def _tail_months(df, n=13):
+        return df.tail(n) if not df.empty else df
+
     ca, cb = st.columns(2)
     with ca:
-        if not dsel.empty:  render_chart(line_fig(dsel, "Selic (% a.a.)", "#1a2035", suffix="%"), "selic", static=True)
+        _d = _tail_months(dsel)
+        if not _d.empty: render_chart(line_fig(_d, "Selic (% a.a.)", "#1a2035", suffix="%"), "selic", static=True)
     with cb:
-        if not dipca.empty: render_chart(bar_fig(dipca, "IPCA (% ao mês)", suffix="%"), "ipca", static=True)
+        _d = _tail_months(dipca)
+        if not _d.empty: render_chart(bar_fig(_d, "IPCA (% ao mês)", suffix="%"), "ipca", static=True)
     cc, cd = st.columns(2)
     with cc:
-        df30 = dcam.tail(30) if not dcam.empty else dcam
-        if not df30.empty: render_chart(line_fig(df30, "Dólar PTAX — 30 dias (R$)", "#d97706", suffix=" R$"), "dolar_ptax", static=True)
+        _d = dcam.tail(30) if not dcam.empty else dcam
+        if not _d.empty: render_chart(line_fig(_d, "Dólar PTAX — 30 dias (R$)", "#d97706", suffix=" R$"), "dolar_ptax", static=True)
     with cd:
-        if not dibc.empty: render_chart(line_fig(dibc, "IBC-Br", "#0891b2", fill=False), "ibc_br", static=True)
+        _d = _tail_months(dibc)
+        if not _d.empty: render_chart(line_fig(_d, "IBC-Br", "#0891b2", fill=False), "ibc_br", static=True)
     ce, cf = st.columns(2)
     with ce:
-        if not dpib.empty: render_chart(bar_fig(dpib, "PIB — variação trimestral (%)", suffix="%"), "pib", static=True)
+        _d = _tail_months(dpib, n=8)  # trimestral — 8 obs ≈ 2 anos
+        if not _d.empty: render_chart(bar_fig(_d, "PIB — variação trimestral (%)", suffix="%"), "pib", static=True)
     with cf:
-        if not ddes.empty: render_chart(line_fig(ddes, "Desemprego PNAD (%)", "#dc2626", suffix="%"), "desemprego", static=True)
+        _d = _tail_months(ddes, n=8)  # trimestral
+        if not _d.empty: render_chart(line_fig(_d, "Desemprego PNAD (%)", "#dc2626", suffix="%"), "desemprego", static=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MONITOR INFLAÇÃO
@@ -633,7 +642,12 @@ else:
         if st.button("Gerar CSV",type="primary",key="ebtn"):
             cod,unit,freq,_ = SGS[ind]
             try:
-                with st.spinner(f"Carregando {ind}..."): dfe = get_bcb_full(cod) if "completa" in modo else get_bcb_range(cod,d_ini.strftime("%d/%m/%Y"),d_fim.strftime("%d/%m/%Y"))
+                with st.spinner(f"Carregando {ind}..."):
+                    # Sempre busca série completa — filtra em memória se necessário
+                    dfe = get_bcb_full(cod)
+                    if "completa" not in modo and not dfe.empty:
+                        dfe = dfe[(dfe["data"] >= pd.Timestamp(d_ini)) &
+                                  (dfe["data"] <= pd.Timestamp(d_fim))].reset_index(drop=True)
             except Exception as e:
                 logger.error("Exportar BCB: %s",e); dfe = pd.DataFrame(columns=["data","valor"])
             if dfe.empty:
