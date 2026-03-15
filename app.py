@@ -78,21 +78,21 @@ BCB_META  = {2020:4.0, 2021:3.75, 2022:3.5, 2023:3.25, 2024:3.0, 2025:3.0, 2026:
 BCB_TOLE  = 1.5   # ± 1,5 pp
 
 # ── Grupos IPCA (IBGE SIDRA) ──────────────────────────────────────────────────
-# IDs da classificação 315, tabela 7060 — apenas os 9 grupos principais
-# (7169 = índice geral, usado como referência mas filtrado na exibição)
+# IDs da classificação 315, tabela 7060 — 9 grupos principais + índice geral
 IPCA_GRUPOS_IDS = "7169,7170,7445,7486,7625,7626,7627,7628,7629,7630"
 
-# Whitelist dos 9 grupos principais do IPCA (nomes exatos após remover prefixo numérico)
-IPCA_GRUPOS_PRINCIPAIS = {
-    "Alimentação e bebidas",
-    "Habitação",
-    "Artigos de residência",
-    "Vestuário",
-    "Transportes",
-    "Saúde e cuidados pessoais",
-    "Despesas pessoais",
-    "Educação",
-    "Comunicação",
+# Mapeamento ID → nome padronizado (fonte: IBGE SIDRA)
+IPCA_ID_NOME = {
+    "7169": "Índice Geral",
+    "7170": "Alimentação e bebidas",
+    "7445": "Habitação",
+    "7486": "Artigos de residência",
+    "7625": "Vestuário",
+    "7626": "Transportes",
+    "7627": "Saúde e cuidados pessoais",
+    "7628": "Despesas pessoais",
+    "7629": "Educação",
+    "7630": "Comunicação",
 }
 
 IPCA_GRUPOS_CORES = {
@@ -475,13 +475,11 @@ def get_ipca_grupos(n_periodos: int = 24) -> pd.DataFrame:
                 cats = resultado.get("classificacoes", [])
                 if not cats:
                     continue
-                cat_dict   = cats[0].get("categoria", {})
-                grupo_id   = next(iter(cat_dict), None)
-                grupo_nome = next(iter(cat_dict.values()), None)
-                if grupo_nome and "." in grupo_nome:
-                    grupo_nome = grupo_nome.split(".", 1)[-1].strip()
-                # Filtra apenas índice geral e os 9 grupos principais
-                if grupo_nome not in IPCA_GRUPOS_PRINCIPAIS and grupo_id != "7169":
+                cat_dict = cats[0].get("categoria", {})
+                grupo_id = str(next(iter(cat_dict), ""))
+                # Usa nome padronizado pelo ID — ignora qualquer subgrupo não mapeado
+                grupo_nome = IPCA_ID_NOME.get(grupo_id)
+                if not grupo_nome:
                     continue
                 series_list = resultado.get("series", [])
                 if not series_list:
@@ -528,13 +526,10 @@ def get_ipca_acum_grupo(n_periodos: int = 24) -> pd.DataFrame:
                 cats = resultado.get("classificacoes", [])
                 if not cats:
                     continue
-                cat_dict   = cats[0].get("categoria", {})
-                grupo_id   = next(iter(cat_dict), None)
-                grupo_nome = next(iter(cat_dict.values()), None)
-                if grupo_nome and "." in grupo_nome:
-                    grupo_nome = grupo_nome.split(".", 1)[-1].strip()
-                # Filtra apenas os 9 grupos principais (sem índice geral no acumulado)
-                if grupo_nome not in IPCA_GRUPOS_PRINCIPAIS:
+                cat_dict = cats[0].get("categoria", {})
+                grupo_id = str(next(iter(cat_dict), ""))
+                grupo_nome = IPCA_ID_NOME.get(grupo_id)
+                if not grupo_nome:
                     continue
                 series_list = resultado.get("series", [])
                 if not series_list:
