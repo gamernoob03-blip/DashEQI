@@ -37,10 +37,5 @@ Pronto — o dashboard ficará disponível em uma URL pública do tipo:
 ## Estrutura do projeto
 
 ```
-macro_brasil/
-├── app.py                  # App principal
-├── requirements.txt        # Dependências Python
-├── .streamlit/
-│   └── config.toml         # Tema escuro
-└── README.md
+
 ```
