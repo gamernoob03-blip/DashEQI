@@ -14,9 +14,10 @@ import streamlit as st
 from datetime import datetime, timedelta, date
 
 from settings import (
-    logger, GLOBAL, SGS, NUCLEO_SGS, BCB_META, BCB_TOLE,
+    logger, GLOBAL, SGS, SGS_PERIODOS, NUCLEO_SGS, BCB_META, BCB_TOLE,
     IPCA_GRUPOS_IDS, NAV, NAV_SLUGS, HOME_CHARTS, HOME_KPIS,
     MERCADOS_HIST, CORES_COMP, COR_IPCA_LINHA, COR_MEDIA_NUCL,
+    PERIODOS_ORIGINAIS, P_ORIGINAL,
 )
 from data import (
     get_quote, get_hist, get_bcb_full,
@@ -75,12 +76,12 @@ if st.session_state.pagina == "Início":
     page_header("EQI Dashboard Macro")
     try:
         with st.spinner("Carregando..."):
-            ibov = get_quote(GLOBAL["IBOVESPA"][0])
-            usd  = get_quote(GLOBAL["Dólar (USD/BRL)"][0])
-            eur  = get_quote(GLOBAL["Euro (EUR/BRL)"][0])
+            ibov = get_quote(GLOBAL["IBOVESPA"].simbolo)
+            usd  = get_quote(GLOBAL["Dólar (USD/BRL)"].simbolo)
+            eur  = get_quote(GLOBAL["Euro (EUR/BRL)"].simbolo)
             # Carrega séries completas de uma vez — filtro na exibição
             _home_data = {
-                nome: get_bcb_full(SGS[nome][0])
+                nome: get_bcb_full(SGS[nome].codigo)
                 for nome, _ in HOME_CHARTS
             }
     except Exception as e:
@@ -113,7 +114,7 @@ if st.session_state.pagina == "Início":
             if not df_k.empty:
                 v  = df_k["valor"].iloc[-1]
                 d2 = float(v - df_k["valor"].iloc[-2]) if len(df_k) >= 2 else None
-                kpi_card(label, fmt_str.format(v=fmt(v), u=SGS[nome][1]),
+                kpi_card(label, fmt_str.format(v=fmt(v), u=SGS[nome].unidade),
                          chg_p=d2, sub=f"Ref: {df_k['data'].iloc[-1].strftime('%b/%Y')}")
             else:
                 kpi_card(label, "—", sub="BCB indisponível")
@@ -130,7 +131,7 @@ if st.session_state.pagina == "Início":
     for (nome_a, meses_a), (nome_b, meses_b) in _chart_pairs:
         col_a, col_b = st.columns(2)
         for col, nome, meses in [(col_a, nome_a, meses_a), (col_b, nome_b, meses_b)]:
-            cod, unit, freq, tipo, cor = SGS[nome]
+            s = SGS[nome]; cod,unit,freq,tipo,cor = s.codigo,s.unidade,s.frequencia,s.tipo,s.cor
             df = _since(_home_data.get(nome, pd.DataFrame()), meses)
             titulo = f"{nome} ({unit})"
             with col:
@@ -146,7 +147,7 @@ elif st.session_state.pagina == "Monitor Inflação":
     try:
         with st.spinner("Carregando indicadores de inflação..."):
             df_ipca_full     = get_bcb_full(433)
-            nucleo_data      = {key: (get_bcb_full(cod), label, color) for key, (cod, label, color) in NUCLEO_SGS.items()}
+            nucleo_data      = {key: (get_bcb_full(n.codigo), n.descricao, n.cor) for key, n in NUCLEO_SGS.items()}
             df_grupos_mensal = get_ipca_grupos(60)
             df_grupos_acum   = get_ipca_acum_grupo(60)
     except Exception as e:
@@ -195,7 +196,7 @@ elif st.session_state.pagina == "Monitor Inflação":
     for key, (df_n, label, _) in nucleo_data.items():
         if not df_n.empty:
             ul = df_n.iloc[-1]; an = df_n.iloc[-2]["valor"] if len(df_n) >= 2 else None
-            tab_rows.append({"Medida":f"{key} — {label}","Cód. SGS":NUCLEO_SGS[key][0],"Último valor":f"{fmt(ul['valor'])}%","Ref.":ul["data"].strftime("%b/%Y"),"Var. s/ ant.":f"{'+' if an and ul['valor']>=an else ''}{fmt(ul['valor']-an)}pp" if an else "—"})
+            tab_rows.append({"Medida":f"{key} — {label}","Cód. SGS":NUCLEO_SGS[key].codigo,"Último valor":f"{fmt(ul['valor'])}%","Ref.":ul["data"].strftime("%b/%Y"),"Var. s/ ant.":f"{'+' if an and ul['valor']>=an else ''}{fmt(ul['valor']-an)}pp" if an else "—"})
     if tab_rows:
         st.dataframe(pd.DataFrame(tab_rows), hide_index=True, use_container_width=True, height=46+len(tab_rows)*35)
         # Downloads dos núcleos
@@ -348,7 +349,7 @@ elif st.session_state.pagina == "Mercados Globais":
         st.markdown(f"<span class='terminal-cat'>{label}</span>", unsafe_allow_html=True)
         cols = st.columns(len(lst))
         for col, nome in zip(cols, lst):
-            sym, unit, _, cor = GLOBAL[nome]
+            g = GLOBAL[nome]; sym,unit,cor = g.simbolo,g.unidade,g.cor
             with col: st.markdown(_tile(nome, get_quote(sym), unit), unsafe_allow_html=True)
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
@@ -389,32 +390,13 @@ elif st.session_state.pagina == "Mercados Globais":
 # ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.pagina == "Gráficos":
     page_header("Gráficos")
-    PERIODOS = {
-        "Selic":             ["Original"],
-        "IPCA":              ["Mensal (original)","Acumulado 12M","Acumulado no ano"],
-        "IBC-Br":            ["Nível (original)","Var. mensal (m/m)","Var. trimestral (t/t)","Var. anual (a/a)"],
-        "Dólar PTAX":        ["Original"],
-        "PIB":               ["Var. trimestral (original)","Var. anual (a/a)","Acumulado 4 trimestres"],
-        "Desemprego":        ["Original"],
-        "IGP-M":             ["Mensal (original)","Acumulado 12M"],
-        "IPCA-15":           ["Mensal (original)","Acumulado 12M"],
-        "Exportações":       ["Original","Var. mensal (m/m)","Var. anual (a/a)"],
-        "Importações":       ["Original","Var. mensal (m/m)","Var. anual (a/a)"],
-        "Dívida/PIB":        ["Original","Var. mensal (m/m)"],
-        "Focus: IPCA 12M":   ["Original"],
-        "Focus: IPCA ano":   ["Original"],
-        "Focus: Selic ano":  ["Original"],
-        "Focus: PIB ano":    ["Original"],
-        "Focus: Câmbio ano": ["Original"],
-        "Swap DI×Pré 360d":  ["Original"],
-    }
     t1, t2, t3 = st.tabs(["BCB — Indicadores Brasil", "Yahoo Finance — Ativos Globais", "Comparar Séries"])
     with t1:
         col1,col2 = st.columns([2,2])
         with col1: ind = st.selectbox("Indicador",list(SGS.keys()),key="gind")
-        opts = PERIODOS.get(ind,["Original"])
+        opts = SGS_PERIODOS.get(ind, [P_ORIGINAL])
         with col2: periodo = st.selectbox("Período / Transformação",opts,key="gperiodo") if len(opts)>1 else opts[0]
-        cod,unit,freq,tipo,cor = SGS[ind]
+        s = SGS[ind]; cod,unit,freq,tipo,cor = s.codigo,s.unidade,s.frequencia,s.tipo,s.cor
         try:
             with st.spinner(f"Carregando {ind}..."): df_f = get_bcb_full(cod)
         except Exception as e:
@@ -427,7 +409,7 @@ elif st.session_state.pagina == "Gráficos":
         else:
             df_t,unit_t = aplicar_periodo(df_f,periodo,ind)
             if not unit_t: unit_t = unit
-            label_t = f"{ind} — {periodo}" if periodo not in ("Original","Mensal (original)","Nível (original)","Var. trimestral (original)") else f"{ind} ({unit_t})"
+            label_t = f"{ind} — {periodo}" if periodo not in PERIODOS_ORIGINAIS else f"{ind} ({unit_t})"
             dmin = df_t["data"].min().date(); dmax = df_t["data"].max().date()
             st.markdown(f"<div style='font-size:11px;color:#6b7280;margin:6px 0 14px'>Disponível: <strong>{dmin.strftime('%d/%m/%Y')}</strong> → <strong>{dmax.strftime('%d/%m/%Y')}</strong> · {len(df_t)} obs.</div>",unsafe_allow_html=True)
             _d24 = max(dmin,date(dmax.year-2,dmax.month,dmax.day))
@@ -436,7 +418,7 @@ elif st.session_state.pagina == "Gráficos":
             with c3: d_fim = st.date_input("Exibir até",value=dmax,min_value=dmin,max_value=dmax,key="gfim")
             if d_ini < d_fim:
                 st.success(f"✅ {len(df_t)} obs. · {label_t} · {freq}")
-                use_bar = (tipo=="bar") and (periodo in ("Original","Mensal (original)","Var. trimestral (original)"))
+                use_bar = (tipo=="bar") and (periodo in PERIODOS_ORIGINAIS)
                 fig = bar_fig(df_t, label_t, suffix=f" {unit_t}", height=440, inter=True, x_ini=d_ini, x_fim=d_fim) if use_bar \
                     else line_fig(df_t, label_t, cor, suffix=f" {unit_t}", height=440, inter=True, x_ini=d_ini, x_fim=d_fim)
                 render_chart(fig, f"{ind}_{periodo}")
@@ -445,7 +427,7 @@ elif st.session_state.pagina == "Gráficos":
     with t2:
         co1,_ = st.columns([2,3])
         with co1: ativo = st.selectbox("Ativo",list(GLOBAL.keys()),key="gativo")
-        sym,unit,_,cor = GLOBAL[ativo]
+        g = GLOBAL[ativo]; sym,unit,cor = g.simbolo,g.unidade,g.cor
         try:
             with st.spinner(f"Carregando {ativo}..."): dfg = get_hist(sym,years=10)
         except Exception as e:
@@ -485,7 +467,7 @@ elif st.session_state.pagina == "Gráficos":
         # Carrega séries
         _series_comp = {}
         for _nome in _selecionados:
-            _cod, _unit, _freq, _, _ = SGS[_nome]
+            s = SGS[_nome]; _cod,_unit,_freq = s.codigo,s.unidade,s.frequencia
             try:
                 with st.spinner(f"Carregando {_nome}..."): _df_c = get_bcb_full(_cod)
             except Exception as e:
@@ -531,36 +513,17 @@ else:
     page_header("Exportar Dados")
     fonte = st.radio("Fonte:",["BCB/SGS — Brasil","Yahoo Finance — Globais"],horizontal=True)
     st.markdown("<div style='height:10px'></div>",unsafe_allow_html=True)
-    _PE = {
-        "Selic":             ["Original"],
-        "IPCA":              ["Mensal (original)","Acumulado 12M","Acumulado no ano"],
-        "IBC-Br":            ["Nível (original)","Var. mensal (m/m)","Var. trimestral (t/t)","Var. anual (a/a)"],
-        "Dólar PTAX":        ["Original"],
-        "PIB":               ["Var. trimestral (original)","Var. anual (a/a)","Acumulado 4 trimestres"],
-        "Desemprego":        ["Original"],
-        "IGP-M":             ["Mensal (original)","Acumulado 12M"],
-        "IPCA-15":           ["Mensal (original)","Acumulado 12M"],
-        "Exportações":       ["Original","Var. mensal (m/m)","Var. anual (a/a)"],
-        "Importações":       ["Original","Var. mensal (m/m)","Var. anual (a/a)"],
-        "Dívida/PIB":        ["Original","Var. mensal (m/m)"],
-        "Focus: IPCA 12M":   ["Original"],
-        "Focus: IPCA ano":   ["Original"],
-        "Focus: Selic ano":  ["Original"],
-        "Focus: PIB ano":    ["Original"],
-        "Focus: Câmbio ano": ["Original"],
-        "Swap DI×Pré 360d":  ["Original"],
-    }
     if fonte == "BCB/SGS — Brasil":
         c1,c2 = st.columns([2,2])
         with c1: ind = st.selectbox("Indicador",list(SGS.keys()),index=1,key="eind")
-        opts_e = _PE.get(ind,["Original"])
+        opts_e = SGS_PERIODOS.get(ind, [P_ORIGINAL])
         with c2: periodo_e = st.selectbox("Período / Transformação",opts_e,key="eperiodo") if len(opts_e)>1 else opts_e[0]
         c3,c4 = st.columns(2)
         with c3: d_ini = st.date_input("De",value=datetime.today()-timedelta(days=365*5),key="eini")
         with c4: d_fim = st.date_input("Até",value=datetime.today(),key="efim")
         modo = st.radio("Dados:",["Filtrar pelo intervalo acima","Série completa desde o início"],horizontal=True,key="emodo")
         if st.button("Gerar CSV",type="primary",key="ebtn"):
-            cod,unit,freq,_,_ = SGS[ind]
+            s = SGS[ind]; cod,unit,freq = s.codigo,s.unidade,s.frequencia
             try:
                 with st.spinner(f"Carregando {ind}..."):
                     # Sempre busca série completa — filtra em memória se necessário
@@ -580,7 +543,7 @@ else:
                 if not unit_t: unit_t = unit
                 if dfe2.empty: st.warning("Transformação resultou em série vazia.")
                 else:
-                    label_e = f"{ind} — {periodo_e}" if periodo_e not in ("Original","Mensal (original)","Nível (original)","Var. trimestral (original)") else ind
+                    label_e = f"{ind} — {periodo_e}" if periodo_e not in PERIODOS_ORIGINAIS else ind
                     dlo = dfe2.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                     st.success(f"✅ {len(dlo)} registros — {label_e}")
                     st.dataframe(dlo.rename(columns={"data":"Data","valor":f"Valor ({unit_t})"}),use_container_width=True,height=min(400,46+len(dlo)*35))
@@ -591,7 +554,7 @@ else:
         with co1: ativo = st.selectbox("Ativo",list(GLOBAL.keys()),key="eativo")
         with co2: anos = st.select_slider("Período (anos)",[1,2,3,5,10],value=5,key="eanos")
         if st.button("Gerar CSV",type="primary",key="ebtn2"):
-            sym,unit,_,cor = GLOBAL[ativo]
+            g = GLOBAL[ativo]; sym,unit,cor = g.simbolo,g.unidade,g.cor
             try:
                 with st.spinner(f"Buscando {ativo}..."): dfe = get_hist(sym,anos)
             except Exception as e:
@@ -614,15 +577,14 @@ else:
     if st.session_state.tabela_aberta:
         st.markdown("<div style='background:#fff;border:1px solid #e2e5e9;border-radius:12px;padding:20px 24px;margin-top:4px'>",unsafe_allow_html=True)
         st.markdown("**BCB/SGS — Indicadores Brasil**")
-        _tr = {"Selic":["Original"],"IPCA":["Mensal","Acum. 12M","Acum. ano"],"IBC-Br":["Nível","m/m","t/t","a/a"],"Dólar PTAX":["Original"],"PIB":["Trimestral","a/a","Acum. 4 tri"],"Desemprego":["Original"],"IGP-M":["Mensal","Acum. 12M"],"IPCA-15":["Mensal","Acum. 12M"],"Exportações":["Original","m/m","a/a"],"Importações":["Original","m/m","a/a"],"Dívida/PIB":["Original","m/m"]}
-        df_sgs = pd.DataFrame([{"Indicador":k,"Cód. SGS":v[0],"Unidade":v[1],"Freq.":v[2],"Transformações":", ".join(_tr.get(k,["Original"]))} for k,v in SGS.items()])
+        df_sgs = pd.DataFrame([{"Indicador":k,"Cód. SGS":v.codigo,"Unidade":v.unidade,"Freq.":v.frequencia,"Transformações":", ".join(SGS_PERIODOS.get(k,[P_ORIGINAL]))} for k,v in SGS.items()])
         st.dataframe(df_sgs,hide_index=True,use_container_width=True,height=46+len(df_sgs)*35)
         st.markdown("<div style='height:16px'></div>",unsafe_allow_html=True)
         st.markdown("**Yahoo Finance — Ativos Globais**")
         df_yf = pd.DataFrame([{
             "Ativo":   k,
-            "Símbolo": v[0],
-            "Unidade": v[1],
+            "Símbolo": v.simbolo,
+            "Unidade": v.unidade,
             "Tipo":    ("Câmbio"    if k in ("Dólar (USD/BRL)", "Euro (EUR/BRL)") else
                         "Índice"    if k in ("IBOVESPA", "S&P 500", "Nasdaq 100", "Dow Jones", "FTSE 100", "DAX") else
                         "Commodity" if k in ("Petróleo Brent", "Petróleo WTI", "Ouro", "Prata", "Cobre") else
