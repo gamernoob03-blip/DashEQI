@@ -136,8 +136,16 @@ def get_bcb_full(c: int) -> pd.DataFrame:
     """
     Série completa BCB c — única função de fetch BCB no sistema.
     Toda filtragem por período é feita em memória nas páginas que consomem os dados.
+    Fallback automático: se a série completa falhar (timeout em séries grandes),
+    busca os últimos 10 anos.
     """
     raw = _fetch(BCB_BASE.format(c=c) + "?formato=json")
+    if not raw:
+        # Fallback: últimos 10 anos (cobre séries diárias grandes como Dólar PTAX)
+        hoje = datetime.today()
+        ini  = (hoje - timedelta(days=365 * 10)).strftime("%d/%m/%Y")
+        fim  = hoje.strftime("%d/%m/%Y")
+        raw  = _fetch(BCB_BASE.format(c=c) + f"?formato=json&dataInicial={ini}&dataFinal={fim}")
     if not raw:
         logger.warning("BCB: série completa %s indisponível", c)
     return _build_with_fallback(raw, c)
