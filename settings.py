@@ -24,8 +24,6 @@ TTL_HIST     = 3_600     # histórico Yahoo Finance: 1 hora
 
 # ── URLs das APIs ─────────────────────────────────────────────────────────────
 BCB_BASE   = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{c}/dados"
-YAHOO_SNAP = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1d&range=5d"
-YAHOO_HIST = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1d&range={y}y"
 IBGE_SIDRA = (
     "https://servicodados.ibge.gov.br/api/v3/agregados/{tabela}/periodos/{periodos}"
     "/variaveis/{var}?localidades=N1[all]&classificacao={cls}"
