@@ -259,124 +259,81 @@ def get_ipca_acum_grupo(n_periodos: int = 60) -> pd.DataFrame:
 
 
 
-# ── Yahoo Finance — sessão autenticada com cookie ─────────────────────────────
+# ── Stooq — cotações e histórico ──────────────────────────────────────────────
+# Stooq é gratuito, sem chave de API, sem bloqueio de IP de nuvem.
+# URL de cotação:  https://stooq.com/q/l/?s=SYMBOL&f=sd2t2ohlcv&h&e=csv
+# URL de histórico: https://stooq.com/q/d/l/?s=SYMBOL&i=d
 
-def _yf_session() -> requests.Session:
-    """
-    Cria sessão com cookie do Yahoo Finance para evitar rate limit em IPs de nuvem.
-    """
-    session = requests.Session()
-    session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate",
-        "Connection": "keep-alive",
-    })
+STOOQ_QUOTE = "https://stooq.com/q/l/?s={s}&f=sd2t2ohlcv&h&e=csv"
+STOOQ_HIST  = "https://stooq.com/q/d/l/?s={s}&i=d"
+
+_STOOQ_HDRS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "text/html,application/xhtml+xml,*/*",
+}
+
+
+def _parse_stooq_quote(sym: str, row: dict) -> dict | None:
+    """Converte uma linha CSV do Stooq para o formato padrão de cotação."""
     try:
-        session.get("https://fc.yahoo.com", timeout=5, verify=False)
-        session.get("https://finance.yahoo.com", timeout=5, verify=False)
-    except Exception:
-        pass
-    return session
-
-
-def _fetch_quotes_http(symbols: list[str]) -> dict[str, dict]:
-    """Busca cotações via Yahoo Finance v7 com sessão autenticada (batch)."""
-    session  = _yf_session()
-    syms_str = ",".join(symbols)
-    for base in ["https://query1.finance.yahoo.com", "https://query2.finance.yahoo.com"]:
+        price = float(row.get("Close") or row.get("close") or 0)
+        if not price:
+            return None
+        prev  = float(row.get("Open")  or row.get("open")  or price)
+        high  = float(row.get("High")  or row.get("high")  or price)
+        low   = float(row.get("Low")   or row.get("low")   or price)
+        date_str = row.get("Date") or row.get("date") or ""
         try:
-            r = session.get(
-                f"{base}/v7/finance/quote?symbols={syms_str}"
-                "&fields=regularMarketPrice,regularMarketPreviousClose,"
-                "regularMarketDayHigh,regularMarketDayLow,regularMarketTime",
-                timeout=15, verify=False,
-            )
-            if r.status_code != 200:
-                continue
-            results = r.json().get("quoteResponse", {}).get("result", [])
-            if not results:
-                continue
-            out = {}
-            for q in results:
-                sym   = q.get("symbol", "")
-                price = q.get("regularMarketPrice")
-                if not price:
-                    continue
-                price = float(price)
-                prev  = float(q["regularMarketPreviousClose"]) if q.get("regularMarketPreviousClose") else price
-                rt    = q.get("regularMarketTime")
-                last_date = datetime.fromtimestamp(rt).date() if rt else now_brt().date()
-                is_today  = (last_date == now_brt().date())
-                chg_p     = ((price - prev) / prev * 100) if prev else None
-                out[sym] = {
-                    "price": price, "prev": prev, "chg_p": chg_p,
-                    "chg_v": (price - prev) if prev else None,
-                    "day_high":  float(h) if (h := q.get("regularMarketDayHigh")) else None,
-                    "day_low":   float(l) if (l := q.get("regularMarketDayLow"))  else None,
-                    "market":    "REGULAR" if is_today else "CLOSED",
-                    "is_live":   is_today, "is_extended": False, "is_closed": not is_today,
-                    "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
-                }
-            if out:
-                return out
-        except Exception as e:
-            logger.warning("Yahoo v7 (%s): %s", base, e)
-    return {}
-
-
-def _fetch_quotes_yfinance(symbols: list[str]) -> dict[str, dict]:
-    """Fallback: yfinance Tickers com sessão autenticada."""
-    try:
-        import yfinance as yf
-        session = _yf_session()
-        out     = {}
-        tickers = yf.Tickers(" ".join(symbols), session=session)
-        for sym in symbols:
-            try:
-                tk   = tickers.tickers[sym]
-                hist = tk.history(period="5d", auto_adjust=True)
-                if hist.empty:
-                    continue
-                price     = float(hist["Close"].iloc[-1])
-                prev      = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else price
-                last_date = pd.Timestamp(hist.index[-1]).tz_localize(None).date()
-                is_today  = (last_date == now_brt().date())
-                chg_p     = ((price - prev) / prev * 100) if prev else None
-                out[sym] = {
-                    "price": price, "prev": prev, "chg_p": chg_p,
-                    "chg_v": (price - prev),
-                    "day_high":  float(hist["High"].iloc[-1]),
-                    "day_low":   float(hist["Low"].iloc[-1]),
-                    "market":    "REGULAR" if is_today else "CLOSED",
-                    "is_live":   is_today, "is_extended": False, "is_closed": not is_today,
-                    "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
-                }
-            except Exception:
-                continue
-        return out
-    except Exception as e:
-        logger.warning("yfinance Tickers: %s", e)
-        return {}
+            last_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except Exception:
+            last_date = now_brt().date()
+        is_today = (last_date == now_brt().date())
+        chg_p    = ((price - prev) / prev * 100) if prev else None
+        return {
+            "price":      price, "prev": prev,
+            "chg_p":      chg_p, "chg_v": (price - prev) if prev else None,
+            "day_high":   high,  "day_low": low,
+            "market":     "REGULAR" if is_today else "CLOSED",
+            "is_live":    is_today, "is_extended": False, "is_closed": not is_today,
+            "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
+        }
+    except Exception:
+        return None
 
 
 @st.cache_data(ttl=TTL_MERCADOS, show_spinner=False)
 def get_all_quotes(symbols: tuple) -> dict:
-    """Cotações em batch com fallback. Usa tuple para ser hashável pelo cache."""
-    syms   = list(symbols)
-    result = _fetch_quotes_http(syms)
-    if not result:
-        logger.warning("Yahoo HTTP falhou, tentando yfinance com sessão...")
-        result = _fetch_quotes_yfinance(syms)
+    """
+    Busca cotações de todos os símbolos via Stooq (uma requisição por símbolo,
+    mas Stooq não tem rate limit agressivo como o Yahoo Finance).
+    """
+    out = {}
     for sym in symbols:
-        if sym not in result:
-            logger.warning("Yahoo Finance: cotação indisponível para %s", sym)
-    return result
+        try:
+            r = requests.get(STOOQ_QUOTE.format(s=sym),
+                             headers=_STOOQ_HDRS, timeout=10, verify=False)
+            if r.status_code != 200:
+                logger.warning("Stooq: HTTP %s para %s", r.status_code, sym)
+                continue
+            lines = r.text.strip().splitlines()
+            if len(lines) < 2:
+                logger.warning("Stooq: resposta vazia para %s", sym)
+                continue
+            headers = [h.strip() for h in lines[0].split(",")]
+            values  = [v.strip() for v in lines[1].split(",")]
+            row     = dict(zip(headers, values))
+            parsed  = _parse_stooq_quote(sym, row)
+            if parsed:
+                out[sym] = parsed
+            else:
+                logger.warning("Stooq: cotação indisponível para %s — %s", sym, row)
+        except Exception as e:
+            logger.warning("Stooq: erro para %s — %s", sym, e)
+    return out
 
 
 def get_quote(sym: str) -> dict:
-    """Cotação individual — usa o cache batch internamente."""
+    """Cotação individual via cache batch do Stooq."""
     from settings import GLOBAL
     all_syms = tuple(s for s, _, _ in GLOBAL.values())
     return get_all_quotes(all_syms).get(sym, {})
@@ -384,29 +341,35 @@ def get_quote(sym: str) -> dict:
 
 @st.cache_data(ttl=TTL_HIST, show_spinner=False)
 def get_hist(sym: str, years: int = 5) -> pd.DataFrame:
-    """Histórico de fechamento com sessão autenticada."""
-    session = _yf_session()
+    """Histórico de fechamento via Stooq."""
     try:
-        import yfinance as yf
-        tk  = yf.Ticker(sym, session=session)
-        df  = tk.history(period=f"{years}y", auto_adjust=True)
-        if not df.empty:
-            result = pd.DataFrame({"data": df.index, "valor": df["Close"].values.flatten()})
-            result["data"] = pd.to_datetime(result["data"]).dt.tz_localize(None)
-            return result.dropna().reset_index(drop=True)
+        r = requests.get(STOOQ_HIST.format(s=sym),
+                         headers=_STOOQ_HDRS, timeout=20, verify=False)
+        if r.status_code != 200:
+            logger.warning("Stooq hist: HTTP %s para %s", r.status_code, sym)
+            return pd.DataFrame(columns=["data", "valor"])
+        lines = r.text.strip().splitlines()
+        if len(lines) < 2:
+            return pd.DataFrame(columns=["data", "valor"])
+        headers = [h.strip() for h in lines[0].split(",")]
+        rows = []
+        for line in lines[1:]:
+            vals = [v.strip() for v in line.split(",")]
+            row  = dict(zip(headers, vals))
+            try:
+                dt    = datetime.strptime(row.get("Date",""), "%Y-%m-%d")
+                close = float(row.get("Close", 0))
+                if close:
+                    rows.append({"data": dt, "valor": close})
+            except Exception:
+                continue
+        if not rows:
+            return pd.DataFrame(columns=["data", "valor"])
+        df = pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
+        # Filtra pelo período solicitado
+        cutoff = datetime.now() - timedelta(days=years * 365 + 5)
+        df = df[df["data"] >= cutoff].reset_index(drop=True)
+        return df
     except Exception as e:
-        logger.warning("yfinance hist %s: %s", sym, e)
-    try:
-        r = session.get(
-            f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range={years}y",
-            timeout=15, verify=False,
-        )
-        res = r.json()["chart"]["result"][0]
-        df  = pd.DataFrame({
-            "data":  pd.to_datetime(res["timestamp"], unit="s"),
-            "valor": res["indicators"]["quote"][0]["close"],
-        })
-        return df.dropna().reset_index(drop=True)
-    except Exception as e:
-        logger.warning("Yahoo HTTP hist %s: %s", sym, e)
+        logger.warning("Stooq hist %s: %s", sym, e)
         return pd.DataFrame(columns=["data", "valor"])
