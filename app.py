@@ -576,14 +576,15 @@ elif st.session_state.pagina == "Expectativas":
         st.warning("⚠️ Dados do Boletim Focus indisponíveis para este indicador.")
     else:
         # KPIs — última leitura
-        _ult = df_focus.iloc[-1]
-        _ant = df_focus.iloc[-2] if len(df_focus) >= 2 else _ult
+        _ult  = df_focus.iloc[-1]
+        _ant  = df_focus.iloc[-2] if len(df_focus) >= 2 else _ult
         _delta = float(_ult["mediana"] - _ant["mediana"])
+        _ref   = f"Ref: {_ult['data'].strftime('%d/%m/%Y')}"
         kc1, kc2, kc3, kc4 = st.columns(4)
-        with kc1: kpi_card("Mediana (última)", f"{fmt(_ult['mediana'])}%", chg_p=_delta*100/_ant['mediana'] if _ant['mediana'] else None, sub=f"Ref: {_ult['data'].strftime('%d/%m/%Y')}")
-        with kc2: kpi_card("Mínimo (última)", f"{fmt(_ult['minimo'])}%" if pd.notna(_ult.get('minimo')) else "—")
-        with kc3: kpi_card("Máximo (última)", f"{fmt(_ult['maximo'])}%" if pd.notna(_ult.get('maximo')) else "—")
-        with kc4: kpi_card("Desvio padrão", f"{fmt(_ult['desvio'])}%" if pd.notna(_ult.get('desvio')) else "—", sub="Dispersão das expectativas")
+        with kc1: kpi_card("Mediana (última)", f"{fmt(_ult['mediana'])}%", chg_p=_delta*100/_ant['mediana'] if _ant['mediana'] else None, sub=_ref)
+        with kc2: kpi_card("Mínimo (última)",  f"{fmt(_ult['minimo'])}%"  if pd.notna(_ult.get('minimo')) else "—", sub=_ref)
+        with kc3: kpi_card("Máximo (última)",  f"{fmt(_ult['maximo'])}%"  if pd.notna(_ult.get('maximo')) else "—", sub=_ref)
+        with kc4: kpi_card("Desvio padrão",    f"{fmt(_ult['desvio'])}%"  if pd.notna(_ult.get('desvio')) else "—", sub="Dispersão das expectativas")
 
         st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
