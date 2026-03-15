@@ -266,11 +266,53 @@ def get_ipca_acum_grupo(n_periodos: int = 60) -> pd.DataFrame:
 
 STOOQ_QUOTE = "https://stooq.com/q/l/?s={s}&f=sd2t2ohlcv&h&e=csv"
 STOOQ_HIST  = "https://stooq.com/q/d/l/?s={s}&i=d"
+BRAPI_QUOTE = "https://brapi.dev/api/quote/{s}?interval=1d"
 
 _STOOQ_HDRS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Accept": "text/html,application/xhtml+xml,*/*",
 }
+
+# Símbolos que usam brapi.dev em vez do Stooq (ativos brasileiros em BRL)
+_BRAPI_SYMBOLS = {"^BVSP"}
+
+
+def _fetch_brapi_quote(sym: str) -> dict | None:
+    """Busca cotação via brapi.dev — funciona para IBOVESPA em BRL sem bloqueio."""
+    try:
+        ticker = sym.replace("^", "%5E")
+        r = requests.get(BRAPI_QUOTE.format(s=ticker),
+                         headers=_STOOQ_HDRS, timeout=10, verify=False)
+        if r.status_code != 200:
+            return None
+        data    = r.json()
+        results = data.get("results", [])
+        if not results:
+            return None
+        q         = results[0]
+        price     = q.get("regularMarketPrice")
+        prev      = q.get("regularMarketPreviousClose") or price
+        if not price:
+            return None
+        price, prev = float(price), float(prev)
+        dh        = q.get("regularMarketDayHigh")
+        dl        = q.get("regularMarketDayLow")
+        rt        = q.get("regularMarketTime")
+        last_date = datetime.fromtimestamp(rt).date() if rt else now_brt().date()
+        is_today  = (last_date == now_brt().date())
+        chg_p     = ((price - prev) / prev * 100) if prev else None
+        return {
+            "price":      price, "prev": prev,
+            "chg_p":      chg_p, "chg_v": (price - prev) if prev else None,
+            "day_high":   float(dh) if dh else None,
+            "day_low":    float(dl) if dl else None,
+            "market":     "REGULAR" if is_today else "CLOSED",
+            "is_live":    is_today, "is_extended": False, "is_closed": not is_today,
+            "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
+        }
+    except Exception as e:
+        logger.warning("brapi %s: %s", sym, e)
+        return None
 
 
 def _stooq_last_close(sym: str) -> dict | None:
@@ -347,12 +389,21 @@ def _parse_stooq_quote(sym: str, row: dict) -> dict | None:
 
 @st.cache_data(ttl=TTL_MERCADOS, show_spinner=False)
 def get_all_quotes(symbols: tuple) -> dict:
-    """
-    Busca cotações de todos os símbolos via Stooq (uma requisição por símbolo,
-    mas Stooq não tem rate limit agressivo como o Yahoo Finance).
-    """
+    """Cotações em batch. Usa brapi para ativos BR, Stooq para o resto."""
     out = {}
+    stooq_syms = []
+    # Separa símbolos por fonte
     for sym in symbols:
+        if sym in _BRAPI_SYMBOLS:
+            result = _fetch_brapi_quote(sym)
+            if result:
+                out[sym] = result
+            else:
+                logger.warning("brapi: cotação indisponível para %s", sym)
+        else:
+            stooq_syms.append(sym)
+    # Busca o restante via Stooq
+    for sym in stooq_syms:
         try:
             r = requests.get(STOOQ_QUOTE.format(s=sym),
                              headers=_STOOQ_HDRS, timeout=10, verify=False)
@@ -361,7 +412,6 @@ def get_all_quotes(symbols: tuple) -> dict:
                 continue
             lines = r.text.strip().splitlines()
             if len(lines) < 2:
-                logger.warning("Stooq: resposta vazia para %s", sym)
                 continue
             headers = [h.strip() for h in lines[0].split(",")]
             values  = [v.strip() for v in lines[1].split(",")]
@@ -373,6 +423,9 @@ def get_all_quotes(symbols: tuple) -> dict:
                 logger.warning("Stooq: cotação indisponível para %s — %s", sym, row)
         except Exception as e:
             logger.warning("Stooq: erro para %s — %s", sym, e)
+    for sym in symbols:
+        if sym not in out:
+            logger.warning("Cotação indisponível para %s", sym)
     return out
 
 
@@ -385,10 +438,32 @@ def get_quote(sym: str) -> dict:
 
 @st.cache_data(ttl=TTL_HIST, show_spinner=False)
 def get_hist(sym: str, years: int = 5) -> pd.DataFrame:
-    """Histórico de fechamento via Stooq."""
+    """Histórico de fechamento. Usa brapi para IBOVESPA, Stooq para o resto."""
+    # brapi para IBOVESPA em BRL
+    if sym in _BRAPI_SYMBOLS:
+        try:
+            ticker = sym.replace("^", "%5E")
+            r = requests.get(
+                f"https://brapi.dev/api/quote/{ticker}?range={years}y&interval=1d",
+                headers=_STOOQ_HDRS, timeout=20, verify=False,
+            )
+            if r.status_code == 200:
+                results = r.json().get("results", [])
+                if results and results[0].get("historicalDataPrice"):
+                    rows = []
+                    for p in results[0]["historicalDataPrice"]:
+                        try:
+                            rows.append({"data": datetime.fromtimestamp(p["date"]), "valor": float(p["close"])})
+                        except Exception:
+                            continue
+                    if rows:
+                        return pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
+        except Exception as e:
+            logger.warning("brapi hist %s: %s", sym, e)
+
+    # Stooq para demais ativos
     try:
-        r = requests.get(STOOQ_HIST.format(s=sym),
-                         headers=_STOOQ_HDRS, timeout=20, verify=False)
+        r = requests.get(STOOQ_HIST.format(s=sym), headers=_STOOQ_HDRS, timeout=20, verify=False)
         if r.status_code != 200:
             logger.warning("Stooq hist: HTTP %s para %s", r.status_code, sym)
             return pd.DataFrame(columns=["data", "valor"])
@@ -401,18 +476,18 @@ def get_hist(sym: str, years: int = 5) -> pd.DataFrame:
             vals = [v.strip() for v in line.split(",")]
             row  = dict(zip(headers, vals))
             try:
-                dt    = datetime.strptime(row.get("Date",""), "%Y-%m-%d")
-                close = float(row.get("Close", 0))
+                dt    = datetime.strptime(row.get("Date", ""), "%Y-%m-%d")
+                close = float(row.get("Close", 0) or 0)
                 if close:
                     rows.append({"data": dt, "valor": close})
             except Exception:
                 continue
         if not rows:
             return pd.DataFrame(columns=["data", "valor"])
-        df = pd.DataFrame(rows).sort_values("data").reset_index(drop=True)        # Filtra pelo período solicitado
+        df     = pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
         cutoff = datetime.now() - timedelta(days=years * 365 + 5)
-        df = df[df["data"] >= cutoff].reset_index(drop=True)
-        return df
+        return df[df["data"] >= cutoff].reset_index(drop=True)
     except Exception as e:
         logger.warning("Stooq hist %s: %s", sym, e)
+        return pd.DataFrame(columns=["data", "valor"])
         return pd.DataFrame(columns=["data", "valor"])
