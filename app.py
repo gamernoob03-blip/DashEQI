@@ -6,11 +6,16 @@ Toda lógica de página fica aqui, inline.
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# set_page_config DEVE ser o primeiro comando Streamlit — antes de qualquer import
+# que possa chamar st.* no nível de módulo (ex: @st.cache_resource em data.py)
+import streamlit as st
+st.set_page_config(page_title="EQI Dashboard Macro", page_icon="🇧🇷",
+                   layout="wide", initial_sidebar_state="expanded", menu_items={})
+
 import time
 import warnings
 import urllib3
 import pandas as pd
-import streamlit as st
 from datetime import datetime, timedelta, date
 
 from settings import (
@@ -38,9 +43,6 @@ warnings.filterwarnings("ignore", message="Unverified HTTPS")
 
 _GRUPO_IDS = [g.strip() for g in IPCA_GRUPOS_IDS.split(",")]
 
-# ── Configuração ──────────────────────────────────────────────────────────────
-st.set_page_config(page_title="EQI Dashboard Macro", page_icon="🇧🇷",
-                   layout="wide", initial_sidebar_state="expanded", menu_items={})
 inject_css()
 
 # ── Estado de sessão ──────────────────────────────────────────────────────────
