@@ -292,71 +292,70 @@ _YF_INV = {v: k for k, v in _YF_SYMBOLS.items()}
 
 def _fetch_yf_quotes() -> dict:
     """
-    Busca cotações de todos os símbolos via yfinance em uma única chamada.
-    Chamado apenas pelo background thread — nunca durante page load.
+    Busca cotações via yfinance em batch sequencial (threads=False).
+    Evita esgotamento do connection pool e rate limit por requisições simultâneas.
     """
     yf_syms = list(_YF_SYMBOLS.values())
-    try:
-        # download em batch: uma sessão, todos os símbolos, período mínimo
-        df = _yf.download(
-            yf_syms,
-            period="5d",
-            auto_adjust=True,
-            progress=False,
-            group_by="ticker",
-            threads=True,
-        )
-        if df.empty:
-            logger.warning("yfinance: download retornou vazio")
-            return {}
+    for attempt in range(3):
+        try:
+            df = _yf.download(
+                yf_syms,
+                period="5d",
+                auto_adjust=True,
+                progress=False,
+                group_by="ticker",
+                threads=False,   # sequencial — evita connection pool overflow
+            )
+            if df.empty:
+                logger.warning("yfinance: download retornou vazio (tentativa %d)", attempt+1)
+                time.sleep(15 * (attempt + 1))  # backoff: 15s, 30s, 45s
+                continue
 
-        out = {}
-        for yf_sym in yf_syms:
-            try:
-                if isinstance(df.columns, pd.MultiIndex):
-                    closes = df[yf_sym]["Close"].dropna()
-                    highs  = df[yf_sym]["High"].dropna()
-                    lows   = df[yf_sym]["Low"].dropna()
-                else:
-                    closes = df["Close"].dropna()
-                    highs  = df["High"].dropna()
-                    lows   = df["Low"].dropna()
+            out = {}
+            for yf_sym in yf_syms:
+                try:
+                    if isinstance(df.columns, pd.MultiIndex):
+                        closes = df[yf_sym]["Close"].dropna()
+                        highs  = df[yf_sym]["High"].dropna()
+                        lows   = df[yf_sym]["Low"].dropna()
+                    else:
+                        closes = df["Close"].dropna()
+                        highs  = df["High"].dropna()
+                        lows   = df["Low"].dropna()
 
-                if closes.empty:
-                    continue
+                    if closes.empty:
+                        continue
 
-                price     = float(closes.iloc[-1])
-                prev      = float(closes.iloc[-2]) if len(closes) >= 2 else price
-                high      = float(highs.iloc[-1]) if not highs.empty else None
-                low       = float(lows.iloc[-1])  if not lows.empty  else None
-                last_date = pd.Timestamp(closes.index[-1]).tz_localize(None).date()
-                is_today  = (last_date == now_brt().date())
-                chg_p     = ((price - prev) / prev * 100) if prev else None
+                    price     = float(closes.iloc[-1])
+                    prev      = float(closes.iloc[-2]) if len(closes) >= 2 else price
+                    high      = float(highs.iloc[-1]) if not highs.empty else None
+                    low       = float(lows.iloc[-1])  if not lows.empty  else None
+                    last_date = pd.Timestamp(closes.index[-1]).tz_localize(None).date()
+                    is_today  = (last_date == now_brt().date())
+                    chg_p     = ((price - prev) / prev * 100) if prev else None
 
-                internal = _YF_INV.get(yf_sym)
-                if internal:
-                    out[internal] = {
-                        "price":      price,
-                        "prev":       prev,
-                        "chg_p":      chg_p,
-                        "chg_v":      price - prev,
-                        "day_high":   high,
-                        "day_low":    low,
-                        "market":     "REGULAR" if is_today else "CLOSED",
-                        "is_live":    is_today,
-                        "is_extended": False,
-                        "is_closed":  not is_today,
-                        "close_date": last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
-                    }
-            except Exception as e:
-                logger.warning("yfinance parse %s: %s", yf_sym, e)
+                    internal = _YF_INV.get(yf_sym)
+                    if internal:
+                        out[internal] = {
+                            "price":       price, "prev": prev,
+                            "chg_p":       chg_p, "chg_v": price - prev,
+                            "day_high":    high,  "day_low": low,
+                            "market":      "REGULAR" if is_today else "CLOSED",
+                            "is_live":     is_today, "is_extended": False,
+                            "is_closed":   not is_today,
+                            "close_date":  last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
+                        }
+                except Exception as e:
+                    logger.warning("yfinance parse %s: %s", yf_sym, e)
 
-        logger.info("yfinance: %d/%d símbolos obtidos", len(out), len(yf_syms))
-        return out
+            logger.info("yfinance: %d/%d símbolos obtidos", len(out), len(yf_syms))
+            return out
 
-    except Exception as e:
-        logger.warning("yfinance download: %s", e)
-        return {}
+        except Exception as e:
+            logger.warning("yfinance download (tentativa %d): %s", attempt+1, e)
+            time.sleep(15 * (attempt + 1))
+
+    return {}
 
 
 # ── Cache compartilhado (15 min) ──────────────────────────────────────────────
