@@ -141,9 +141,9 @@ def get_bcb_full(c: int) -> pd.DataFrame:
     """
     raw = _fetch(BCB_BASE.format(c=c) + "?formato=json")
     if not raw:
-        # Fallback: últimos 10 anos (cobre séries diárias grandes como Dólar PTAX)
+        # Fallback: últimos 20 anos (cobre séries longas como Selic e Dólar PTAX)
         hoje = datetime.today()
-        ini  = (hoje - timedelta(days=365 * 10)).strftime("%d/%m/%Y")
+        ini  = (hoje - timedelta(days=365 * 20)).strftime("%d/%m/%Y")
         fim  = hoje.strftime("%d/%m/%Y")
         raw  = _fetch(BCB_BASE.format(c=c) + f"?formato=json&dataInicial={ini}&dataFinal={fim}")
     if not raw:
