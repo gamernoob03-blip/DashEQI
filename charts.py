@@ -225,7 +225,8 @@ def acum12m_meta_fig(df_ipca_full: pd.DataFrame, meta_val: float = 3.0,
     if len(df) < 12:
         return go.Figure()
     df["acum12m"] = df["valor"].rolling(12).sum()
-    df = df.dropna(subset=["acum12m"]).rename(columns={"acum12m": "valor"})
+    # Mantém só data + acum12m para evitar coluna "valor" duplicada após rename
+    df = df.dropna(subset=["acum12m"])[["data", "acum12m"]].rename(columns={"acum12m": "valor"})
     teto = meta_val + BCB_TOLE
 
     fig = go.Figure()
