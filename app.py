@@ -75,7 +75,7 @@ if st.session_state.pagina == "Início":
     page_header("EQI Dashboard Macro")
     try:
         with st.spinner("Carregando..."):
-            ibov  = get_quote("^BVSP"); usd = get_quote("USDBRL=X"); eur = get_quote("EURBRL=X")
+            ibov  = get_quote("^BVSP"); usd = get_quote("usdbrl"); eur = get_quote("eurbrl")
             hoje  = datetime.today()
             ini13 = (hoje - timedelta(days=400)).strftime("%d/%m/%Y")
             ini30 = (hoje - timedelta(days=45)).strftime("%d/%m/%Y")
