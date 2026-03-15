@@ -507,54 +507,68 @@ def get_focus_anual(indicador: str, anos: int = 5) -> pd.DataFrame:
         if not rows:
             return pd.DataFrame()
         df = pd.DataFrame(rows)
-        df["data"]     = pd.to_datetime(df["Data"])
-        df["ano_ref"]  = df["DataReferencia"].astype(str)
-        df["mediana"]  = pd.to_numeric(df["Mediana"],      errors="coerce")
-        df["desvio"]   = pd.to_numeric(df["DesvioPadrao"], errors="coerce")
-        df["minimo"]   = pd.to_numeric(df["Minimo"],       errors="coerce")
-        df["maximo"]   = pd.to_numeric(df["Maximo"],       errors="coerce")
+        df["data"]    = pd.to_datetime(df["Data"])
+        df["ano_ref"] = df["DataReferencia"].astype(str)
+        df["mediana"] = pd.to_numeric(df["Mediana"],      errors="coerce")
+        df["desvio"]  = pd.to_numeric(df["DesvioPadrao"], errors="coerce")
+        df["minimo"]  = pd.to_numeric(df["Minimo"],       errors="coerce")
+        df["maximo"]  = pd.to_numeric(df["Maximo"],       errors="coerce")
         return df[["data","ano_ref","mediana","desvio","minimo","maximo"]].dropna(subset=["mediana"]).sort_values("data").reset_index(drop=True)
     except Exception as e:
         logger.warning("Focus anual %s: %s", indicador, e)
         return pd.DataFrame()
 
 
+# Indicadores que suportam o endpoint de 12 meses (apenas inflação)
+_FOCUS_12M_INDICADORES = {"IPCA", "IPCA-15", "IGP-M", "IGP-DI", "IPC-Fipe"}
+
+
 @st.cache_data(ttl=86_400, show_spinner=False)
 def get_focus_12m(indicador: str, anos: int = 3) -> pd.DataFrame:
     """
-    Expectativas do Boletim Focus para os próximos 12 meses (suavizado).
-    Retorna mediana por data de divulgação.
+    Expectativas do Boletim Focus para os próximos 12 meses (apenas inflação).
+    Para outros indicadores usa expectativas anuais do ano corrente como proxy.
     """
     from settings import FOCUS_BASE
     import urllib.parse
     hoje = datetime.today()
     ini  = (hoje - timedelta(days=anos * 365)).strftime("%Y-%m-%d")
-    filtro = (
-        f"Indicador eq '{indicador}' and "
-        f"Data ge '{ini}' and "
-        f"Suavizado eq 'S'"
-    )
-    url = (
-        f"{FOCUS_BASE}/ExpectativasMercadoInflacao12Meses"
-        f"?$filter={urllib.parse.quote(filtro)}"
-        f"&$select=Indicador,Data,Suavizado,Mediana,DesvioPadrao,Minimo,Maximo"
-        f"&$orderby=Data desc"
-        f"&$format=json"
-        f"&$top=2000"
-    )
-    try:
-        r = requests.get(url, headers=HDRS, timeout=20, verify=False)
-        r.raise_for_status()
-        rows = r.json().get("value", [])
-        if not rows:
-            return pd.DataFrame()
-        df = pd.DataFrame(rows)
-        df["data"]    = pd.to_datetime(df["Data"])
-        df["mediana"] = pd.to_numeric(df["Mediana"],      errors="coerce")
-        df["desvio"]  = pd.to_numeric(df["DesvioPadrao"], errors="coerce")
-        df["minimo"]  = pd.to_numeric(df["Minimo"],       errors="coerce")
-        df["maximo"]  = pd.to_numeric(df["Maximo"],       errors="coerce")
-        return df[["data","mediana","desvio","minimo","maximo"]].dropna(subset=["mediana"]).sort_values("data").reset_index(drop=True)
-    except Exception as e:
-        logger.warning("Focus 12M %s: %s", indicador, e)
-        return pd.DataFrame()
+
+    # Endpoint de 12 meses só existe para indicadores de inflação
+    if indicador in _FOCUS_12M_INDICADORES:
+        filtro = (
+            f"Indicador eq '{indicador}' and "
+            f"Data ge '{ini}' and "
+            f"Suavizado eq 'S'"
+        )
+        url = (
+            f"{FOCUS_BASE}/ExpectativasMercadoInflacao12Meses"
+            f"?$filter={urllib.parse.quote(filtro)}"
+            f"&$select=Indicador,Data,Suavizado,Mediana,DesvioPadrao,Minimo,Maximo"
+            f"&$orderby=Data desc"
+            f"&$format=json"
+            f"&$top=2000"
+        )
+        try:
+            r = requests.get(url, headers=HDRS, timeout=20, verify=False)
+            r.raise_for_status()
+            rows = r.json().get("value", [])
+            if rows:
+                df = pd.DataFrame(rows)
+                df["data"]    = pd.to_datetime(df["Data"])
+                df["mediana"] = pd.to_numeric(df["Mediana"],      errors="coerce")
+                df["desvio"]  = pd.to_numeric(df["DesvioPadrao"], errors="coerce")
+                df["minimo"]  = pd.to_numeric(df["Minimo"],       errors="coerce")
+                df["maximo"]  = pd.to_numeric(df["Maximo"],       errors="coerce")
+                return df[["data","mediana","desvio","minimo","maximo"]].dropna(subset=["mediana"]).sort_values("data").reset_index(drop=True)
+        except Exception as e:
+            logger.warning("Focus 12M %s: %s", indicador, e)
+
+    # Fallback: usa expectativa do ano corrente como proxy de 12M
+    df_anual = get_focus_anual(indicador, anos=anos)
+    if not df_anual.empty:
+        ano_corrente = str(datetime.today().year)
+        df_ano = df_anual[df_anual["ano_ref"] == ano_corrente]
+        if not df_ano.empty:
+            return df_ano[["data","mediana","desvio","minimo","maximo"]].reset_index(drop=True)
+    return pd.DataFrame()
