@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from settings import (
     logger, HDRS,
     TTL_BCB, TTL_IBGE, TTL_MERCADOS, TTL_HIST,
-    BCB_BASE, YAHOO_SNAP, YAHOO_HIST, IBGE_SIDRA,
+    BCB_BASE, IBGE_SIDRA,
     IPCA_GRUPOS_IDS, TZ_BRT,
 )
 
@@ -151,7 +151,7 @@ def get_bcb_full(c: int) -> pd.DataFrame:
         raw = _fetch(BCB_BASE.format(c=c) + f"?formato=json&dataInicial={ini}&dataFinal={fim}",
                      retries=1, timeout=12)
         if raw:
-            logger.warning("BCB: série %s obtida via fallback %da", c, anos)
+            logger.info("BCB: série %s obtida via fallback %da", c, anos)
 
     if not raw:
         logger.warning("BCB: série completa %s indisponível", c)
@@ -252,9 +252,6 @@ def get_ipca_acum_grupo(n_periodos: int = 60) -> pd.DataFrame:
 
 
 
-# ── Stooq — cotações e histórico ──────────────────────────────────────────────
-# Stooq é gratuito, sem chave de API, sem bloqueio de IP de nuvem.
-# URL de cotação:  https://stooq.com/q/l/?s=SYMBOL&f=sd2t2ohlcv&h&e=csv
 
 # ── Cotações de mercado — yfinance + cache de servidor ────────────────────────
 #
@@ -353,7 +350,7 @@ def _fetch_yf_quotes() -> dict:
             except Exception as e:
                 logger.warning("yfinance parse %s: %s", yf_sym, e)
 
-        logger.warning("yfinance: %d/%d símbolos obtidos", len(out), len(yf_syms))
+        logger.info("yfinance: %d/%d símbolos obtidos", len(out), len(yf_syms))
         return out
 
     except Exception as e:
@@ -389,7 +386,7 @@ def _prewarm_home_bcb() -> None:
             get_bcb_full(cod)
         except Exception as e:
             logger.warning("Pré-aquecimento BCB %s: %s", cod, e)
-    logger.warning("Pré-aquecimento BCB: %d séries da página Início prontas", len(codigos))
+    logger.info("Pré-aquecimento BCB: %d séries da página Início prontas", len(codigos))
 
 
 def _bg_refresh_loop():
@@ -409,7 +406,7 @@ def _bg_refresh_loop():
                 # Limpa só o cache de cotações, preserva BCB e histórico
                 _cached_quotes.clear()
                 _cached_quotes()  # força re-população imediata
-            logger.warning("Background refresh: %d cotações renovadas", len(data))
+            logger.info("Background refresh: %d cotações renovadas", len(data))
         except Exception as e:
             logger.warning("Background refresh cotações: %s", e)
 
@@ -429,7 +426,7 @@ def _start_bg_refresher():
     """Inicia o thread de fundo uma única vez por processo Streamlit."""
     t = _threading.Thread(target=_bg_refresh_loop, daemon=True)
     t.start()
-    logger.warning("Background refresher iniciado (cotações 13min · BCB Início 55min)")
+    logger.info("Background refresher iniciado (cotações 13min · BCB Início 55min)")
     return t
 
 _start_bg_refresher()
