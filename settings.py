@@ -207,12 +207,74 @@ IPCA_GRUPOS_CORES = {
     "Comunicação":               "#0ea5e9",
 }
 
+
+# ── Glossário dos indicadores ─────────────────────────────────────────────────
+SGS_DESCRICAO = {
+    "Selic":             "Taxa básica de juros da economia brasileira, definida pelo Copom (Comitê de Política Monetária do BCB) a cada 45 dias.",
+    "IPCA":              "Índice de Preços ao Consumidor Amplo — inflação oficial do Brasil, medida pelo IBGE mensalmente.",
+    "IBC-Br":            "Índice de Atividade Econômica do BCB — proxy mensal do PIB, divulgado com ~45 dias de defasagem.",
+    "Dólar PTAX":        "Taxa de câmbio oficial USD/BRL apurada pelo BCB pela média das operações no mercado interbancário.",
+    "PIB":               "Produto Interno Bruto — soma de todos os bens e serviços produzidos no país. Divulgado trimestralmente pelo IBGE.",
+    "Desemprego":        "Taxa de desocupação da PNAD Contínua (IBGE) — percentual da força de trabalho sem emprego e procurando trabalho.",
+    "IGP-M":             "Índice Geral de Preços – Mercado (FGV) — usado em reajustes de contratos de aluguel e energia elétrica.",
+    "IPCA-15":           "Prévia do IPCA, calculada entre o dia 16 do mês anterior e o 15 do mês corrente. Antecipa a tendência do IPCA.",
+    "Exportações":       "Valor total das exportações brasileiras em US$ milhões (FOB), divulgado mensalmente pelo MDIC.",
+    "Importações":       "Valor total das importações brasileiras em US$ milhões (FOB), divulgado mensalmente pelo MDIC.",
+    "Dívida/PIB":        "Dívida Bruta do Governo Geral como percentual do PIB — indicador de solvência fiscal do Estado brasileiro.",
+    "Focus: IPCA 12M":   "Mediana das expectativas do mercado para o IPCA acumulado nos próximos 12 meses (Boletim Focus/BCB).",
+    "Focus: IPCA ano":   "Mediana das expectativas do mercado para o IPCA do ano corrente (Boletim Focus/BCB).",
+    "Focus: Selic ano":  "Mediana das expectativas do mercado para a taxa Selic ao final do ano corrente (Boletim Focus/BCB).",
+    "Focus: PIB ano":    "Mediana das expectativas do mercado para o crescimento do PIB no ano corrente (Boletim Focus/BCB).",
+    "Focus: Câmbio ano": "Mediana das expectativas do mercado para o câmbio USD/BRL ao final do ano corrente (Boletim Focus/BCB).",
+    "Swap DI×Pré 360d":  "Taxa do swap DI x pré-fixado com vencimento em 360 dias — proxy da expectativa de juros futuros.",
+}
+
+GLOBAL_DESCRICAO = {
+    "IBOVESPA":        "Principal índice da Bolsa de Valores brasileira (B3), composto pelas ações de maior liquidez.",
+    "Dólar (USD/BRL)": "Taxa de câmbio entre o Dólar americano e o Real brasileiro.",
+    "Euro (EUR/BRL)":  "Taxa de câmbio entre o Euro e o Real brasileiro.",
+    "S&P 500":         "Índice das 500 maiores empresas listadas nas bolsas americanas (NYSE e NASDAQ).",
+    "Nasdaq 100":      "Índice das 100 maiores empresas de tecnologia e crescimento listadas na NASDAQ.",
+    "Dow Jones":       "Índice das 30 maiores empresas industriais americanas, um dos mais antigos do mundo.",
+    "FTSE 100":        "Índice das 100 maiores empresas listadas na Bolsa de Londres (LSE).",
+    "DAX":             "Índice das 40 maiores empresas listadas na Bolsa de Frankfurt, principal índice alemão.",
+    "Petróleo Brent":  "Preço do petróleo bruto Brent (Mar do Norte) em USD por barril — referência global.",
+    "Petróleo WTI":    "Preço do petróleo West Texas Intermediate em USD por barril — referência americana.",
+    "Ouro":            "Preço spot do ouro em USD por onça troy — ativo de proteção e reserva de valor.",
+    "Prata":           "Preço spot da prata em USD por onça troy — metal precioso com uso industrial.",
+    "Cobre":           "Preço do cobre em USD por libra-peso — indicador da atividade industrial global.",
+    "Bitcoin":         "Maior criptomoeda por capitalização de mercado, cotada em USD.",
+    "Ethereum":        "Segunda maior criptomoeda, base de contratos inteligentes e DeFi, cotada em USD.",
+}
+
+# ── Focus API (BCB/Expectativas) ──────────────────────────────────────────────
+FOCUS_BASE = "https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata"
+TTL_FOCUS  = 86_400  # 24h — divulgado semanalmente
+
+# Indicadores disponíveis na API Focus
+FOCUS_INDICADORES = [
+    "IPCA",
+    "IGP-M",
+    "PIB Total",
+    "Taxa de câmbio",
+    "Meta para taxa over-selic",
+    "IPCA-15",
+    "IGP-DI",
+    "IPC-Fipe",
+    "Balança comercial",
+    "Conta corrente",
+    "Investimento direto no país",
+    "Produção industrial",
+    "Selic",
+]
+
 # ── Navegação ─────────────────────────────────────────────────────────────────
-NAV = ["Início", "Monitor Inflação", "Mercados Globais", "Gráficos", "Exportar"]
+NAV = ["Início", "Monitor Inflação", "Expectativas", "Mercados Globais", "Gráficos", "Exportar"]
 NAV_SLUGS = {
     "Início":           "inicio",
     "Monitor Inflação": "ipca",
     "Mercados Globais": "mercados",
     "Gráficos":         "graficos",
+    "Expectativas":     "expectativas",
     "Exportar":         "exportar",
 }
