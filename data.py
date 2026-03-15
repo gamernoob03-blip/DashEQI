@@ -280,19 +280,22 @@ _BRAPI_SYMBOLS = {"^BVSP"}
 def _fetch_brapi_quote(sym: str) -> dict | None:
     """Busca cotação via brapi.dev — funciona para IBOVESPA em BRL sem bloqueio."""
     try:
-        ticker = sym.replace("^", "%5E")
-        r = requests.get(BRAPI_QUOTE.format(s=ticker),
+        # brapi aceita ^BVSP direto na URL sem encoding
+        r = requests.get(BRAPI_QUOTE.format(s=sym),
                          headers=_STOOQ_HDRS, timeout=10, verify=False)
         if r.status_code != 200:
+            logger.warning("brapi HTTP %s para %s", r.status_code, sym)
             return None
         data    = r.json()
         results = data.get("results", [])
         if not results:
+            logger.warning("brapi: resultado vazio para %s — %s", sym, data)
             return None
-        q         = results[0]
-        price     = q.get("regularMarketPrice")
-        prev      = q.get("regularMarketPreviousClose") or price
+        q     = results[0]
+        price = q.get("regularMarketPrice")
+        prev  = q.get("regularMarketPreviousClose") or price
         if not price:
+            logger.warning("brapi: sem preço para %s — %s", sym, q)
             return None
         price, prev = float(price), float(prev)
         dh        = q.get("regularMarketDayHigh")
@@ -442,9 +445,8 @@ def get_hist(sym: str, years: int = 5) -> pd.DataFrame:
     # brapi para IBOVESPA em BRL
     if sym in _BRAPI_SYMBOLS:
         try:
-            ticker = sym.replace("^", "%5E")
             r = requests.get(
-                f"https://brapi.dev/api/quote/{ticker}?range={years}y&interval=1d",
+                f"https://brapi.dev/api/quote/{sym}?range={years}y&interval=1d",
                 headers=_STOOQ_HDRS, timeout=20, verify=False,
             )
             if r.status_code == 200:
