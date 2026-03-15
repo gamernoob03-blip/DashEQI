@@ -558,8 +558,11 @@ elif st.session_state.pagina == "Expectativas":
             help="Indicador econômico monitorado pelas instituições do Focus"
         )
     with fe2:
+        _suporta_12m = ind_focus in {"IPCA", "IPCA-15", "IGP-M", "IGP-DI", "IPC-Fipe"}
+        _opcoes_prazo = ["Próximos 12 meses", "Expectativas anuais"] if _suporta_12m else ["Ano corrente (proxy)", "Expectativas anuais"]
         prazo_focus = st.selectbox(
-            "Prazo", ["Próximos 12 meses", "Expectativas anuais"], key="fprazo"
+            "Prazo", _opcoes_prazo, key="fprazo",
+            help="'Próximos 12 meses' disponível apenas para indicadores de inflação"
         )
 
     # ── Busca e exibe ─────────────────────────────────────────────────────────
