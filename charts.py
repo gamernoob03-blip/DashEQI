@@ -5,7 +5,8 @@ Nenhuma chamada a st.* aqui — só retorna go.Figure prontos para renderizar.
 import pandas as pd
 import plotly.graph_objects as go
 
-from settings import IPCA_GRUPOS_IDS, IPCA_GRUPOS_CORES, BCB_TOLE, COR_IPCA_LINHA
+from settings import (IPCA_GRUPOS_IDS, IPCA_GRUPOS_CORES, BCB_TOLE, COR_IPCA_LINHA,
+                       H_MEDIUM, H_LARGE, H_XLARGE, H_MONITOR, H_ACUM, H_COMP, H_GROUP, H_GRUPOS)
 
 # ── IDs dos grupos para filtro ────────────────────────────────────────────────
 _GRUPO_IDS = [g.strip() for g in IPCA_GRUPOS_IDS.split(",")]
@@ -51,6 +52,7 @@ _RS_STYLE = dict(
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def hex_rgba(h: str, a: float = 0.08) -> str:
+    """Converte cor hex (#rrggbb) para rgba com transparência."""
     h = h.lstrip("#")
     return f"rgba({int(h[:2],16)},{int(h[2:4],16)},{int(h[4:],16)},{a})"
 
@@ -246,11 +248,11 @@ def acum12m_meta_fig(df_ipca_full: pd.DataFrame, meta_val: float = 3.0,
         fill="tozeroy", fillcolor=hex_rgba(COR_IPCA_LINHA, 0.05),
         hovertemplate="%{x|%b/%Y}<br><b>Acum. 12M: %{y:.2f}%</b><extra></extra>",
     ))
-    fig.update_layout(**_I, height=320,
+    fig.update_layout(**_I, height=H_ACUM,
                       title="IPCA Acumulado 12 Meses vs Meta BCB",
                       hovermode="x unified", showlegend=False)
     if x_ini and x_fim:
-        return _apply_window(fig, df, x_ini, x_fim, suffix="%", height=320,
+        return _apply_window(fig, df, x_ini, x_fim, suffix="%", height=H_ACUM,
                              pad=0.15, extra_min=float(BCB_TOLE),
                              extra_max=float(teto + 0.5))
     fig.update_yaxes(ticksuffix="%")
@@ -274,7 +276,7 @@ def grupos_bar_fig(df_grupos: pd.DataFrame, ultimo_mes) -> go.Figure:
         hovertemplate="%{y}<br><b>%{x:.2f}%</b><extra></extra>",
     ))
     fig.update_layout(**{**_B, "margin": dict(l=185, r=70, t=44, b=36)},
-                      height=340,
+                      height=H_GROUP,
                       title=f"Variação Mensal por Grupo — {ultimo_mes.strftime('%b/%Y')}",
                       xaxis_title="% ao mês")
     fig.update_xaxes(ticksuffix="%", zeroline=True,
@@ -283,7 +285,7 @@ def grupos_bar_fig(df_grupos: pd.DataFrame, ultimo_mes) -> go.Figure:
 
 
 def grupos_linhas_fig(df_grupos: pd.DataFrame, d_ini=None, d_fim=None,
-                       height: int = 420) -> go.Figure:
+                       height: int = H_GRUPOS) -> go.Figure:
     """Linhas de evolução mensal por grupo. d_ini/d_fim = janela inicial."""
     df_f = df_grupos[df_grupos["grupo_id"].isin(_GRUPO_IDS)].copy()
     if df_f.empty:
@@ -368,7 +370,7 @@ def nucleos_acum12m_fig(df_all: pd.DataFrame, nucleo_data: dict,
                   annotation_font=dict(size=10, color="#16a34a"))
     fig.update_layout(
         **{**_I, "margin": dict(l=52, r=16, t=44, b=90)},
-        height=360, title="Núcleos de Inflação — Acumulado 12 Meses (%) vs Meta BCB",
+        height=H_MONITOR, title="Núcleos de Inflação — Acumulado 12 Meses (%) vs Meta BCB",
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0,
                     font=dict(size=10, color="#374151"), bgcolor="rgba(255,255,255,0)"),
@@ -384,7 +386,7 @@ def nucleos_acum12m_fig(df_all: pd.DataFrame, nucleo_data: dict,
     df_vis = df_all[["data", "media_a12"]].rename(columns={"media_a12": "valor"})
     if x_ini and x_fim:
         return _apply_window(fig, df_vis, x_ini, x_fim,
-                             suffix="%", height=360, extra_top=40,
+                             suffix="%", height=H_MONITOR, extra_top=40,
                              pad=0.2, extra_min=0.0, extra_max=float(teto_meta + 0.5))
     fig.update_yaxes(ticksuffix="%")
     return _add_rangeslider(fig, 360, extra_top=40)
@@ -411,7 +413,7 @@ def grupos_acum12m_fig(df_acum_u: pd.DataFrame, ult_acum,
         hovertemplate="%{y}<br><b>Acum. 12M: %{x:.2f}%</b><extra></extra>",
     ))
     fig.update_layout(
-        **{**_B, "margin": dict(l=190, r=70, t=44, b=36)}, height=340,
+        **{**_B, "margin": dict(l=190, r=70, t=44, b=36)}, height=H_GROUP,
         title=f"IPCA Acumulado 12M por Grupo — {ult_acum.strftime('%b/%Y')} (meta {meta_bcb:.1f}%)",
         xaxis_title="% acumulado 12 meses",
     )
@@ -460,12 +462,12 @@ def comparacao_fig(series_comp: dict, selecionados: list,
                                   tickfont=dict(size=10, color="#9ca3af"),
                                   zeroline=False, ticksuffix=f" {_unidades[1]}")
 
-    fig.update_layout(**_layout, height=460, title=" vs ".join(selecionados))
+    fig.update_layout(**_layout, height=H_COMP, title=" vs ".join(selecionados))
 
     # Combina todos os dfs para calcular Y range
     _all_dfs = [df for df, _ in series_comp.values() if not df.empty]
     if _all_dfs and x_ini and x_fim:
         _df_combined = pd.concat(_all_dfs, ignore_index=True)
-        return _apply_window(fig, _df_combined, x_ini, x_fim, height=460)
+        return _apply_window(fig, _df_combined, x_ini, x_fim, height=H_COMP)
 
-    return _add_rangeslider(fig, 460)
+    return _add_rangeslider(fig, H_COMP)
