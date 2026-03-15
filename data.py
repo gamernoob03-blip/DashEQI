@@ -290,23 +290,23 @@ _COINGECKO_IDS = {
     "ETH": "ethereum",
 }
 
-# Mapa símbolo Stooq/interno → símbolo Twelve Data
+# Mapa símbolo interno → símbolo Twelve Data (conforme documentação oficial)
 _TD_SYMBOLS = {
-    "^BVSP":  "IBOV:Index",
-    "usdbrl": "USD/BRL:Forex",
-    "eurbrl": "EUR/BRL:Forex",
-    "^spx":   "SPX:Index",
-    "^ndx":   "NDX:Index",
-    "^dji":   "DJI:Index",
-    "^ukx":   "UKX:Index",
-    "^dax":   "DAX:Index",
-    "sc.f":   "USOIL:Commodity",
-    "cl.f":   "WTI:Commodity",
-    "gc.f":   "XAU/USD:Forex",
-    "si.f":   "XAG/USD:Forex",
-    "hg.f":   "XCU/USD:Forex",
-    "btc.v":  "BTC/USD:Forex",
-    "eth.v":  "ETH/USD:Forex",
+    "^BVSP":  "BVSP",      # Índice Bovespa
+    "usdbrl": "USD/BRL",   # Dólar/Real
+    "eurbrl": "EUR/BRL",   # Euro/Real
+    "^spx":   "SPX",       # S&P 500
+    "^ndx":   "NDX",       # Nasdaq 100
+    "^dji":   "DJI",       # Dow Jones
+    "^ukx":   "FTSE",      # FTSE 100
+    "^dax":   "GDAXI",     # DAX
+    "sc.f":   "XBR/USD",   # Petróleo Brent Spot
+    "cl.f":   "WTI/USD",   # Petróleo WTI Spot
+    "gc.f":   "XAU/USD",   # Ouro Spot
+    "si.f":   "XAG/USD",   # Prata Spot
+    "hg.f":   "HG1",       # Cobre Futures
+    "btc.v":  "BTC/USD",   # Bitcoin
+    "eth.v":  "ETH/USD",   # Ethereum
 }
 
 
@@ -352,14 +352,14 @@ def _fetch_td_quotes(symbols_internal: list[str], key: str) -> dict[str, dict]:
     if not td_syms or not key:
         return {}
     try:
-        r = requests.get(
-            TD_BATCH.format(syms=",".join(td_syms), key=key),
-            headers=_HDRS_JSON, timeout=20, verify=False,
-        )
+        url = TD_BATCH.format(syms=",".join(td_syms), key=key)
+        r = requests.get(url, headers=_HDRS_JSON, timeout=20, verify=False)
+        logger.warning("Twelve Data HTTP %s | URL: %s", r.status_code, url[:120])
         if r.status_code != 200:
-            logger.warning("Twelve Data HTTP %s", r.status_code)
+            logger.warning("Twelve Data response: %s", r.text[:300])
             return {}
         data = r.json()
+        logger.warning("Twelve Data resposta (primeiros 500 chars): %s", str(data)[:500])
         out  = {}
         # Resposta pode ser dict único (1 símbolo) ou dict de dicts (vários)
         if "symbol" in data:
@@ -371,6 +371,13 @@ def _fetch_td_quotes(symbols_internal: list[str], key: str) -> dict[str, dict]:
                     parsed = _parse_td_quote(internal, q)
                     if parsed:
                         out[internal] = parsed
+                    else:
+                        logger.warning("Twelve Data: parse falhou para %s — %s", td_sym, q)
+                else:
+                    logger.warning("Twelve Data: símbolo não mapeado %s", td_sym)
+            elif isinstance(q, dict) and q.get("status") == "error":
+                logger.warning("Twelve Data erro para %s: %s", td_sym, q.get("message"))
+        logger.warning("Twelve Data: %d/%d símbolos obtidos", len(out), len(td_syms))
         return out
     except Exception as e:
         logger.warning("Twelve Data batch: %s", e)
@@ -430,9 +437,10 @@ def get_all_quotes(symbols: tuple) -> dict:
     out  = {}
 
     if key:
+        logger.warning("Twelve Data key encontrada (%s...)", key[:6])
         out = _fetch_td_quotes(syms, key)
     else:
-        logger.warning("TWELVE_DATA_KEY não configurado — sem cotações de mercado")
+        logger.warning("TWELVE_DATA_KEY não configurado nos secrets — sem cotações de mercado")
 
     # CoinGecko para cripto (gratuito, independente da chave)
     crypto_syms = [s for s in syms if s in ("btc.v", "eth.v")]
