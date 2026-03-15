@@ -128,20 +128,20 @@ if st.session_state.pagina == "Início":
     st.markdown('<div class="sec-title">Histórico — 12 meses <span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px">→ análise completa em Monitor Inflação</span></div>', unsafe_allow_html=True)
     ca, cb = st.columns(2)
     with ca:
-        if not dsel.empty:  st.plotly_chart(line_fig(dsel,  "Selic (% a.a.)", "#1a2035", suffix="%"), use_container_width=True, config=CHART_CFG)
+        if not dsel.empty:  st.plotly_chart(line_fig(dsel,  "Selic (% a.a.)", "#1a2035", suffix="%", inter=True), use_container_width=True, config=CHART_CFG_INT)
     with cb:
-        if not dipca.empty: st.plotly_chart(bar_fig(dipca,  "IPCA (% ao mês)", suffix="%"),           use_container_width=True, config=CHART_CFG)
+        if not dipca.empty: st.plotly_chart(bar_fig(dipca,  "IPCA (% ao mês)", suffix="%", inter=True),           use_container_width=True, config=CHART_CFG_INT)
     cc, cd = st.columns(2)
     with cc:
         df30 = dcam.tail(30) if not dcam.empty else dcam
-        if not df30.empty: st.plotly_chart(line_fig(df30, "Dólar PTAX — 30 dias (R$)", "#d97706", suffix=" R$"), use_container_width=True, config=CHART_CFG)
+        if not df30.empty: st.plotly_chart(line_fig(df30, "Dólar PTAX — 30 dias (R$)", "#d97706", suffix=" R$", inter=True), use_container_width=True, config=CHART_CFG_INT)
     with cd:
-        if not dibc.empty: st.plotly_chart(line_fig(dibc, "IBC-Br", "#0891b2", fill=False), use_container_width=True, config=CHART_CFG)
+        if not dibc.empty: st.plotly_chart(line_fig(dibc, "IBC-Br", "#0891b2", fill=False, inter=True), use_container_width=True, config=CHART_CFG_INT)
     ce, cf = st.columns(2)
     with ce:
-        if not dpib.empty: st.plotly_chart(bar_fig(dpib, "PIB — variação trimestral (%)", suffix="%"), use_container_width=True, config=CHART_CFG)
+        if not dpib.empty: st.plotly_chart(bar_fig(dpib, "PIB — variação trimestral (%)", suffix="%", inter=True), use_container_width=True, config=CHART_CFG_INT)
     with cf:
-        if not ddes.empty: st.plotly_chart(line_fig(ddes, "Desemprego PNAD (%)", "#dc2626", suffix="%"), use_container_width=True, config=CHART_CFG)
+        if not ddes.empty: st.plotly_chart(line_fig(ddes, "Desemprego PNAD (%)", "#dc2626", suffix="%", inter=True), use_container_width=True, config=CHART_CFG_INT)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MONITOR INFLAÇÃO
