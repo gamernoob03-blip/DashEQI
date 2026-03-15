@@ -10,7 +10,6 @@ import time
 import warnings
 import urllib3
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 from datetime import datetime, timedelta, date
 
