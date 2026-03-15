@@ -26,7 +26,7 @@ from data import (
 from charts import (
     line_fig, bar_fig,
     cores_overlay_fig, acum12m_meta_fig, grupos_bar_fig, grupos_linhas_fig,
-    _y_range_for_window, _add_rangeslider, _B, _I,
+    nucleos_acum12m_fig, grupos_acum12m_fig, comparacao_fig,
 )
 from components import inject_css, fmt, page_header, sec_title, kpi_card, now_brt, stale_banner, render_chart
 
@@ -184,11 +184,9 @@ elif st.session_state.pagina == "Monitor Inflação":
     sec_title("Núcleos de Inflação — BCB", "↻ diário", "badge-daily")
     st.markdown("<div style='font-size:11px;color:#6b7280;margin:0 0 14px'>Cinco medidas calculadas pelo BCB: <b>MA-S</b> (4466) · <b>MA</b> (11426) · <b>DP</b> (4467) · <b>EX</b> (11427) · <b>P55</b> (28750)</div>", unsafe_allow_html=True)
 
-    fig_cores = cores_overlay_fig(df_ipca_full, nucleo_data, height=480)
-    if not df_ipca_full.empty:
-        _xmax = df_ipca_full["data"].max(); _xmin = _xmax - pd.DateOffset(months=24)
-        fig_cores.update_xaxes(range=[str(_xmin.date()), str(_xmax.date())])
-        fig_cores.update_yaxes(range=_y_range_for_window(df_ipca_full, _xmin, _xmax, pad=0.2), ticksuffix="%")
+    _xmax = df_ipca_full["data"].max() if not df_ipca_full.empty else None
+    _xmin = (_xmax - pd.DateOffset(months=24)) if _xmax is not None else None
+    fig_cores = cores_overlay_fig(df_ipca_full, nucleo_data, height=480, x_ini=_xmin, x_fim=_xmax)
     render_chart(fig_cores, "ipca_nucleos")
 
     tab_rows = []
@@ -230,36 +228,16 @@ elif st.session_state.pagina == "Monitor Inflação":
             _ipca_a12 = _tmp.dropna(subset=["acum12m"]).reset_index()
         _xmax_m = _df_all["data"].max(); _xmin_m = _xmax_m - pd.DateOffset(months=24)
         if not _df_all.empty:
-            _df_all["min_a12"] = _df_all[_acols].min(axis=1); _df_all["max_a12"] = _df_all[_acols].max(axis=1)
-            fig_media = go.Figure()
-            fig_media.add_trace(go.Scatter(x=pd.concat([_df_all["data"],_df_all["data"].iloc[::-1]]),y=pd.concat([_df_all["max_a12"],_df_all["min_a12"].iloc[::-1]]),fill="toself",fillcolor="rgba(139,92,246,0.10)",line=dict(color="rgba(0,0,0,0)"),hoverinfo="skip",showlegend=False))
-            for key,(_, label, color) in nucleo_data.items():
-                col_a = f"{key}_a12"
-                if col_a in _df_all.columns:
-                    fig_media.add_trace(go.Scatter(x=_df_all["data"],y=_df_all[col_a],mode="lines",name=key,line=dict(color=color,width=1,dash="dot"),opacity=0.55,hovertemplate=f"%{{x|%b/%Y}}<br>{key} acum. 12M: %{{y:.2f}}%<extra></extra>"))
-            if not _ipca_a12.empty:
-                fig_media.add_trace(go.Scatter(x=_ipca_a12["data"],y=_ipca_a12["acum12m"],mode="lines",name="IPCA acum. 12M",line=dict(color=COR_IPCA_LINHA,width=1.8,dash="dash"),hovertemplate="%{x|%b/%Y}<br>IPCA acum. 12M: %{y:.2f}%<extra></extra>"))
-            fig_media.add_trace(go.Scatter(x=_df_all["data"],y=_df_all["media_a12"],mode="lines+markers",name="Média Núcleos acum. 12M",line=dict(color=COR_MEDIA_NUCL,width=2.5),marker=dict(size=6,color=COR_MEDIA_NUCL),hovertemplate="%{x|%b/%Y}<br><b>Média acum. 12M: %{y:.2f}%</b><extra></extra>"))
-            fig_media.add_hrect(y0=piso_meta,y1=teto_meta,fillcolor="rgba(22,163,74,0.07)",line_width=0)
-            fig_media.add_hline(y=meta_bcb,line_dash="dot",line_color="#16a34a",line_width=1.2,annotation_text=f"Meta {meta_bcb:.1f}%",annotation_position="right",annotation_font=dict(size=10,color="#16a34a"))
-            fig_media.update_layout(**{**_I,"margin":dict(l=52,r=16,t=44,b=90)},height=360,title="Núcleos de Inflação — Acumulado 12 Meses (%) vs Meta BCB",hovermode="x unified",legend=dict(orientation="h",yanchor="top",y=-0.22,xanchor="left",x=0,font=dict(size=10,color="#374151"),bgcolor="rgba(255,255,255,0)"))
-            _df_mv = _df_all[["data","media_a12"]].rename(columns={"media_a12":"valor"})
-            _yr_m  = _y_range_for_window(_df_mv,_xmin_m,_xmax_m,pad=0.2,extra_min=0.0,extra_max=float(teto_meta+0.5))
-            fig_media.update_yaxes(range=_yr_m,ticksuffix="%"); fig_media.update_xaxes(range=[str(_xmin_m.date()),str(_xmax_m.date())])
-            fig_media = _add_rangeslider(fig_media,360,extra_top=40)
-            _last = _df_all["media_a12"].iloc[-1]
-            fig_media.add_annotation(x=_df_all["data"].iloc[-1],y=_last,text=f"  {fmt(_last)}%",showarrow=False,font=dict(size=11,color=COR_MEDIA_NUCL,family="Inter"),xanchor="left")
+            fig_media = nucleos_acum12m_fig(_df_all, nucleo_data, _ipca_a12,
+                                            meta_bcb, x_ini=_xmin_m, x_fim=_xmax_m)
             render_chart(fig_media, "nucleos_acum12m")
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     sec_title("Acumulado 12 Meses vs Meta BCB", "↻ diário", "badge-daily")
     if not df_ipca_full.empty:
-        fig_acum = acum12m_meta_fig(df_ipca_full, meta_val=meta_bcb)
-        _xmax_a  = df_ipca_full["data"].max(); _xmin_a = _xmax_a - pd.DateOffset(months=24)
-        _df_av   = df_ipca_full.copy().sort_values("data"); _df_av["acum12m"] = _df_av["valor"].rolling(12).sum()
-        _df_avis = _df_av.dropna(subset=["acum12m"])[["data","acum12m"]].rename(columns={"acum12m":"valor"})
-        _yr_a    = _y_range_for_window(_df_avis,_xmin_a,_xmax_a,pad=0.15,extra_min=float(BCB_TOLE),extra_max=float(teto_meta+0.5))
-        fig_acum.update_xaxes(range=[str(_xmin_a.date()),str(_xmax_a.date())]); fig_acum.update_yaxes(range=_yr_a,ticksuffix="%")
+        _xmax_a = df_ipca_full["data"].max()
+        _xmin_a = _xmax_a - pd.DateOffset(months=24)
+        fig_acum = acum12m_meta_fig(df_ipca_full, meta_val=meta_bcb, x_ini=_xmin_a, x_fim=_xmax_a)
         render_chart(fig_acum, "ipca_acum12m_meta")
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
@@ -302,14 +280,7 @@ elif st.session_state.pagina == "Monitor Inflação":
                 ult_acum  = df_grupos_acum[df_grupos_acum["data"] <= pd.Timestamp(g_fim)]["data"].max()
                 df_acum_u = df_grupos_acum[(df_grupos_acum["data"]==ult_acum) & df_grupos_acum["grupo_id"].isin(_GRUPO_IDS)].copy().sort_values("valor",ascending=True)
                 if not df_acum_u.empty:
-                    colors_acum = ["#dc2626" if v>teto_meta else "#16a34a" if v<piso_meta else "#0891b2" for v in df_acum_u["valor"]]
-                    fig_ag = go.Figure()
-                    fig_ag.add_shape(type="rect",x0=piso_meta,x1=teto_meta,y0=-0.5,y1=len(df_acum_u)-0.5,fillcolor="rgba(22,163,74,0.07)",line_width=0)
-                    fig_ag.add_vline(x=meta_bcb,line_dash="dot",line_color="#16a34a",line_width=1.5,annotation_text=f"Meta {meta_bcb:.1f}%",annotation_position="top",annotation_font=dict(size=10,color="#16a34a"))
-                    fig_ag.add_trace(go.Bar(x=df_acum_u["valor"],y=df_acum_u["grupo"],orientation="h",marker_color=colors_acum,marker_line_width=0,text=[f"{v:.1f}%" for v in df_acum_u["valor"]],textposition="outside",hovertemplate="%{y}<br><b>Acum. 12M: %{x:.2f}%</b><extra></extra>"))
-                    fig_ag.update_layout(**{**_B,"margin":dict(l=190,r=70,t=44,b=36)},height=340,title=f"IPCA Acumulado 12M por Grupo — {ult_acum.strftime('%b/%Y')} (meta {meta_bcb:.1f}%)",xaxis_title="% acumulado 12 meses")
-                    fig_ag.update_xaxes(ticksuffix="%")
-                    render_chart(fig_ag, "ipca_grupos_acum12m", static=True)
+                    render_chart(grupos_acum12m_fig(df_acum_u, ult_acum, meta_bcb), "ipca_grupos_acum12m", static=True)
 
             st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
             dlo_g = df_grupos_mensal[(df_grupos_mensal["data"]>=pd.Timestamp(g_ini))&(df_grupos_mensal["data"]<=pd.Timestamp(g_fim))].copy()
@@ -411,9 +382,7 @@ elif st.session_state.pagina == "Mercados Globais":
             if not dfh.empty:
                 _xmax_h = dfh["data"].max()
                 _xmin_h = _xmax_h - pd.DateOffset(years=2)
-                fig_h = line_fig(dfh, f"{nome_h} — 2 anos", cor_h, suffix=f" {unit_h}", height=320, inter=True)
-                fig_h.update_xaxes(range=[str(_xmin_h.date()), str(_xmax_h.date())])
-                fig_h.update_yaxes(range=_y_range_for_window(dfh, _xmin_h, _xmax_h), fixedrange=False, ticksuffix=f" {unit_h}".strip())
+                fig_h = line_fig(dfh, f"{nome_h} — 2 anos", cor_h, suffix=f" {unit_h}", height=320, inter=True, x_ini=_xmin_h, x_fim=_xmax_h)
                 render_chart(fig_h, nome_h)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -469,9 +438,8 @@ elif st.session_state.pagina == "Gráficos":
             if d_ini < d_fim:
                 st.success(f"✅ {len(df_t)} obs. · {label_t} · {freq}")
                 use_bar = (tipo=="bar") and (periodo in ("Original","Mensal (original)","Var. trimestral (original)"))
-                fig = bar_fig(df_t,label_t,suffix=f" {unit_t}",height=440,inter=True) if use_bar else line_fig(df_t,label_t,cor,suffix=f" {unit_t}",height=440,inter=True)
-                fig.update_xaxes(range=[str(d_ini), str(d_fim)])
-                fig.update_yaxes(range=_y_range_for_window(df_t, d_ini, d_fim), fixedrange=False, ticksuffix=f" {unit_t}".strip())
+                fig = bar_fig(df_t, label_t, suffix=f" {unit_t}", height=440, inter=True, x_ini=d_ini, x_fim=d_fim) if use_bar \
+                    else line_fig(df_t, label_t, cor, suffix=f" {unit_t}", height=440, inter=True, x_ini=d_ini, x_fim=d_fim)
                 render_chart(fig, f"{ind}_{periodo}")
                 dlo = df_t.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ind.replace(' ','_')}_{periodo.replace(' ','_')}.csv",mime="text/csv")
@@ -492,9 +460,7 @@ elif st.session_state.pagina == "Gráficos":
             with cy2: dy_fim = st.date_input("Exibir até",value=dmax_y,min_value=dmin_y,max_value=dmax_y,key="gyfim")
             if dy_ini < dy_fim:
                 st.success(f"✅ {len(dfg)} obs. · {ativo}")
-                fig_y = line_fig(dfg, f"{ativo}", cor, suffix=f" {unit}", height=440, inter=True)
-                fig_y.update_xaxes(range=[str(dy_ini), str(dy_fim)])
-                fig_y.update_yaxes(range=_y_range_for_window(dfg, dy_ini, dy_fim), fixedrange=False, ticksuffix=f" {unit}".strip())
+                fig_y = line_fig(dfg, f"{ativo}", cor, suffix=f" {unit}", height=440, inter=True, x_ini=dy_ini, x_fim=dy_fim)
                 render_chart(fig_y, ativo)
                 dlo = dfg.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV completo ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ativo.replace(' ','_')}_completo.csv",mime="text/csv")
@@ -541,48 +507,8 @@ elif st.session_state.pagina == "Gráficos":
             with cd2: dc_fim = st.date_input("Exibir até", value=_dmax_c, min_value=_dmin_c, max_value=_dmax_c, key="cfim")
 
             if dc_ini < dc_fim:
-                # Determina se precisa de eixo Y duplo (unidades diferentes)
-                _unidades = list(dict.fromkeys(u for _, u in _series_comp.values()))
-                _usa_y2   = len(_unidades) > 1
-
-                fig_comp = go.Figure()
-                for i, (_nome, (_df_c, _unit)) in enumerate(_series_comp.items()):
-                    if _df_c.empty: continue
-                    _cor  = CORES_COMP[i % len(CORES_COMP)]
-                    _yref = "y2" if (_usa_y2 and _unit != _unidades[0]) else "y"
-                    fig_comp.add_trace(go.Scatter(
-                        x=_df_c["data"], y=_df_c["valor"],
-                        mode="lines", name=f"{_nome} ({_unit})",
-                        line=dict(color=_cor, width=2),
-                        yaxis=_yref,
-                        hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>{_nome}: %{{y:.2f}} {_unit}</b><extra></extra>",
-                    ))
-
-                _layout_comp = {
-                    **_I,
-                    "margin": dict(l=60, r=60, t=44, b=36),
-                    "hovermode": "x unified",
-                    "legend": dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=11)),
-                }
-                if _usa_y2:
-                    _layout_comp["yaxis"]  = {**_I["yaxis"], "title": _unidades[0], "ticksuffix": f" {_unidades[0]}"}
-                    _layout_comp["yaxis2"] = dict(title=_unidades[1], overlaying="y", side="right",
-                                                   showgrid=False, tickfont=dict(size=10, color="#9ca3af"),
-                                                   zeroline=False, ticksuffix=f" {_unidades[1]}")
-
-                fig_comp.update_layout(**_layout_comp, height=460, title=" vs ".join(_selecionados))
-                fig_comp.update_xaxes(range=[str(dc_ini), str(dc_fim)])
-                # Y range — mesma função padrão do Monitor Inflação, aplicada ao df combinado
-                _df_comp_combined = pd.concat(
-                    [_df_c for _, (_df_c, _) in _series_comp.items() if not _df_c.empty],
-                    ignore_index=True
-                )
-                if not _df_comp_combined.empty:
-                    fig_comp.update_yaxes(
-                        range=_y_range_for_window(_df_comp_combined, dc_ini, dc_fim),
-                        fixedrange=False
-                    )
-                fig_comp = _add_rangeslider(fig_comp, 460)
+                fig_comp = comparacao_fig(_series_comp, _selecionados,
+                                          x_ini=dc_ini, x_fim=dc_fim)
                 render_chart(fig_comp, "comparacao_series")
 
                 # Download combinado
