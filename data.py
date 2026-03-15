@@ -106,6 +106,28 @@ def aplicar_periodo(df: pd.DataFrame, periodo: str, ind_nome: str):
     return df, ""
 
 
+# ── Cache de fallback (dados antigos quando API está fora) ────────────────────
+_bcb_stale_cache: dict[int, tuple[pd.DataFrame, datetime]] = {}
+
+def _build_with_fallback(raw: list, c: int) -> pd.DataFrame:
+    """
+    Constrói DataFrame. Se raw estiver vazio, tenta retornar dado anterior em cache.
+    O DataFrame retornado em fallback terá o atributo 'stale_since' com a data do dado.
+    """
+    df = _build(raw)
+    if not df.empty:
+        _bcb_stale_cache[c] = (df.copy(), datetime.now())
+        return df
+    # Fallback: retorna dado anterior se existir
+    if c in _bcb_stale_cache:
+        df_old, fetched_at = _bcb_stale_cache[c]
+        df_old = df_old.copy()
+        df_old.attrs["stale_since"] = fetched_at
+        logger.warning("BCB: série %s usando cache stale de %s", c, fetched_at.strftime("%d/%m/%Y %H:%M"))
+        return df_old
+    return df
+
+
 # ── BCB/SGS ───────────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=TTL_BCB, show_spinner=False)
@@ -122,7 +144,7 @@ def get_bcb(c: int, n: int) -> pd.DataFrame:
         )
     if not raw:
         logger.warning("BCB: série %s indisponível (últimos %s registros)", c, n)
-    return _build(raw)
+    return _build_with_fallback(raw, c)
 
 
 @st.cache_data(ttl=TTL_BCB, show_spinner=False)
@@ -131,7 +153,7 @@ def get_bcb_full(c: int) -> pd.DataFrame:
     raw = _fetch(BCB_BASE.format(c=c) + "?formato=json")
     if not raw:
         logger.warning("BCB: série completa %s indisponível", c)
-    return _build(raw)
+    return _build_with_fallback(raw, c)
 
 
 @st.cache_data(ttl=TTL_BCB, show_spinner=False)
@@ -140,7 +162,7 @@ def get_bcb_range(c: int, ini: str, fim: str) -> pd.DataFrame:
     raw = _fetch(BCB_BASE.format(c=c) + f"?formato=json&dataInicial={ini}&dataFinal={fim}")
     if not raw:
         logger.warning("BCB: série %s indisponível para %s→%s", c, ini, fim)
-    return _build(raw)
+    return _build_with_fallback(raw, c)
 
 
 # ── IBGE/SIDRA ────────────────────────────────────────────────────────────────
