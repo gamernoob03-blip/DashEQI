@@ -19,9 +19,11 @@ from settings import (
     MERCADOS_HIST, CORES_COMP, COR_IPCA_LINHA, COR_MEDIA_NUCL,
     PERIODOS_ORIGINAIS, P_ORIGINAL,
     H_MEDIUM, H_LARGE, H_XLARGE,
+    SGS_DESCRICAO, GLOBAL_DESCRICAO, FOCUS_INDICADORES,
 )
 from data import (
     get_quote, get_hist, get_bcb_full,
+    get_focus_anual, get_focus_12m,
     get_ipca_grupos, get_ipca_acum_grupo, aplicar_periodo,
 )
 from charts import (
@@ -47,11 +49,15 @@ if "tabela_aberta"  not in st.session_state: st.session_state.tabela_aberta  = F
 if "mercados_ativo" not in st.session_state: st.session_state.mercados_ativo = "IBOVESPA"
 
 # ── Query params → session state (link direto para página/ativo) ──────────────
-_NAV_SLUG_INV = {v: k for k, v in NAV_SLUGS.items()}  # "monitor-inflacao" → "Monitor Inflação"
+_NAV_SLUG_INV = {v: k for k, v in NAV_SLUGS.items()}
 _qp_page = st.query_params.get("page", None)
 _qp_mv   = st.query_params.get("mv",   None)
+# Sincroniza sempre (não só na primeira carga) para suportar deep links
 if _qp_page and _qp_page in _NAV_SLUG_INV:
     st.session_state.pagina = _NAV_SLUG_INV[_qp_page]
+elif not _qp_page:
+    # Mantém URL sincronizada com a página atual
+    st.query_params["page"] = NAV_SLUGS.get(st.session_state.pagina, "inicio")
 if _qp_mv and _qp_mv in GLOBAL:
     st.session_state.mercados_ativo = _qp_mv
 
@@ -394,7 +400,8 @@ elif st.session_state.pagina == "Gráficos":
     t1, t2, t3 = st.tabs(["BCB — Indicadores Brasil", "Yahoo Finance — Ativos Globais", "Comparar Séries"])
     with t1:
         col1,col2 = st.columns([2,2])
-        with col1: ind = st.selectbox("Indicador",list(SGS.keys()),key="gind")
+        with col1: ind = st.selectbox("Indicador", list(SGS.keys()), key="gind",
+            help=SGS_DESCRICAO.get(st.session_state.get("gind", list(SGS.keys())[0]), ""))
         opts = SGS_PERIODOS.get(ind, [P_ORIGINAL])
         with col2: periodo = st.selectbox("Período / Transformação",opts,key="gperiodo") if len(opts)>1 else opts[0]
         s = SGS[ind]; cod,unit,freq,tipo,cor = s.codigo,s.unidade,s.frequencia,s.tipo,s.cor
@@ -418,16 +425,27 @@ elif st.session_state.pagina == "Gráficos":
             with c2: d_ini = st.date_input("Exibir de",value=_d24,min_value=dmin,max_value=dmax,key="gini")
             with c3: d_fim = st.date_input("Exibir até",value=dmax,min_value=dmin,max_value=dmax,key="gfim")
             if d_ini < d_fim:
-                st.success(f"✅ {len(df_t)} obs. · {label_t} · {freq}")
+                st.markdown(f"<div style='font-size:11px;color:#6b7280;margin:4px 0 8px'>{len(df_t)} obs. · {label_t} · {freq}</div>", unsafe_allow_html=True)
                 use_bar = (tipo=="bar") and (periodo in PERIODOS_ORIGINAIS)
                 fig = bar_fig(df_t, label_t, suffix=f" {unit_t}", height=H_LARGE, inter=True, x_ini=d_ini, x_fim=d_fim) if use_bar \
                     else line_fig(df_t, label_t, cor, suffix=f" {unit_t}", height=H_LARGE, inter=True, x_ini=d_ini, x_fim=d_fim)
                 render_chart(fig, f"{ind}_{periodo}")
+                # ── Tabela de estatísticas ────────────────────────────────────
+                _dv = df_t[(df_t["data"] >= pd.Timestamp(d_ini)) & (df_t["data"] <= pd.Timestamp(d_fim))]["valor"].dropna()
+                if not _dv.empty:
+                    _sc1,_sc2,_sc3,_sc4,_sc5 = st.columns(5)
+                    for _col, _lbl, _val in zip(
+                        [_sc1,_sc2,_sc3,_sc4,_sc5],
+                        ["Último","Média","Mín","Máx","Desvio padrão"],
+                        [_dv.iloc[-1], _dv.mean(), _dv.min(), _dv.max(), _dv.std()]
+                    ):
+                        _col.metric(_lbl, f"{_val:,.2f}".replace(",",".").replace(".",",",1) if _val == _val else "—")
                 dlo = df_t.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ind.replace(' ','_')}_{periodo.replace(' ','_')}.csv",mime="text/csv")
     with t2:
         co1,_ = st.columns([2,3])
-        with co1: ativo = st.selectbox("Ativo",list(GLOBAL.keys()),key="gativo")
+        with co1: ativo = st.selectbox("Ativo", list(GLOBAL.keys()), key="gativo",
+            help=GLOBAL_DESCRICAO.get(st.session_state.get("gativo", list(GLOBAL.keys())[0]), ""))
         g = GLOBAL[ativo]; sym,unit,cor = g.simbolo,g.unidade,g.cor
         try:
             with st.spinner(f"Carregando {ativo}..."): dfg = get_hist(sym,years=10)
@@ -441,9 +459,19 @@ elif st.session_state.pagina == "Gráficos":
             with cy1: dy_ini = st.date_input("Exibir de",value=_d24y,min_value=dmin_y,max_value=dmax_y,key="gyini")
             with cy2: dy_fim = st.date_input("Exibir até",value=dmax_y,min_value=dmin_y,max_value=dmax_y,key="gyfim")
             if dy_ini < dy_fim:
-                st.success(f"✅ {len(dfg)} obs. · {ativo}")
+                st.markdown(f"<div style='font-size:11px;color:#6b7280;margin:4px 0 8px'>{len(dfg)} obs. · {ativo}</div>", unsafe_allow_html=True)
                 fig_y = line_fig(dfg, f"{ativo}", cor, suffix=f" {unit}", height=H_LARGE, inter=True, x_ini=dy_ini, x_fim=dy_fim)
                 render_chart(fig_y, ativo)
+                # ── Tabela de estatísticas ────────────────────────────────────
+                _dvy = dfg[(dfg["data"] >= pd.Timestamp(dy_ini)) & (dfg["data"] <= pd.Timestamp(dy_fim))]["valor"].dropna()
+                if not _dvy.empty:
+                    _yc1,_yc2,_yc3,_yc4,_yc5 = st.columns(5)
+                    for _col, _lbl, _val in zip(
+                        [_yc1,_yc2,_yc3,_yc4,_yc5],
+                        ["Último","Média","Mín","Máx","Desvio padrão"],
+                        [_dvy.iloc[-1], _dvy.mean(), _dvy.min(), _dvy.max(), _dvy.std()]
+                    ):
+                        _col.metric(_lbl, f"{_val:,.2f}".replace(",",".").replace(".",",",1) if _val == _val else "—")
                 dlo = dfg.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV completo ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ativo.replace(' ','_')}_completo.csv",mime="text/csv")
         else:
@@ -508,6 +536,91 @@ elif st.session_state.pagina == "Gráficos":
                         file_name="comparacao_series.csv", mime="text/csv")
 
 # ══════════════════════════════════════════════════════════════════════════════
+# EXPECTATIVAS DE MERCADO (Boletim Focus)
+# ══════════════════════════════════════════════════════════════════════════════
+elif st.session_state.pagina == "Expectativas":
+    page_header("Expectativas de Mercado")
+    st.markdown(
+        "<div style='font-size:12px;color:#6b7280;margin:0 0 18px'>"
+        "Medianas do <b>Boletim Focus</b> — pesquisa semanal do BCB com ~130 instituições financeiras. "
+        "Atualizado toda segunda-feira."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ── Seleção de indicador e prazo ─────────────────────────────────────────
+    fe1, fe2 = st.columns([2, 2])
+    with fe1:
+        ind_focus = st.selectbox(
+            "Indicador", FOCUS_INDICADORES, key="find",
+            help="Indicador econômico monitorado pelas instituições do Focus"
+        )
+    with fe2:
+        prazo_focus = st.selectbox(
+            "Prazo", ["Próximos 12 meses", "Expectativas anuais"], key="fprazo"
+        )
+
+    # ── Busca e exibe ─────────────────────────────────────────────────────────
+    with st.spinner(f"Carregando Focus — {ind_focus}..."):
+        if prazo_focus == "Próximos 12 meses":
+            df_focus = get_focus_12m(ind_focus, anos=3)
+        else:
+            df_focus = get_focus_anual(ind_focus, anos=5)
+
+    if df_focus.empty:
+        st.warning("⚠️ Dados do Boletim Focus indisponíveis para este indicador.")
+    else:
+        # KPIs — última leitura
+        _ult = df_focus.iloc[-1]
+        _ant = df_focus.iloc[-2] if len(df_focus) >= 2 else _ult
+        _delta = float(_ult["mediana"] - _ant["mediana"])
+        kc1, kc2, kc3, kc4 = st.columns(4)
+        with kc1: kpi_card("Mediana (última)", f"{fmt(_ult['mediana'])}%", chg_p=_delta*100/_ant['mediana'] if _ant['mediana'] else None, sub=f"Ref: {_ult['data'].strftime('%d/%m/%Y')}")
+        with kc2: kpi_card("Mínimo (última)", f"{fmt(_ult['minimo'])}%" if pd.notna(_ult.get('minimo')) else "—")
+        with kc3: kpi_card("Máximo (última)", f"{fmt(_ult['maximo'])}%" if pd.notna(_ult.get('maximo')) else "—")
+        with kc4: kpi_card("Desvio padrão", f"{fmt(_ult['desvio'])}%" if pd.notna(_ult.get('desvio')) else "—", sub="Dispersão das expectativas")
+
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+        # Gráfico da mediana ao longo do tempo
+        _df_plot = df_focus[["data","mediana"]].rename(columns={"mediana":"valor"})
+        _xmax_f = _df_plot["data"].max()
+        _xmin_f = _xmax_f - pd.DateOffset(years=2)
+        _titulo = f"Focus — {ind_focus} ({prazo_focus})"
+        fig_focus = line_fig(_df_plot, _titulo, "#1a2035", suffix="%", height=H_LARGE, inter=True, x_ini=_xmin_f, x_fim=_xmax_f)
+        render_chart(fig_focus, f"focus_{ind_focus.lower().replace(' ','_')}")
+
+        # Tabela de expectativas anuais (só para modo anual)
+        if prazo_focus == "Expectativas anuais":
+            _anos_disp = sorted(df_focus["ano_ref"].unique(), reverse=True)
+            sec_title("Expectativas por Ano de Referência")
+            _pivot = []
+            for _ano in _anos_disp[:5]:  # últimos 5 anos
+                _df_ano = df_focus[df_focus["ano_ref"] == _ano].sort_values("data")
+                if not _df_ano.empty:
+                    _last = _df_ano.iloc[-1]
+                    _pivot.append({
+                        "Ano": _ano,
+                        "Mediana": f"{fmt(_last['mediana'])}%",
+                        "Mínimo":  f"{fmt(_last['minimo'])}%"  if pd.notna(_last.get('minimo'))  else "—",
+                        "Máximo":  f"{fmt(_last['maximo'])}%"  if pd.notna(_last.get('maximo'))  else "—",
+                        "Desvio":  f"{fmt(_last['desvio'])}%"  if pd.notna(_last.get('desvio'))  else "—",
+                        "Ref. data": _last["data"].strftime("%d/%m/%Y"),
+                    })
+            if _pivot:
+                st.dataframe(pd.DataFrame(_pivot), hide_index=True, use_container_width=True)
+
+        # Download
+        _dlo_f = df_focus.copy()
+        _dlo_f["data"] = _dlo_f["data"].dt.strftime("%d/%m/%Y")
+        st.download_button(
+            f"💾 Baixar CSV ({len(_dlo_f)} linhas)",
+            data=_dlo_f.to_csv(index=False).encode("utf-8-sig"),
+            file_name=f"focus_{ind_focus.replace(' ','_').replace('/','-')}_{prazo_focus[:5]}.csv",
+            mime="text/csv",
+        )
+
+# ══════════════════════════════════════════════════════════════════════════════
 # EXPORTAR
 # ══════════════════════════════════════════════════════════════════════════════
 else:
@@ -546,7 +659,7 @@ else:
                 else:
                     label_e = f"{ind} — {periodo_e}" if periodo_e not in PERIODOS_ORIGINAIS else ind
                     dlo = dfe2.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
-                    st.success(f"✅ {len(dlo)} registros — {label_e}")
+                    st.markdown(f"<div style='font-size:11px;color:#6b7280;margin:4px 0 8px'>{len(dlo)} registros exportados</div>", unsafe_allow_html=True)
                     st.dataframe(dlo.rename(columns={"data":"Data","valor":f"Valor ({unit_t})"}),use_container_width=True,height=min(400,46+len(dlo)*35))
                     nome = f"{ind.replace(' ','_')}_{periodo_e.replace(' ','_').replace('/','')}.csv"
                     st.download_button(f"💾 Baixar {nome}",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=nome,mime="text/csv")
@@ -567,7 +680,7 @@ else:
                     if st.button("↺",key="retry_exp_yf"): st.cache_data.clear(); st.rerun()
             else:
                 dlo = dfe.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
-                st.success(f"✅ {len(dlo)} registros — {ativo}")
+                st.markdown(f"<div style='font-size:11px;color:#6b7280;margin:4px 0 8px'>{len(dlo)} registros exportados</div>", unsafe_allow_html=True)
                 st.dataframe(dlo.rename(columns={"data":"Data","valor":f"Valor ({unit})"}),use_container_width=True,height=min(400,46+len(dlo)*35))
                 nome = f"{ativo.replace(' ','_')}_{anos}anos.csv"
                 st.download_button(f"💾 Baixar {nome}",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=nome,mime="text/csv")
