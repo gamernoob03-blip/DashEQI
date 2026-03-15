@@ -1,7 +1,7 @@
 """
 EQI Dashboard Macro — arquivo único, sem dependências locais
 """
-import sys, os, warnings, time
+import sys, os, warnings, time, logging
 import requests, urllib3
 import pandas as pd
 import plotly.graph_objects as go
@@ -11,6 +11,20 @@ from zoneinfo import ZoneInfo
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.filterwarnings("ignore", message="Unverified HTTPS")
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("eqi_dash")
+
+# ── TTL de cache por tipo de fonte ────────────────────────────────────────────
+TTL_MERCADOS  = 60          # cotações Yahoo Finance: 1 minuto
+TTL_BCB       = 3_600       # séries BCB/SGS: 1 hora
+TTL_IBGE      = 86_400      # grupos IPCA IBGE (mensal): 24 horas
+TTL_HIST      = 3_600       # histórico Yahoo Finance: 1 hora
 
 st.set_page_config(page_title="EQI Dashboard Macro", page_icon="🇧🇷",
                    layout="wide", initial_sidebar_state="expanded",
@@ -181,6 +195,25 @@ def sec_title(txt, badge="", cls="badge-live"):
 
 def page_header(title):
     ts = now_brt().strftime("%d/%m/%Y %H:%M")
+
+def render_com_fallback(fn, label: str, *args, **kwargs):
+    """
+    Executa fn(*args, **kwargs) com tratamento de erro padronizado.
+    Em caso de falha exibe aviso com botão para limpar cache e recarregar.
+    Retorna o resultado de fn ou None em caso de erro.
+    """
+    try:
+        return fn(*args, **kwargs)
+    except Exception as e:
+        logger.error("Erro ao renderizar '%s': %s", label, e)
+        col1, col2 = st.columns([6, 1])
+        with col1:
+            st.warning(f"⚠️ **{label}** — falha ao carregar dados.")
+        with col2:
+            if st.button("↺ Tentar novamente", key=f"retry_{label}"):
+                st.cache_data.clear()
+                st.rerun()
+        return None
 
 def kpi_card(label, value, chg_p=None, sub="", invert=False, d=None, raw_delta=None):
     d = d or {}
@@ -465,24 +498,34 @@ def _fetch(url):
         except: time.sleep(1)
     return []
 
-@st.cache_data(ttl=3600,show_spinner=False)
-def get_bcb(c,n):
-    raw=_fetch(BCB_BASE.format(c=c)+f"/ultimos/{n}?formato=json")
+@st.cache_data(ttl=TTL_BCB, show_spinner=False)
+def get_bcb(c, n):
+    raw = _fetch(BCB_BASE.format(c=c) + f"/ultimos/{n}?formato=json")
     if not raw:
-        hoje=datetime.today()
-        raw=_fetch(BCB_BASE.format(c=c)+f"?formato=json&dataInicial={(hoje-timedelta(days=n*45)).strftime('%d/%m/%Y')}&dataFinal={hoje.strftime('%d/%m/%Y')}")
+        hoje = datetime.today()
+        raw = _fetch(BCB_BASE.format(c=c) +
+                     f"?formato=json&dataInicial={(hoje - timedelta(days=n*45)).strftime('%d/%m/%Y')}"
+                     f"&dataFinal={hoje.strftime('%d/%m/%Y')}")
+    if not raw:
+        logger.warning("BCB: série %s indisponível (últimos %s registros)", c, n)
     return _build(raw)
 
-@st.cache_data(ttl=3600,show_spinner=False)
+@st.cache_data(ttl=TTL_BCB, show_spinner=False)
 def get_bcb_full(c):
-    return _build(_fetch(BCB_BASE.format(c=c)+"?formato=json"))
+    raw = _fetch(BCB_BASE.format(c=c) + "?formato=json")
+    if not raw:
+        logger.warning("BCB: série completa %s indisponível", c)
+    return _build(raw)
 
-@st.cache_data(ttl=3600,show_spinner=False)
-def get_bcb_range(c,ini,fim):
-    return _build(_fetch(BCB_BASE.format(c=c)+f"?formato=json&dataInicial={ini}&dataFinal={fim}"))
+@st.cache_data(ttl=TTL_BCB, show_spinner=False)
+def get_bcb_range(c, ini, fim):
+    raw = _fetch(BCB_BASE.format(c=c) + f"?formato=json&dataInicial={ini}&dataFinal={fim}")
+    if not raw:
+        logger.warning("BCB: série %s indisponível para %s→%s", c, ini, fim)
+    return _build(raw)
 
 # ── Data IBGE SIDRA ───────────────────────────────────────────────────────────
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=TTL_IBGE, show_spinner=False)
 def get_ipca_grupos(n_periodos: int = 24) -> pd.DataFrame:
     """
     Retorna variação mensal do IPCA por grupo (IBGE SIDRA tabela 7060, variável 63).
@@ -531,10 +574,11 @@ def get_ipca_grupos(n_periodos: int = 24) -> pd.DataFrame:
         return (pd.DataFrame(rows)
                 .sort_values(["data", "grupo"])
                 .reset_index(drop=True))
-    except Exception:
+    except Exception as e:
+        logger.warning("IBGE SIDRA: falha ao buscar variação mensal por grupo — %s", e)
         return pd.DataFrame(columns=["data", "grupo_id", "grupo", "valor"])
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=TTL_IBGE, show_spinner=False)
 def get_ipca_acum_grupo(n_periodos: int = 24) -> pd.DataFrame:
     """
     Variação acumulada 12 meses do IPCA por grupo (IBGE SIDRA tabela 7060, variável 2266).
@@ -578,10 +622,9 @@ def get_ipca_acum_grupo(n_periodos: int = 24) -> pd.DataFrame:
         return (pd.DataFrame(rows)
                 .sort_values(["data", "grupo"])
                 .reset_index(drop=True))
-    except Exception:
+    except Exception as e:
+        logger.warning("IBGE SIDRA: falha ao buscar acumulado 12M por grupo — %s", e)
         return pd.DataFrame(columns=["data", "grupo_id", "grupo", "valor"])
-
-# ── Data Yahoo / yfinance ────────────────────────────────────────────────────
 def _yf_quote_raw(sym):
     try:
         import yfinance as yf
@@ -651,10 +694,11 @@ def _http_quote_raw(sym):
             continue
     return None
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=TTL_MERCADOS, show_spinner=False)
 def get_quote(sym):
     raw = _yf_quote_raw(sym) or _http_quote_raw(sym)
     if not raw or not raw.get("price"):
+        logger.warning("Yahoo Finance: cotação indisponível para %s", sym)
         return {}
     price      = raw["price"]
     prev       = raw.get("prev") or price
@@ -671,7 +715,7 @@ def get_quote(sym):
             "is_closed": not is_today,
             "close_date": cd}
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=TTL_HIST, show_spinner=False)
 def get_hist(sym, years=5):
     try:
         import yfinance as yf
@@ -684,7 +728,8 @@ def get_hist(sym, years=5):
             result = pd.DataFrame({"data": df.index, "valor": closes.values.flatten()})
             result["data"] = pd.to_datetime(result["data"]).dt.tz_localize(None)
             return result.dropna().reset_index(drop=True)
-    except: pass
+    except Exception as e:
+        logger.warning("yfinance: histórico de %s indisponível — %s", sym, e)
     try:
         r   = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range={years}y",
                            headers=HDRS, timeout=15, verify=False)
@@ -692,7 +737,8 @@ def get_hist(sym, years=5):
         df  = pd.DataFrame({"data": pd.to_datetime(res["timestamp"], unit="s"),
                             "valor": res["indicators"]["quote"][0]["close"]})
         return df.dropna().reset_index(drop=True)
-    except:
+    except Exception as e:
+        logger.warning("Yahoo HTTP: histórico de %s indisponível — %s", sym, e)
         return pd.DataFrame(columns=["data", "valor"])
 
 def aplicar_periodo(df, periodo, ind_nome):
@@ -751,19 +797,26 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 if st.session_state.pagina == "Início":
     page_header("EQI Dashboard Macro")
-    with st.spinner("Carregando..."):
-        ibov=get_quote("^BVSP"); usd=get_quote("USDBRL=X"); eur=get_quote("EURBRL=X")
-        _hoje  = datetime.today()
-        _ini13 = (_hoje - timedelta(days=400)).strftime("%d/%m/%Y")
-        _ini30 = (_hoje - timedelta(days=45)).strftime("%d/%m/%Y")
-        _ini3a = (_hoje - timedelta(days=3*365)).strftime("%d/%m/%Y")
-        _fim   = _hoje.strftime("%d/%m/%Y")
-        dsel  = get_bcb_range(432,   _ini13, _fim)
-        dipca = get_bcb_range(433,   _ini13, _fim)
-        dibc  = get_bcb_range(24363, _ini13, _fim)
-        dcam  = get_bcb_range(1,     _ini30, _fim)
-        dpib  = get_bcb_range(4380,  _ini3a, _fim)
-        ddes  = get_bcb_range(24369, _ini3a, _fim)
+    try:
+        with st.spinner("Carregando..."):
+            ibov=get_quote("^BVSP"); usd=get_quote("USDBRL=X"); eur=get_quote("EURBRL=X")
+            _hoje  = datetime.today()
+            _ini13 = (_hoje - timedelta(days=400)).strftime("%d/%m/%Y")
+            _ini30 = (_hoje - timedelta(days=45)).strftime("%d/%m/%Y")
+            _ini3a = (_hoje - timedelta(days=3*365)).strftime("%d/%m/%Y")
+            _fim   = _hoje.strftime("%d/%m/%Y")
+            dsel  = get_bcb_range(432,   _ini13, _fim)
+            dipca = get_bcb_range(433,   _ini13, _fim)
+            dibc  = get_bcb_range(24363, _ini13, _fim)
+            dcam  = get_bcb_range(1,     _ini30, _fim)
+            dpib  = get_bcb_range(4380,  _ini3a, _fim)
+            ddes  = get_bcb_range(24369, _ini3a, _fim)
+    except Exception as e:
+        logger.error("Início: falha ao carregar dados — %s", e)
+        st.error("⚠️ Erro ao carregar dados. Verifique sua conexão.")
+        if st.button("↺ Tentar novamente"):
+            st.cache_data.clear(); st.rerun()
+        st.stop()
 
     sec_title("Indicadores de Mercado","↻ 60s","badge-live")
     c1,c2,c3=st.columns(3)
@@ -827,18 +880,19 @@ if st.session_state.pagina == "Início":
 elif st.session_state.pagina == "Monitor Inflação":
     page_header("Monitor de Inflação")
 
-    with st.spinner("Carregando indicadores de inflação..."):
-        # ── IPCA headline (série completa para cálculos) ──────────────────────
-        df_ipca_full = get_bcb_full(433)
-
-        # ── Núcleos — séries completas do BCB/SGS ────────────────────────────
-        nucleo_data = {}
-        for key, (cod, label, color) in NUCLEO_SGS.items():
-            nucleo_data[key] = (get_bcb_full(cod), label, color)
-
-        # ── Grupos IPCA — IBGE SIDRA ──────────────────────────────────────────
-        df_grupos_mensal = get_ipca_grupos(60)
-        df_grupos_acum   = get_ipca_acum_grupo(60)
+    try:
+        with st.spinner("Carregando indicadores de inflação..."):
+            df_ipca_full     = get_bcb_full(433)
+            nucleo_data      = {key: (get_bcb_full(cod), label, color)
+                                for key, (cod, label, color) in NUCLEO_SGS.items()}
+            df_grupos_mensal = get_ipca_grupos(60)
+            df_grupos_acum   = get_ipca_acum_grupo(60)
+    except Exception as e:
+        logger.error("Monitor Inflação: falha ao carregar dados — %s", e)
+        st.error("⚠️ Erro ao carregar dados de inflação. Verifique sua conexão.")
+        if st.button("↺ Tentar novamente"):
+            st.cache_data.clear(); st.rerun()
+        st.stop()
 
     # ── KPIs ──────────────────────────────────────────────────────────────────
     sec_title("IPCA — Inflação ao Consumidor", "↻ diário", "badge-daily")
@@ -1427,18 +1481,24 @@ elif st.session_state.pagina == "Mercados Globais":
                 st.markdown(_tile_html(nome, get_quote(sym), unit), unsafe_allow_html=True)
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    with st.spinner("Carregando cotações..."):
-        _group("Índices", ["IBOVESPA","S&P 500","Nasdaq 100","Dow Jones","FTSE 100","DAX"])
-        c_en, c_me = st.columns([2, 3])
-        with c_en:
-            _group("Energia", ["Petróleo Brent","Petróleo WTI"])
-        with c_me:
-            _group("Metais", ["Ouro","Prata","Cobre"])
-        c_fx, c_cr = st.columns([2, 2])
-        with c_fx:
-            _group("Câmbio", ["Dólar (USD/BRL)","Euro (EUR/BRL)"])
-        with c_cr:
-            _group("Cripto", ["Bitcoin","Ethereum"])
+    try:
+        with st.spinner("Carregando cotações..."):
+            _group("Índices", ["IBOVESPA","S&P 500","Nasdaq 100","Dow Jones","FTSE 100","DAX"])
+            c_en, c_me = st.columns([2, 3])
+            with c_en:
+                _group("Energia", ["Petróleo Brent","Petróleo WTI"])
+            with c_me:
+                _group("Metais", ["Ouro","Prata","Cobre"])
+            c_fx, c_cr = st.columns([2, 2])
+            with c_fx:
+                _group("Câmbio", ["Dólar (USD/BRL)","Euro (EUR/BRL)"])
+            with c_cr:
+                _group("Cripto", ["Bitcoin","Ethereum"])
+    except Exception as e:
+        logger.error("Mercados Globais: falha ao carregar cotações — %s", e)
+        st.error("⚠️ Erro ao carregar cotações. Verifique sua conexão.")
+        if st.button("↺ Tentar novamente"):
+            st.cache_data.clear(); st.rerun()
 
     ts_now = now_brt().strftime("%d/%m/%Y %H:%M:%S")
     st.markdown(
@@ -1501,9 +1561,17 @@ elif st.session_state.pagina == "Gráficos":
             periodo = st.selectbox("Período / Transformação", opts, key="gperiodo") if len(opts) > 1 else opts[0]
 
         cod, unit, freq, tipo = SGS[ind]
-        with st.spinner(f"Carregando {ind}..."): df_f = get_bcb_full(cod)
+        try:
+            with st.spinner(f"Carregando {ind}..."): df_f = get_bcb_full(cod)
+        except Exception as e:
+            logger.error("Gráficos BCB: erro ao carregar série %s — %s", cod, e)
+            df_f = pd.DataFrame(columns=["data","valor"])
         if df_f.empty:
-            st.warning("⚠️ API BCB temporariamente indisponível.")
+            col_e, col_b = st.columns([6,1])
+            with col_e: st.warning(f"⚠️ Série {ind} indisponível na API do BCB.")
+            with col_b:
+                if st.button("↺", key="retry_bcb_graf"):
+                    st.cache_data.clear(); st.rerun()
         else:
             df_t, unit_t = aplicar_periodo(df_f, periodo, ind)
             if not unit_t: unit_t = unit
@@ -1542,7 +1610,11 @@ elif st.session_state.pagina == "Gráficos":
         co1, _ = st.columns([2, 3])
         with co1: ativo = st.selectbox("Ativo", list(GLOBAL.keys()), key="gativo")
         sym, unit, _ = GLOBAL[ativo]
-        with st.spinner(f"Carregando {ativo}..."): dfg = get_hist(sym, years=10)
+        try:
+            with st.spinner(f"Carregando {ativo}..."): dfg = get_hist(sym, years=10)
+        except Exception as e:
+            logger.error("Gráficos Yahoo: erro ao carregar %s — %s", sym, e)
+            dfg = pd.DataFrame(columns=["data","valor"])
         if not dfg.empty:
             dmin_y = dfg["data"].min().date(); dmax_y = dfg["data"].max().date()
             from datetime import date as _date2
@@ -1570,7 +1642,12 @@ elif st.session_state.pagina == "Gráficos":
                     file_name=f"{ativo.replace(' ','_')}_completo.csv",
                     mime="text/csv",
                 )
-        else: st.warning("Sem dados disponíveis.")
+        else:
+            col_e, col_b = st.columns([6,1])
+            with col_e: st.warning(f"⚠️ Histórico de {ativo} indisponível.")
+            with col_b:
+                if st.button("↺", key="retry_yf_graf"):
+                    st.cache_data.clear(); st.rerun()
 
 # ══════════════════════════════════════════════════════════════════════════════
 # EXPORTAR
@@ -1606,13 +1683,21 @@ else:
                         horizontal=True, key="emodo")
         if st.button("Gerar CSV", type="primary", key="ebtn"):
             cod, unit, freq, _ = SGS[ind]
-            with st.spinner(f"Carregando {ind}..."):
-                if "completa" in modo:
-                    dfe = get_bcb_full(cod)
-                else:
-                    dfe = get_bcb_range(cod, d_ini.strftime("%d/%m/%Y"), d_fim.strftime("%d/%m/%Y"))
+            try:
+                with st.spinner(f"Carregando {ind}..."):
+                    if "completa" in modo:
+                        dfe = get_bcb_full(cod)
+                    else:
+                        dfe = get_bcb_range(cod, d_ini.strftime("%d/%m/%Y"), d_fim.strftime("%d/%m/%Y"))
+            except Exception as e:
+                logger.error("Exportar BCB: erro ao carregar série %s — %s", cod, e)
+                dfe = pd.DataFrame(columns=["data","valor"])
             if dfe.empty:
-                st.warning("Nenhum dado encontrado.")
+                col_e, col_b = st.columns([6,1])
+                with col_e: st.warning(f"⚠️ Nenhum dado encontrado para {ind}.")
+                with col_b:
+                    if st.button("↺", key="retry_exp_bcb"):
+                        st.cache_data.clear(); st.rerun()
             else:
                 dfe2, unit_t = aplicar_periodo(dfe, periodo_e, ind)
                 if not unit_t: unit_t = unit
@@ -1642,9 +1727,17 @@ else:
         with co2: anos = st.select_slider("Período (anos)", [1, 2, 3, 5, 10], value=5, key="eanos")
         if st.button("Gerar CSV", type="primary", key="ebtn2"):
             sym, unit, _ = GLOBAL[ativo]
-            with st.spinner(f"Buscando {ativo}..."): dfe = get_hist(sym, anos)
+            try:
+                with st.spinner(f"Buscando {ativo}..."): dfe = get_hist(sym, anos)
+            except Exception as e:
+                logger.error("Exportar Yahoo: erro ao carregar %s — %s", sym, e)
+                dfe = pd.DataFrame(columns=["data","valor"])
             if dfe.empty:
-                st.warning("Sem dados disponíveis.")
+                col_e, col_b = st.columns([6,1])
+                with col_e: st.warning(f"⚠️ Histórico de {ativo} indisponível.")
+                with col_b:
+                    if st.button("↺", key="retry_exp_yf"):
+                        st.cache_data.clear(); st.rerun()
             else:
                 dlo = dfe.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.success(f"✅ {len(dlo)} registros — {ativo}")
