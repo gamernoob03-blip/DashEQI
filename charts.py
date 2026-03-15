@@ -5,7 +5,7 @@ Nenhuma chamada a st.* aqui — só retorna go.Figure prontos para renderizar.
 import pandas as pd
 import plotly.graph_objects as go
 
-from config import IPCA_GRUPOS_IDS, IPCA_GRUPOS_CORES, BCB_TOLE
+from settings import IPCA_GRUPOS_IDS, IPCA_GRUPOS_CORES, BCB_TOLE
 
 # ── IDs dos grupos para filtro ────────────────────────────────────────────────
 _GRUPO_IDS = [g.strip() for g in IPCA_GRUPOS_IDS.split(",")]
