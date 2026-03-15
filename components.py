@@ -153,3 +153,25 @@ def render_sidebar() -> None:
         st.divider()
         st.caption("Fontes: BCB/SGS · IBGE/SIDRA · Yahoo Finance")
         st.caption("Mercados ↻60s · BCB/IBGE ↻1h")
+
+
+def stale_banner(df: "pd.DataFrame", label: str = "") -> None:
+    """
+    Exibe um aviso amarelo se o DataFrame veio do cache stale (API indisponível).
+    O atributo df.attrs['stale_since'] é setado por data._build_with_fallback.
+    """
+    import pandas as pd
+    from datetime import datetime
+    stale_since = df.attrs.get("stale_since")
+    if stale_since is None:
+        return
+    delta = datetime.now() - stale_since
+    horas = int(delta.total_seconds() // 3600)
+    mins  = int((delta.total_seconds() % 3600) // 60)
+    tempo = f"{horas}h {mins}min" if horas else f"{mins}min"
+    nome  = f" — {label}" if label else ""
+    st.warning(
+        f"⚠️ **API BCB temporariamente indisponível{nome}.** "
+        f"Exibindo último dado disponível (obtido há {tempo}).",
+        icon=None,
+    )
