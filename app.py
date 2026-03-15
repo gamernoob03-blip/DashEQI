@@ -81,19 +81,31 @@ BCB_TOLE  = 1.5   # ± 1,5 pp
 # IDs da classificação 315, tabela 7060 — 9 grupos principais + índice geral
 IPCA_GRUPOS_IDS = "7169,7170,7445,7486,7625,7626,7627,7628,7629,7630"
 
-# Mapeamento ID → nome padronizado (fonte: IBGE SIDRA)
-IPCA_ID_NOME = {
-    "7169": "Índice Geral",
-    "7170": "Alimentação e bebidas",
-    "7445": "Habitação",
-    "7486": "Artigos de residência",
-    "7625": "Vestuário",
-    "7626": "Transportes",
-    "7627": "Saúde e cuidados pessoais",
-    "7628": "Despesas pessoais",
-    "7629": "Educação",
-    "7630": "Comunicação",
+# Nomes normalizados (sem acento, minúsculo) → nome de exibição padronizado
+# A API pode retornar pequenas variações; usamos normalização para ser robusto
+IPCA_GRUPOS_NORM = {
+    "alimentacao e bebidas":      "Alimentação e bebidas",
+    "habitacao":                   "Habitação",
+    "artigos de residencia":       "Artigos de residência",
+    "vestuario":                   "Vestuário",
+    "transportes":                 "Transportes",
+    "saude e cuidados pessoais":   "Saúde e cuidados pessoais",
+    "despesas pessoais":           "Despesas pessoais",
+    "educacao":                    "Educação",
+    "comunicacao":                 "Comunicação",
+    "indice geral":                "Índice Geral",
 }
+
+def _norm_grupo(nome: str) -> str:
+    """Normaliza nome de grupo: minúsculo, sem acentos, sem espaços extras."""
+    import unicodedata
+    nome = nome.lower().strip()
+    nome = unicodedata.normalize("NFKD", nome)
+    nome = "".join(c for c in nome if not unicodedata.combining(c))
+    # Remove prefixo numérico como "1." ou "01."
+    import re
+    nome = re.sub(r"^\d+\.\s*", "", nome)
+    return nome.strip()
 
 IPCA_GRUPOS_CORES = {
     "Alimentação e bebidas":       "#d97706",
@@ -304,7 +316,7 @@ def cores_overlay_fig(df_ipca, nucleo_data, height=480):
 def grupos_bar_fig(df_grupos, ultimo_mes):
     df_m = df_grupos[
         (df_grupos["data"] == ultimo_mes) &
-        (df_grupos["grupo_id"] != "7169")
+        (df_grupos["grupo"] != "Índice Geral")
     ].copy()
     if df_m.empty:
         return go.Figure()
@@ -330,7 +342,7 @@ def grupos_bar_fig(df_grupos, ultimo_mes):
 
 # ── Figura grupos: linhas — evolução por período (interativa) ─────────────────
 def grupos_linhas_fig(df_grupos, d_ini=None, d_fim=None, height=420):
-    df_f = df_grupos[df_grupos["grupo_id"] != "7169"].copy()
+    df_f = df_grupos[df_grupos["grupo"] != "Índice Geral"].copy()
     if df_f.empty:
         return go.Figure()
     if d_ini:
@@ -475,10 +487,11 @@ def get_ipca_grupos(n_periodos: int = 24) -> pd.DataFrame:
                 cats = resultado.get("classificacoes", [])
                 if not cats:
                     continue
-                cat_dict = cats[0].get("categoria", {})
-                grupo_id = str(next(iter(cat_dict), ""))
-                # Usa nome padronizado pelo ID — ignora qualquer subgrupo não mapeado
-                grupo_nome = IPCA_ID_NOME.get(grupo_id)
+                cat_dict   = cats[0].get("categoria", {})
+                grupo_id   = str(next(iter(cat_dict), ""))
+                raw_nome   = str(next(iter(cat_dict.values()), ""))
+                # Normaliza e mapeia para nome padronizado
+                grupo_nome = IPCA_GRUPOS_NORM.get(_norm_grupo(raw_nome))
                 if not grupo_nome:
                     continue
                 series_list = resultado.get("series", [])
@@ -526,9 +539,10 @@ def get_ipca_acum_grupo(n_periodos: int = 24) -> pd.DataFrame:
                 cats = resultado.get("classificacoes", [])
                 if not cats:
                     continue
-                cat_dict = cats[0].get("categoria", {})
-                grupo_id = str(next(iter(cat_dict), ""))
-                grupo_nome = IPCA_ID_NOME.get(grupo_id)
+                cat_dict   = cats[0].get("categoria", {})
+                grupo_id   = str(next(iter(cat_dict), ""))
+                raw_nome   = str(next(iter(cat_dict.values()), ""))
+                grupo_nome = IPCA_GRUPOS_NORM.get(_norm_grupo(raw_nome))
                 if not grupo_nome:
                     continue
                 series_list = resultado.get("series", [])
@@ -1090,7 +1104,7 @@ elif st.session_state.pagina == "Monitor Inflação":
             # ── Mini-cards: maiores altas e baixas no último mês ──────────────
             df_ult = df_grupos_mensal[
                 (df_grupos_mensal["data"] == ultimo_mes) &
-                (df_grupos_mensal["grupo_id"] != "7169")
+                (df_grupos_mensal["grupo"] != "Índice Geral")
             ].copy().sort_values("valor", ascending=False)
 
             def _mini_card(grupo, valor):
@@ -1151,7 +1165,7 @@ elif st.session_state.pagina == "Monitor Inflação":
                 ]["data"].max()
                 df_acum_u = df_grupos_acum[
                     (df_grupos_acum["data"] == ult_acum) &
-                    (df_grupos_acum["grupo_id"] != "7169")
+                    (df_grupos_acum["grupo"] != "Índice Geral")
                 ].copy().sort_values("valor", ascending=True)
 
                 if not df_acum_u.empty:
