@@ -62,11 +62,11 @@ def _build(raw: list) -> pd.DataFrame:
               [["data", "valor"]])
 
 
-def _fetch(url: str) -> list:
-    """Faz até 3 tentativas de GET e retorna lista JSON ou []."""
-    for _ in range(3):
+def _fetch(url: str, retries: int = 3, timeout: int = 20) -> list:
+    """Faz até `retries` tentativas de GET e retorna lista JSON ou []."""
+    for _ in range(retries):
         try:
-            r = requests.get(url, headers=HDRS, timeout=20, verify=False)
+            r = requests.get(url, headers=HDRS, timeout=timeout, verify=False)
             if r.status_code == 200 and "html" not in r.headers.get("Content-Type", "").lower():
                 data = r.json()
                 if isinstance(data, list) and data:
@@ -134,18 +134,25 @@ def _build_with_fallback(raw: list, c: int) -> pd.DataFrame:
 @st.cache_data(ttl=TTL_BCB, show_spinner=False)
 def get_bcb_full(c: int) -> pd.DataFrame:
     """
-    Série completa BCB c — única função de fetch BCB no sistema.
-    Toda filtragem por período é feita em memória nas páginas que consomem os dados.
-    Fallback automático: se a série completa falhar (timeout em séries grandes),
-    busca os últimos 10 anos.
+    Série BCB c — tenta série completa com fallbacks progressivos.
+    Toda filtragem por período é feita em memória nas páginas.
     """
+    hoje = datetime.today()
+
+    # Tenta série completa primeiro (3 retries, timeout 20s)
     raw = _fetch(BCB_BASE.format(c=c) + "?formato=json")
-    if not raw:
-        # Fallback: últimos 10 anos
-        hoje = datetime.today()
-        ini  = (hoje - timedelta(days=365 * 10)).strftime("%d/%m/%Y")
-        fim  = hoje.strftime("%d/%m/%Y")
-        raw  = _fetch(BCB_BASE.format(c=c) + f"?formato=json&dataInicial={ini}&dataFinal={fim}")
+
+    # Fallbacks progressivos com timeout reduzido (1 retry, 12s)
+    for anos in [10, 5, 2]:
+        if raw:
+            break
+        ini = (hoje - timedelta(days=365 * anos)).strftime("%d/%m/%Y")
+        fim = hoje.strftime("%d/%m/%Y")
+        raw = _fetch(BCB_BASE.format(c=c) + f"?formato=json&dataInicial={ini}&dataFinal={fim}",
+                     retries=1, timeout=12)
+        if raw:
+            logger.warning("BCB: série %s obtida via fallback %da", c, anos)
+
     if not raw:
         logger.warning("BCB: série completa %s indisponível", c)
     return _build_with_fallback(raw, c)
