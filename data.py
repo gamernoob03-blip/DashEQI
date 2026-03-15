@@ -274,7 +274,9 @@ _STOOQ_HDRS = {
 
 
 def _stooq_last_close(sym: str) -> dict | None:
-    """Busca o último fechamento histórico quando o Stooq retorna N/D (fim de semana/feriado)."""
+    """Busca o último fechamento histórico quando o Stooq retorna N/D (fim de semana/feriado).
+    O Stooq retorna dados em ordem descendente (mais recente primeiro).
+    """
     try:
         r = requests.get(STOOQ_HIST.format(s=sym),
                          headers=_STOOQ_HDRS, timeout=15, verify=False)
@@ -284,14 +286,14 @@ def _stooq_last_close(sym: str) -> dict | None:
         if len(lines) < 3:
             return None
         headers = [h.strip() for h in lines[0].split(",")]
-        # Pega as duas últimas linhas para calcular variação
         def parse_row(line):
             vals = [v.strip() for v in line.split(",")]
             return dict(zip(headers, vals))
-        last = parse_row(lines[-1])
-        prev_row = parse_row(lines[-2]) if len(lines) >= 3 else last
-        price = float(last.get("Close", 0))
-        prev  = float(prev_row.get("Close", 0)) or price
+        # lines[1] = mais recente, lines[2] = anterior (ordem descendente)
+        last     = parse_row(lines[1])
+        prev_row = parse_row(lines[2])
+        price = float(last.get("Close", 0) or 0)
+        prev  = float(prev_row.get("Close", 0) or 0) or price
         if not price:
             return None
         date_str  = last.get("Date", "")
@@ -407,8 +409,7 @@ def get_hist(sym: str, years: int = 5) -> pd.DataFrame:
                 continue
         if not rows:
             return pd.DataFrame(columns=["data", "valor"])
-        df = pd.DataFrame(rows).sort_values("data").reset_index(drop=True)
-        # Filtra pelo período solicitado
+        df = pd.DataFrame(rows).sort_values("data").reset_index(drop=True)        # Filtra pelo período solicitado
         cutoff = datetime.now() - timedelta(days=years * 365 + 5)
         df = df[df["data"] >= cutoff].reset_index(drop=True)
         return df
