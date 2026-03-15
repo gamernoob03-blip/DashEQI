@@ -99,24 +99,35 @@ HOME_CHARTS = [
 ]
 
 # ── Ativos globais ────────────────────────────────────────────────────────────
-# Formato: nome → (símbolo interno, unidade, sinal_invertido)
+# Formato: nome → (símbolo interno, unidade, sinal_invertido, cor hex)
 GLOBAL = {
-    "IBOVESPA":        ("^BVSP",   "pts",    False),
-    "Dólar (USD/BRL)": ("usdbrl",  "R$",     True),
-    "Euro (EUR/BRL)":  ("eurbrl",  "R$",     True),
-    "S&P 500":         ("^spx",    "pts",    False),
-    "Nasdaq 100":      ("^ndx",    "pts",    False),
-    "Dow Jones":       ("^dji",    "pts",    False),
-    "FTSE 100":        ("^ukx",    "pts",    False),
-    "DAX":             ("^dax",    "pts",    False),
-    "Petróleo Brent":  ("sc.f",    "US$",    True),
-    "Petróleo WTI":    ("cl.f",    "US$",    True),
-    "Ouro":            ("gc.f",    "US$",    False),
-    "Prata":           ("si.f",    "US$",    False),
-    "Cobre":           ("hg.f",    "US$/lb", True),
-    "Bitcoin":         ("btc.v",   "US$",    False),
-    "Ethereum":        ("eth.v",   "US$",    False),
+    "IBOVESPA":        ("^BVSP",   "pts",    False, "#0891b2"),
+    "Dólar (USD/BRL)": ("usdbrl",  "R$",     True,  "#7c3aed"),
+    "Euro (EUR/BRL)":  ("eurbrl",  "R$",     True,  "#d97706"),
+    "S&P 500":         ("^spx",    "pts",    False, "#16a34a"),
+    "Nasdaq 100":      ("^ndx",    "pts",    False, "#6366f1"),
+    "Dow Jones":       ("^dji",    "pts",    False, "#0891b2"),
+    "FTSE 100":        ("^ukx",    "pts",    False, "#374151"),
+    "DAX":             ("^dax",    "pts",    False, "#374151"),
+    "Petróleo Brent":  ("sc.f",    "US$",    True,  "#d97706"),
+    "Petróleo WTI":    ("cl.f",    "US$",    True,  "#f59e0b"),
+    "Ouro":            ("gc.f",    "US$",    False, "#b45309"),
+    "Prata":           ("si.f",    "US$",    False, "#64748b"),
+    "Cobre":           ("hg.f",    "US$/lb", True,  "#dc2626"),
+    "Bitcoin":         ("btc.v",   "US$",    False, "#f59e0b"),
+    "Ethereum":        ("eth.v",   "US$",    False, "#6366f1"),
 }
+
+# ── Gráficos históricos na página Mercados Globais ────────────────────────────
+# Formato: nome (deve existir em GLOBAL)
+MERCADOS_HIST = ["IBOVESPA", "S&P 500", "Petróleo Brent", "Ouro", "Dólar (USD/BRL)", "Bitcoin"]
+
+# ── Paleta para Comparar Séries (aba Gráficos) ────────────────────────────────
+CORES_COMP = ["#1a2035", "#dc2626", "#0891b2", "#16a34a", "#d97706", "#7c3aed"]
+
+# ── Cores fixas para gráficos específicos do Monitor Inflação ─────────────────
+COR_IPCA_LINHA  = "#1a2035"   # linha IPCA headline nos gráficos de núcleos
+COR_MEDIA_NUCL  = "#7c3aed"   # linha média dos núcleos acum. 12M
 
 # ── Núcleos de inflação BCB ───────────────────────────────────────────────────
 # Formato: sigla → (código SGS, descrição, cor hex)
