@@ -75,7 +75,9 @@ if st.session_state.pagina == "Início":
     page_header("EQI Dashboard Macro")
     try:
         with st.spinner("Carregando..."):
-            ibov  = get_quote("^BVSP"); usd = get_quote("usdbrl"); eur = get_quote("eurbrl")
+            ibov  = get_quote(GLOBAL["IBOVESPA"][0])
+            usd   = get_quote(GLOBAL["Dólar (USD/BRL)"][0])
+            eur   = get_quote(GLOBAL["Euro (EUR/BRL)"][0])
             hoje  = datetime.today()
             ini13 = (hoje - timedelta(days=400)).strftime("%d/%m/%Y")
             ini30 = (hoje - timedelta(days=45)).strftime("%d/%m/%Y")
@@ -406,7 +408,17 @@ elif st.session_state.pagina == "Mercados Globais":
     # ── Gráficos históricos — fora do fragment, não piscam ───────────────────
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
     sec_title("Histórico Interativo", "2 anos", "badge-daily")
-    _H = {"IBOVESPA":("^BVSP","#0891b2","pts"),"S&P 500":("^GSPC","#16a34a","pts"),"Petróleo Brent":("BZ=F","#d97706","US$"),"Ouro":("GC=F","#b45309","US$"),"Dólar (USD/BRL)":("USDBRL=X","#7c3aed","R$"),"Bitcoin":("BTC-USD","#f59e0b","US$")}
+    _H = {
+        nome: (GLOBAL[nome][0], cor, GLOBAL[nome][1])
+        for nome, cor in [
+            ("IBOVESPA",        "#0891b2"),
+            ("S&P 500",         "#16a34a"),
+            ("Petróleo Brent",  "#d97706"),
+            ("Ouro",            "#b45309"),
+            ("Dólar (USD/BRL)", "#7c3aed"),
+            ("Bitcoin",         "#f59e0b"),
+        ]
+    }
     for tab,(nome_h,(sym_h,cor_h,unit_h)) in zip(st.tabs(list(_H.keys())),_H.items()):
         with tab:
             dfh = get_hist(sym_h,2)
@@ -674,6 +686,14 @@ else:
         st.dataframe(df_sgs,hide_index=True,use_container_width=True,height=46+len(df_sgs)*35)
         st.markdown("<div style='height:16px'></div>",unsafe_allow_html=True)
         st.markdown("**Yahoo Finance — Ativos Globais**")
-        df_yf = pd.DataFrame([{"Ativo":k,"Símbolo":v[0],"Unidade":v[1],"Tipo":"Câmbio" if "BRL" in v[0] else "Índice" if v[0].startswith("^") else "Commodity" if v[0] in ("BZ=F","CL=F","GC=F","SI=F","HG=F") else "Cripto"} for k,v in GLOBAL.items()])
+        df_yf = pd.DataFrame([{
+            "Ativo":   k,
+            "Símbolo": v[0],
+            "Unidade": v[1],
+            "Tipo":    ("Câmbio"    if k in ("Dólar (USD/BRL)", "Euro (EUR/BRL)") else
+                        "Índice"    if k in ("IBOVESPA", "S&P 500", "Nasdaq 100", "Dow Jones", "FTSE 100", "DAX") else
+                        "Commodity" if k in ("Petróleo Brent", "Petróleo WTI", "Ouro", "Prata", "Cobre") else
+                        "Cripto"),
+        } for k, v in GLOBAL.items()])
         st.dataframe(df_yf,hide_index=True,use_container_width=True,height=46+len(df_yf)*35)
         st.markdown("</div>",unsafe_allow_html=True)
