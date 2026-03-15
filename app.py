@@ -27,7 +27,7 @@ from charts import (
     cores_overlay_fig, acum12m_meta_fig, grupos_bar_fig, grupos_linhas_fig,
     _y_range_for_window, _add_rangeslider, _B, _I,
 )
-from components import inject_css, fmt, page_header, sec_title, kpi_card, now_brt
+from components import inject_css, fmt, page_header, sec_title, kpi_card, now_brt, stale_banner
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.filterwarnings("ignore", message="Unverified HTTPS")
@@ -105,6 +105,7 @@ if st.session_state.pagina == "Início":
                  sub=f"Ant.: R$ {fmt(eur.get('prev'),4)}" if v else "", invert=True, d=eur)
 
     sec_title("Indicadores Econômicos", "↻ diário", "badge-daily")
+    stale_banner(dsel, "Selic"); stale_banner(dipca, "IPCA"); stale_banner(ddes, "Desemprego")
     c4, c5, c6 = st.columns(3)
     with c4:
         if not dsel.empty:
@@ -202,6 +203,17 @@ elif st.session_state.pagina == "Monitor Inflação":
             tab_rows.append({"Medida":f"{key} — {label}","Cód. SGS":NUCLEO_SGS[key][0],"Último valor":f"{fmt(ul['valor'])}%","Ref.":ul["data"].strftime("%b/%Y"),"Var. s/ ant.":f"{'+' if an and ul['valor']>=an else ''}{fmt(ul['valor']-an)}pp" if an else "—"})
     if tab_rows:
         st.dataframe(pd.DataFrame(tab_rows), hide_index=True, use_container_width=True, height=46+len(tab_rows)*35)
+        # Downloads dos núcleos
+        _dl_cols = st.columns(len(nucleo_data) + 1)
+        with _dl_cols[0]:
+            if not df_ipca_full.empty:
+                _dlo_ipca = df_ipca_full.copy(); _dlo_ipca["data"] = _dlo_ipca["data"].dt.strftime("%d/%m/%Y")
+                st.download_button("💾 IPCA", data=_dlo_ipca.to_csv(index=False).encode("utf-8-sig"), file_name="ipca.csv", mime="text/csv", use_container_width=True)
+        for i, (key, (df_n, label, _)) in enumerate(nucleo_data.items()):
+            with _dl_cols[i + 1]:
+                if not df_n.empty:
+                    _dlo_n = df_n.copy(); _dlo_n["data"] = _dlo_n["data"].dt.strftime("%d/%m/%Y")
+                    st.download_button(f"💾 {key}", data=_dlo_n.to_csv(index=False).encode("utf-8-sig"), file_name=f"nucleo_{key.lower()}.csv", mime="text/csv", use_container_width=True)
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     sec_title("Média dos Núcleos — Acumulado 12 Meses", "↻ diário", "badge-daily")
@@ -406,8 +418,26 @@ elif st.session_state.pagina == "Mercados Globais":
 # ══════════════════════════════════════════════════════════════════════════════
 elif st.session_state.pagina == "Gráficos":
     page_header("Gráficos")
-    PERIODOS = {"Selic":["Original"],"IPCA":["Mensal (original)","Acumulado 12M","Acumulado no ano"],"IBC-Br":["Nível (original)","Var. mensal (m/m)","Var. trimestral (t/t)","Var. anual (a/a)"],"Dólar PTAX":["Original"],"PIB":["Var. trimestral (original)","Var. anual (a/a)","Acumulado 4 trimestres"],"Desemprego":["Original"],"IGP-M":["Mensal (original)","Acumulado 12M"],"IPCA-15":["Mensal (original)","Acumulado 12M"],"Exportações":["Original","Var. mensal (m/m)","Var. anual (a/a)"],"Importações":["Original","Var. mensal (m/m)","Var. anual (a/a)"],"Dívida/PIB":["Original","Var. mensal (m/m)"]}
-    t1, t2 = st.tabs(["BCB — Indicadores Brasil","Yahoo Finance — Ativos Globais"])
+    PERIODOS = {
+        "Selic":             ["Original"],
+        "IPCA":              ["Mensal (original)","Acumulado 12M","Acumulado no ano"],
+        "IBC-Br":            ["Nível (original)","Var. mensal (m/m)","Var. trimestral (t/t)","Var. anual (a/a)"],
+        "Dólar PTAX":        ["Original"],
+        "PIB":               ["Var. trimestral (original)","Var. anual (a/a)","Acumulado 4 trimestres"],
+        "Desemprego":        ["Original"],
+        "IGP-M":             ["Mensal (original)","Acumulado 12M"],
+        "IPCA-15":           ["Mensal (original)","Acumulado 12M"],
+        "Exportações":       ["Original","Var. mensal (m/m)","Var. anual (a/a)"],
+        "Importações":       ["Original","Var. mensal (m/m)","Var. anual (a/a)"],
+        "Dívida/PIB":        ["Original","Var. mensal (m/m)"],
+        "Focus: IPCA 12M":   ["Original"],
+        "Focus: IPCA ano":   ["Original"],
+        "Focus: Selic ano":  ["Original"],
+        "Focus: PIB ano":    ["Original"],
+        "Focus: Câmbio ano": ["Original"],
+        "Swap DI×Pré 360d":  ["Original"],
+    }
+    t1, t2, t3 = st.tabs(["BCB — Indicadores Brasil", "Yahoo Finance — Ativos Globais", "Comparar Séries"])
     with t1:
         col1,col2 = st.columns([2,2])
         with col1: ind = st.selectbox("Indicador",list(SGS.keys()),key="gind")
@@ -468,6 +498,92 @@ elif st.session_state.pagina == "Gráficos":
             with col_b:
                 if st.button("↺",key="retry_yf"): st.cache_data.clear(); st.rerun()
 
+    # ── Aba Comparar Séries ───────────────────────────────────────────────────
+    with t3:
+        _CORES_COMP = ["#1a2035","#dc2626","#0891b2","#16a34a","#d97706","#7c3aed"]
+        st.markdown("<div style='font-size:12px;color:#6b7280;margin:0 0 14px'>Selecione 2 ou 3 indicadores BCB para comparar no mesmo gráfico. Séries com unidades diferentes usam eixo Y duplo.</div>", unsafe_allow_html=True)
+
+        _ind_lista = list(SGS.keys())
+        cc1, cc2, cc3 = st.columns(3)
+        with cc1: cind1 = st.selectbox("Indicador 1", _ind_lista, index=0, key="cind1")
+        with cc2: cind2 = st.selectbox("Indicador 2", _ind_lista, index=1, key="cind2")
+        with cc3: cind3 = st.selectbox("Indicador 3 (opcional)", ["—"] + _ind_lista, index=0, key="cind3")
+
+        _selecionados = [cind1, cind2] + ([cind3] if cind3 != "—" else [])
+
+        # Carrega séries
+        _series_comp = {}
+        for _nome in _selecionados:
+            _cod, _unit, _freq, _ = SGS[_nome]
+            try:
+                with st.spinner(f"Carregando {_nome}..."): _df_c = get_bcb_full(_cod)
+            except Exception as e:
+                logger.error("Comparação: %s — %s", _cod, e); _df_c = pd.DataFrame(columns=["data","valor"])
+            stale_banner(_df_c, _nome)
+            _series_comp[_nome] = (_df_c, _unit)
+
+        # Janela de datas — baseada na menor série disponível
+        _dfs_validas = [df for df, _ in _series_comp.values() if not df.empty]
+        if len(_dfs_validas) < 2:
+            st.warning("⚠️ Não foi possível carregar dados suficientes para comparar.")
+        else:
+            _dmin_c = max(df["data"].min() for df in _dfs_validas).date()
+            _dmax_c = min(df["data"].max() for df in _dfs_validas).date()
+            _d24c   = max(_dmin_c, date(_dmax_c.year - 2, _dmax_c.month, _dmax_c.day))
+            cd1, cd2 = st.columns(2)
+            with cd1: dc_ini = st.date_input("Exibir de",  value=_d24c,  min_value=_dmin_c, max_value=_dmax_c, key="cini")
+            with cd2: dc_fim = st.date_input("Exibir até", value=_dmax_c, min_value=_dmin_c, max_value=_dmax_c, key="cfim")
+
+            if dc_ini < dc_fim:
+                # Determina se precisa de eixo Y duplo (unidades diferentes)
+                _unidades = list(dict.fromkeys(u for _, u in _series_comp.values()))
+                _usa_y2   = len(_unidades) > 1
+
+                fig_comp = go.Figure()
+                for i, (_nome, (_df_c, _unit)) in enumerate(_series_comp.items()):
+                    if _df_c.empty: continue
+                    _cor  = _CORES_COMP[i % len(_CORES_COMP)]
+                    _yref = "y2" if (_usa_y2 and _unit != _unidades[0]) else "y"
+                    fig_comp.add_trace(go.Scatter(
+                        x=_df_c["data"], y=_df_c["valor"],
+                        mode="lines", name=f"{_nome} ({_unit})",
+                        line=dict(color=_cor, width=2),
+                        yaxis=_yref,
+                        hovertemplate=f"%{{x|%d/%m/%Y}}<br><b>{_nome}: %{{y:.2f}} {_unit}</b><extra></extra>",
+                    ))
+
+                _layout_comp = {
+                    **_I,
+                    "margin": dict(l=60, r=60, t=44, b=36),
+                    "hovermode": "x unified",
+                    "legend": dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=11)),
+                }
+                if _usa_y2:
+                    _layout_comp["yaxis"]  = {**_I["yaxis"], "title": _unidades[0], "ticksuffix": f" {_unidades[0]}"}
+                    _layout_comp["yaxis2"] = dict(title=_unidades[1], overlaying="y", side="right",
+                                                   showgrid=False, tickfont=dict(size=10, color="#9ca3af"),
+                                                   zeroline=False, ticksuffix=f" {_unidades[1]}")
+
+                fig_comp.update_layout(**_layout_comp, height=460, title=" vs ".join(_selecionados))
+                fig_comp.update_xaxes(range=[str(dc_ini), str(dc_fim)])
+                fig_comp = _add_rangeslider(fig_comp, 460)
+                st.plotly_chart(fig_comp, use_container_width=True, config={**CHART_CFG_INT,
+                    "toImageButtonOptions": {"format":"png","filename":"comparacao_series","scale":2}})
+
+                # Download combinado
+                _dfs_merged = []
+                for _nome, (_df_c, _unit) in _series_comp.items():
+                    if not _df_c.empty:
+                        _tmp = _df_c[(_df_c["data"] >= pd.Timestamp(dc_ini)) & (_df_c["data"] <= pd.Timestamp(dc_fim))].copy()
+                        _tmp = _tmp.rename(columns={"valor": f"{_nome} ({_unit})"})
+                        _dfs_merged.append(_tmp.set_index("data"))
+                if _dfs_merged:
+                    _df_export = pd.concat(_dfs_merged, axis=1).reset_index()
+                    _df_export["data"] = _df_export["data"].dt.strftime("%d/%m/%Y")
+                    st.download_button("💾 Baixar CSV comparação",
+                        data=_df_export.to_csv(index=False).encode("utf-8-sig"),
+                        file_name="comparacao_series.csv", mime="text/csv")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # EXPORTAR
 # ══════════════════════════════════════════════════════════════════════════════
@@ -475,7 +591,25 @@ else:
     page_header("Exportar Dados")
     fonte = st.radio("Fonte:",["BCB/SGS — Brasil","Yahoo Finance — Globais"],horizontal=True)
     st.markdown("<div style='height:10px'></div>",unsafe_allow_html=True)
-    _PE = {"Selic":["Original"],"IPCA":["Mensal (original)","Acumulado 12M","Acumulado no ano"],"IBC-Br":["Nível (original)","Var. mensal (m/m)","Var. trimestral (t/t)","Var. anual (a/a)"],"Dólar PTAX":["Original"],"PIB":["Var. trimestral (original)","Var. anual (a/a)","Acumulado 4 trimestres"],"Desemprego":["Original"],"IGP-M":["Mensal (original)","Acumulado 12M"],"IPCA-15":["Mensal (original)","Acumulado 12M"],"Exportações":["Original","Var. mensal (m/m)","Var. anual (a/a)"],"Importações":["Original","Var. mensal (m/m)","Var. anual (a/a)"],"Dívida/PIB":["Original","Var. mensal (m/m)"]}
+    _PE = {
+        "Selic":             ["Original"],
+        "IPCA":              ["Mensal (original)","Acumulado 12M","Acumulado no ano"],
+        "IBC-Br":            ["Nível (original)","Var. mensal (m/m)","Var. trimestral (t/t)","Var. anual (a/a)"],
+        "Dólar PTAX":        ["Original"],
+        "PIB":               ["Var. trimestral (original)","Var. anual (a/a)","Acumulado 4 trimestres"],
+        "Desemprego":        ["Original"],
+        "IGP-M":             ["Mensal (original)","Acumulado 12M"],
+        "IPCA-15":           ["Mensal (original)","Acumulado 12M"],
+        "Exportações":       ["Original","Var. mensal (m/m)","Var. anual (a/a)"],
+        "Importações":       ["Original","Var. mensal (m/m)","Var. anual (a/a)"],
+        "Dívida/PIB":        ["Original","Var. mensal (m/m)"],
+        "Focus: IPCA 12M":   ["Original"],
+        "Focus: IPCA ano":   ["Original"],
+        "Focus: Selic ano":  ["Original"],
+        "Focus: PIB ano":    ["Original"],
+        "Focus: Câmbio ano": ["Original"],
+        "Swap DI×Pré 360d":  ["Original"],
+    }
     if fonte == "BCB/SGS — Brasil":
         c1,c2 = st.columns([2,2])
         with c1: ind = st.selectbox("Indicador",list(SGS.keys()),index=1,key="eind")
