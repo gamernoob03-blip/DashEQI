@@ -75,27 +75,6 @@ def sec_title(txt: str, badge: str = "", cls: str = "badge-live") -> None:
     """Título de seção com badge opcional."""
     b = f'<span class="{cls}">{badge}</span>' if badge else ""
     st.markdown(f'<div class="sec-title">{txt} {b}</div>', unsafe_allow_html=True)
-
-
-def render_com_fallback(fn, label: str, *args, **kwargs):
-    """
-    Executa fn(*args, **kwargs) com tratamento de erro padronizado.
-    Em caso de falha exibe aviso com botão ↺ para limpar cache e recarregar.
-    """
-    try:
-        return fn(*args, **kwargs)
-    except Exception as e:
-        logger.error("Erro ao renderizar '%s': %s", label, e)
-        col1, col2 = st.columns([6, 1])
-        with col1:
-            st.warning(f"⚠️ **{label}** — falha ao carregar dados.")
-        with col2:
-            if st.button("↺ Tentar novamente", key=f"retry_{label}"):
-                st.cache_data.clear()
-                st.rerun()
-        return None
-
-
 def kpi_card(label: str, value: str, chg_p=None, sub: str = "",
              invert: bool = False, d: dict = None, raw_delta=None) -> None:
     """Card de KPI padronizado com valor, variação e badge de referência."""
@@ -126,35 +105,6 @@ def kpi_card(label: str, value: str, chg_p=None, sub: str = "",
         f"{delta_html}{sub_html}{banner_html}</div>",
         unsafe_allow_html=True,
     )
-
-
-def render_sidebar() -> None:
-    """Renderiza a sidebar de navegação e retorna a página ativa via session_state."""
-    with st.sidebar:
-        st.markdown(
-            "<div style='padding:20px 4px 12px 4px'>"
-            "<span style='font-size:24px;font-weight:900;color:#004031;"
-            "letter-spacing:-0.5px'>EQI</span></div>",
-            unsafe_allow_html=True,
-        )
-        st.divider()
-        for label in NAV:
-            slug = NAV_SLUGS.get(label, label.lower())
-            st.markdown(f"<div class='nav-marker nav-{slug}'></div>",
-                        unsafe_allow_html=True)
-            if st.button(
-                label,
-                key=f"nav_{label}",
-                type="primary" if st.session_state.pagina == label else "secondary",
-                use_container_width=True,
-            ):
-                st.session_state.pagina = label
-                st.rerun()
-        st.divider()
-        st.caption("Fontes: BCB/SGS · IBGE/SIDRA · Yahoo Finance")
-        st.caption("Mercados ↻60s · BCB/IBGE ↻1h")
-
-
 def stale_banner(df, label: str = "") -> None:
     """
     Exibe aviso amarelo se o DataFrame veio do cache stale (API indisponível).
