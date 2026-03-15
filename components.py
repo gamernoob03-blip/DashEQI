@@ -4,7 +4,7 @@ Todos dependem de st.*; nenhuma lógica de dados ou cálculo aqui.
 """
 import streamlit as st
 from datetime import datetime
-from config import logger, TZ_BRT, NAV, NAV_SLUGS
+from settings import logger, TZ_BRT, NAV, NAV_SLUGS
 
 
 def now_brt():
