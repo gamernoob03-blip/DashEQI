@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, date
 
 from settings import (
     logger, GLOBAL, SGS, NUCLEO_SGS, BCB_META, BCB_TOLE,
-    IPCA_GRUPOS_IDS, NAV, NAV_SLUGS, CHART_CFG, CHART_CFG_INT,
+    IPCA_GRUPOS_IDS, NAV, NAV_SLUGS,
 )
 from data import (
     get_quote, get_hist, get_bcb_full, get_bcb_range,
@@ -27,7 +27,7 @@ from charts import (
     cores_overlay_fig, acum12m_meta_fig, grupos_bar_fig, grupos_linhas_fig,
     _y_range_for_window, _add_rangeslider, _B, _I,
 )
-from components import inject_css, fmt, page_header, sec_title, kpi_card, now_brt, stale_banner
+from components import inject_css, fmt, page_header, sec_title, kpi_card, now_brt, stale_banner, render_chart
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.filterwarnings("ignore", message="Unverified HTTPS")
@@ -128,20 +128,20 @@ if st.session_state.pagina == "Início":
     st.markdown('<div class="sec-title">Histórico — 12 meses <span style="font-size:10px;font-weight:400;color:#9ca3af;text-transform:none;letter-spacing:0;margin-left:4px">→ análise completa em Monitor Inflação</span></div>', unsafe_allow_html=True)
     ca, cb = st.columns(2)
     with ca:
-        if not dsel.empty:  st.plotly_chart(line_fig(dsel,  "Selic (% a.a.)", "#1a2035", suffix="%", inter=True), use_container_width=True, config=CHART_CFG_INT)
+        if not dsel.empty:  render_chart(line_fig(dsel, "Selic (% a.a.)", "#1a2035", suffix="%"), "selic", static=True)
     with cb:
-        if not dipca.empty: st.plotly_chart(bar_fig(dipca,  "IPCA (% ao mês)", suffix="%", inter=True),           use_container_width=True, config=CHART_CFG_INT)
+        if not dipca.empty: render_chart(bar_fig(dipca, "IPCA (% ao mês)", suffix="%"), "ipca", static=True)
     cc, cd = st.columns(2)
     with cc:
         df30 = dcam.tail(30) if not dcam.empty else dcam
-        if not df30.empty: st.plotly_chart(line_fig(df30, "Dólar PTAX — 30 dias (R$)", "#d97706", suffix=" R$", inter=True), use_container_width=True, config=CHART_CFG_INT)
+        if not df30.empty: render_chart(line_fig(df30, "Dólar PTAX — 30 dias (R$)", "#d97706", suffix=" R$"), "dolar_ptax", static=True)
     with cd:
-        if not dibc.empty: st.plotly_chart(line_fig(dibc, "IBC-Br", "#0891b2", fill=False, inter=True), use_container_width=True, config=CHART_CFG_INT)
+        if not dibc.empty: render_chart(line_fig(dibc, "IBC-Br", "#0891b2", fill=False), "ibc_br", static=True)
     ce, cf = st.columns(2)
     with ce:
-        if not dpib.empty: st.plotly_chart(bar_fig(dpib, "PIB — variação trimestral (%)", suffix="%", inter=True), use_container_width=True, config=CHART_CFG_INT)
+        if not dpib.empty: render_chart(bar_fig(dpib, "PIB — variação trimestral (%)", suffix="%"), "pib", static=True)
     with cf:
-        if not ddes.empty: st.plotly_chart(line_fig(ddes, "Desemprego PNAD (%)", "#dc2626", suffix="%", inter=True), use_container_width=True, config=CHART_CFG_INT)
+        if not ddes.empty: render_chart(line_fig(ddes, "Desemprego PNAD (%)", "#dc2626", suffix="%"), "desemprego", static=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MONITOR INFLAÇÃO
@@ -193,7 +193,7 @@ elif st.session_state.pagina == "Monitor Inflação":
         _xmax = df_ipca_full["data"].max(); _xmin = _xmax - pd.DateOffset(months=24)
         fig_cores.update_xaxes(range=[str(_xmin.date()), str(_xmax.date())])
         fig_cores.update_yaxes(range=_y_range_for_window(df_ipca_full, _xmin, _xmax, pad=0.2), ticksuffix="%")
-    st.plotly_chart(fig_cores, use_container_width=True, config={**CHART_CFG_INT, "toImageButtonOptions": {"format":"png","filename":"ipca_nucleos","scale":2}})
+    render_chart(fig_cores, "ipca_nucleos")
 
     tab_rows = []
     if not df_ipca_full.empty:
@@ -253,7 +253,7 @@ elif st.session_state.pagina == "Monitor Inflação":
             fig_media = _add_rangeslider(fig_media,360,extra_top=40)
             _last = _df_all["media_a12"].iloc[-1]
             fig_media.add_annotation(x=_df_all["data"].iloc[-1],y=_last,text=f"  {fmt(_last)}%",showarrow=False,font=dict(size=11,color="#7c3aed",family="Inter"),xanchor="left")
-            st.plotly_chart(fig_media,use_container_width=True,config={**CHART_CFG_INT,"toImageButtonOptions":{"format":"png","filename":"nucleos_acum12m","scale":2}})
+            render_chart(fig_media, "nucleos_acum12m")
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     sec_title("Acumulado 12 Meses vs Meta BCB", "↻ diário", "badge-daily")
@@ -264,7 +264,7 @@ elif st.session_state.pagina == "Monitor Inflação":
         _df_avis = _df_av.dropna(subset=["acum12m"])[["data","acum12m"]].rename(columns={"acum12m":"valor"})
         _yr_a    = _y_range_for_window(_df_avis,_xmin_a,_xmax_a,pad=0.15,extra_min=float(BCB_TOLE),extra_max=float(teto_meta+0.5))
         fig_acum.update_xaxes(range=[str(_xmin_a.date()),str(_xmax_a.date())]); fig_acum.update_yaxes(range=_yr_a,ticksuffix="%")
-        st.plotly_chart(fig_acum,use_container_width=True,config={**CHART_CFG_INT,"toImageButtonOptions":{"format":"png","filename":"ipca_acum12m_meta","scale":2}})
+        render_chart(fig_acum, "ipca_acum12m_meta")
 
     st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
     sec_title("IPCA por Grupos — IBGE SIDRA", "↻ diário", "badge-daily")
@@ -290,7 +290,7 @@ elif st.session_state.pagina == "Monitor Inflação":
                 st.markdown(f"<div style='background:#fff;border:1px solid #e2e5e9;border-radius:10px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between'><span style='font-size:12px;font-weight:500;color:#374151'>{grupo}</span><span style='font-size:14px;font-weight:700;color:{cor}'>{sinal} {abs(valor):.2f}%</span></div>", unsafe_allow_html=True)
 
             ga, gb = st.columns([1.2,1])
-            with ga: st.plotly_chart(grupos_bar_fig(df_grupos_mensal,ultimo_mes),use_container_width=True,config=CHART_CFG)
+            with ga: render_chart(grupos_bar_fig(df_grupos_mensal,ultimo_mes), "ipca_grupos_mensal", static=True)
             with gb:
                 st.markdown(f"<div style='font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px'>Maiores altas — {ultimo_mes.strftime('%b/%Y')}</div>", unsafe_allow_html=True)
                 for _,row in df_ult.head(3).iterrows(): _mini_card(row["grupo"],row["valor"])
@@ -298,7 +298,7 @@ elif st.session_state.pagina == "Monitor Inflação":
                 for _,row in df_ult.tail(3).iterrows(): _mini_card(row["grupo"],row["valor"])
 
             st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-            st.plotly_chart(grupos_linhas_fig(df_grupos_mensal,d_ini=g_ini,d_fim=g_fim,height=440),use_container_width=True,config={**CHART_CFG_INT,"toImageButtonOptions":{"format":"png","filename":"ipca_grupos_evolucao","scale":2}})
+            render_chart(grupos_linhas_fig(df_grupos_mensal,d_ini=g_ini,d_fim=g_fim,height=440), "ipca_grupos_evolucao")
 
             if not df_grupos_acum.empty:
                 st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
@@ -313,7 +313,7 @@ elif st.session_state.pagina == "Monitor Inflação":
                     fig_ag.add_trace(go.Bar(x=df_acum_u["valor"],y=df_acum_u["grupo"],orientation="h",marker_color=colors_acum,marker_line_width=0,text=[f"{v:.1f}%" for v in df_acum_u["valor"]],textposition="outside",hovertemplate="%{y}<br><b>Acum. 12M: %{x:.2f}%</b><extra></extra>"))
                     fig_ag.update_layout(**{**_B,"margin":dict(l=190,r=70,t=44,b=36)},height=340,title=f"IPCA Acumulado 12M por Grupo — {ult_acum.strftime('%b/%Y')} (meta {meta_bcb:.1f}%)",xaxis_title="% acumulado 12 meses")
                     fig_ag.update_xaxes(ticksuffix="%")
-                    st.plotly_chart(fig_ag,use_container_width=True,config=CHART_CFG)
+                    render_chart(fig_ag, "ipca_grupos_acum12m", static=True)
 
             st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
             dlo_g = df_grupos_mensal[(df_grupos_mensal["data"]>=pd.Timestamp(g_ini))&(df_grupos_mensal["data"]<=pd.Timestamp(g_fim))].copy()
@@ -423,7 +423,7 @@ elif st.session_state.pagina == "Mercados Globais":
         with tab:
             dfh = get_hist(sym_h,2)
             if not dfh.empty:
-                st.plotly_chart(line_fig(dfh,f"{nome_h} — 2 anos",cor_h,suffix=f" {unit_h}",height=320,inter=True),use_container_width=True,config={**CHART_CFG_INT,"toImageButtonOptions":{"format":"png","filename":nome_h,"scale":2}})
+                render_chart(line_fig(dfh,f"{nome_h} — 2 anos",cor_h,suffix=f" {unit_h}",height=320,inter=True), nome_h)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GRÁFICOS
@@ -480,7 +480,7 @@ elif st.session_state.pagina == "Gráficos":
                 use_bar = (tipo=="bar") and (periodo in ("Original","Mensal (original)","Var. trimestral (original)"))
                 fig = bar_fig(df_t,label_t,suffix=f" {unit_t}",height=440,inter=True) if use_bar else line_fig(df_t,label_t,"#004031",suffix=f" {unit_t}",height=440,inter=True)
                 fig.update_xaxes(range=[str(d_ini),str(d_fim)])
-                st.plotly_chart(fig,use_container_width=True,config={**CHART_CFG_INT,"toImageButtonOptions":{"format":"png","filename":f"{ind}_{periodo}","scale":2}})
+                render_chart(fig, f"{ind}_{periodo}")
                 dlo = df_t.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ind.replace(' ','_')}_{periodo.replace(' ','_')}.csv",mime="text/csv")
     with t2:
@@ -501,7 +501,7 @@ elif st.session_state.pagina == "Gráficos":
             if dy_ini < dy_fim:
                 st.success(f"✅ {len(dfg)} obs. · {ativo}")
                 fig_y = line_fig(dfg,f"{ativo}","#004031",suffix=f" {unit}",height=440,inter=True); fig_y.update_xaxes(range=[str(dy_ini),str(dy_fim)])
-                st.plotly_chart(fig_y,use_container_width=True,config={**CHART_CFG_INT,"toImageButtonOptions":{"format":"png","filename":ativo,"scale":2}})
+                render_chart(fig_y, ativo)
                 dlo = dfg.copy(); dlo["data"] = dlo["data"].dt.strftime("%d/%m/%Y")
                 st.download_button(f"💾 Baixar CSV completo ({len(dlo)} linhas)",data=dlo.to_csv(index=False).encode("utf-8-sig"),file_name=f"{ativo.replace(' ','_')}_completo.csv",mime="text/csv")
         else:
@@ -579,8 +579,7 @@ elif st.session_state.pagina == "Gráficos":
                 fig_comp.update_layout(**_layout_comp, height=460, title=" vs ".join(_selecionados))
                 fig_comp.update_xaxes(range=[str(dc_ini), str(dc_fim)])
                 fig_comp = _add_rangeslider(fig_comp, 460)
-                st.plotly_chart(fig_comp, use_container_width=True, config={**CHART_CFG_INT,
-                    "toImageButtonOptions": {"format":"png","filename":"comparacao_series","scale":2}})
+                render_chart(fig_comp, "comparacao_series")
 
                 # Download combinado
                 _dfs_merged = []
