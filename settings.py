@@ -55,29 +55,48 @@ CHART_CFG = {
 CHART_CFG_INT = CHART_CFG
 
 # ── Séries BCB/SGS ────────────────────────────────────────────────────────────
-# Formato: nome → (código SGS, unidade, frequência, tipo de gráfico)
+# Formato: nome → (código SGS, unidade, frequência, tipo de gráfico, cor hex)
 SGS = {
     # Indicadores gerais
-    "Selic":              (432,   "% a.a.",  "Mensal",     "line"),
-    "IPCA":               (433,   "% mês",   "Mensal",     "bar"),
-    "IBC-Br":             (24363, "índice",  "Mensal",     "line"),
-    "Dólar PTAX":         (1,     "R$",      "Diário",     "line"),
-    "PIB":                (4380,  "% trim.", "Trimestral", "bar"),
-    "Desemprego":         (24369, "%",       "Trimestral", "line"),
-    "IGP-M":              (189,   "% mês",   "Mensal",     "bar"),
-    "IPCA-15":            (7478,  "% mês",   "Mensal",     "bar"),
-    "Exportações":        (2257,  "US$ mi",  "Mensal",     "bar"),
-    "Importações":        (2258,  "US$ mi",  "Mensal",     "bar"),
-    "Dívida/PIB":         (4513,  "%",       "Mensal",     "line"),
+    "Selic":              (432,   "% a.a.",  "Mensal",     "line", "#1a2035"),
+    "IPCA":               (433,   "% mês",   "Mensal",     "bar",  "#dc2626"),
+    "IBC-Br":             (24363, "índice",  "Mensal",     "line", "#0891b2"),
+    "Dólar PTAX":         (1,     "R$",      "Diário",     "line", "#d97706"),
+    "PIB":                (4380,  "% trim.", "Trimestral", "bar",  "#16a34a"),
+    "Desemprego":         (24369, "%",       "Trimestral", "line", "#dc2626"),
+    "IGP-M":              (189,   "% mês",   "Mensal",     "bar",  "#7c3aed"),
+    "IPCA-15":            (7478,  "% mês",   "Mensal",     "bar",  "#d97706"),
+    "Exportações":        (2257,  "US$ mi",  "Mensal",     "bar",  "#16a34a"),
+    "Importações":        (2258,  "US$ mi",  "Mensal",     "bar",  "#dc2626"),
+    "Dívida/PIB":         (4513,  "%",       "Mensal",     "line", "#374151"),
     # Expectativas Focus (Relatório de Mercado)
-    "Focus: IPCA 12M":    (13522, "%",       "Diário",     "line"),
-    "Focus: IPCA ano":    (13521, "%",       "Diário",     "line"),
-    "Focus: Selic ano":   (13426, "% a.a.", "Diário",     "line"),
-    "Focus: PIB ano":     (13291, "%",       "Diário",     "line"),
-    "Focus: Câmbio ano":  (13290, "R$",      "Diário",     "line"),
+    "Focus: IPCA 12M":    (13522, "%",       "Diário",     "line", "#0891b2"),
+    "Focus: IPCA ano":    (13521, "%",       "Diário",     "line", "#06b6d4"),
+    "Focus: Selic ano":   (13426, "% a.a.",  "Diário",     "line", "#1a2035"),
+    "Focus: PIB ano":     (13291, "%",       "Diário",     "line", "#16a34a"),
+    "Focus: Câmbio ano":  (13290, "R$",      "Diário",     "line", "#d97706"),
     # Câmbio e swaps
-    "Swap DI×Pré 360d":   (7814,  "% a.a.",  "Diário",     "line"),
+    "Swap DI×Pré 360d":   (7814,  "% a.a.",  "Diário",     "line", "#7c3aed"),
 }
+
+# ── KPIs da página Início ─────────────────────────────────────────────────────
+# Formato: (nome_no_SGS, label_exibição, formato_valor)
+# formato_valor: string Python com {v} para o valor e {u} para a unidade
+HOME_KPIS = [
+    ("Selic",      "Selic",           "{v}% a.a."),
+    ("IPCA",       "IPCA",            "{v}% mês"),
+    ("Desemprego", "Desemprego (PNAD)", "{v}%"),
+]
+# Formato: (nome_no_SGS, meses_exibidos)
+# A série é sempre carregada completa do cache — só a janela de exibição varia.
+HOME_CHARTS = [
+    ("Selic",       13),   # mensal   — últimos 13 meses
+    ("IPCA",        13),   # mensal   — últimos 13 meses
+    ("Dólar PTAX",   1),   # diário   — último mês (~30 dias úteis)
+    ("IBC-Br",      13),   # mensal   — últimos 13 meses
+    ("PIB",         24),   # trimestral — últimos 24 meses (8 trimestres)
+    ("Desemprego",  24),   # trimestral — últimos 24 meses
+]
 
 # ── Ativos globais ────────────────────────────────────────────────────────────
 # Formato: nome → (símbolo interno, unidade, sinal_invertido)
