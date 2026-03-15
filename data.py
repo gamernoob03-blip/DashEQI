@@ -399,8 +399,9 @@ def _bg_refresh_loop():
             # Cotações yfinance — a cada 13 min
             data = _fetch_yf_quotes()
             if data:
+                # Limpa só o cache de cotações, preserva BCB e histórico
                 _cached_quotes.clear()
-                st.cache_data.clear()
+                _cached_quotes()  # força re-população imediata
             logger.warning("Background refresh: %d cotações renovadas", len(data))
         except Exception as e:
             logger.warning("Background refresh cotações: %s", e)
