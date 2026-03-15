@@ -72,12 +72,13 @@ def _fetch(url: str, retries: int = 3, timeout: int = 20) -> list:
                 if isinstance(data, list) and data:
                     return data
             time.sleep(0.8)
-        except Exception:
+        except Exception as e:
+            logger.warning("BCB fetch erro: %s", e)
             time.sleep(1)
     return []
 
 
-def aplicar_periodo(df: pd.DataFrame, periodo: str, ind_nome: str):
+def aplicar_periodo(df: pd.DataFrame, periodo: str, ind_nome: str) -> tuple[pd.DataFrame, str]:
     """
     Aplica transformação temporal a uma série BCB.
     Retorna (df_transformado, unidade_label).
