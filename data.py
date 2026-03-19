@@ -1,44 +1,88 @@
 """
-data.py — Camada de dados: BCB/SGS, IBGE/SIDRA, mercados via Twelve Data + CoinGecko.
-Todas as funções retornam DataFrames ou dicts prontos para consumo pelas páginas.
-Nenhuma lógica de UI aqui.
+data.py — Camada de dados (BCB/SGS + Yahoo Finance)
+
+Correção do erro 429 / YFRateLimitError:
+  O Yahoo Finance exige um crumb token em todas as requisições programáticas.
+  Sem ele, qualquer chamada retorna 429 Too Many Requests.
+
+  Solução: _build_session() autentica uma vez (cookie + crumb) e reutiliza
+  a sessão em todas as chamadas, via st.session_state. A sessão é renovada
+  automaticamente a cada 50 minutos ou sempre que receber 401/429.
+
+  Remove dependência do yfinance (era a fonte dos rate limits no Streamlit Cloud).
 """
-import re, time, warnings, os
-import requests, urllib3
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import warnings
+import requests
+import urllib3
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
-
-from settings import (
-    logger, HDRS,
-    TTL_BCB, TTL_IBGE, TTL_MERCADOS, TTL_HIST,
-    BCB_BASE, IBGE_SIDRA,
-    IPCA_GRUPOS_IDS, TZ_BRT,
-)
+import time
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.filterwarnings("ignore", message="Unverified HTTPS")
 
+# ─── CONSTANTES ──────────────────────────────────────────────────────────────
+BCB_BASE   = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados"
 
-def now_brt():
-    from datetime import datetime
-    return datetime.now(TZ_BRT)
+# Yahoo Finance — URLs de autenticação e dados
+_YF_COOKIE_URL = "https://fc.yahoo.com"
+_YF_CRUMB_URL  = "https://query1.finance.yahoo.com/v1/test/getcrumb"
+_YF_CHART_URL  = "https://query2.finance.yahoo.com/v8/finance/chart/{sym}"
 
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept":          "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Origin":          "https://finance.yahoo.com",
+    "Referer":         "https://finance.yahoo.com/",
+}
 
-# ── Helpers internos ──────────────────────────────────────────────────────────
+SGS = {
+    "Selic":       (432,   "% a.a.",  "Mensal",     "line"),
+    "IPCA":        (433,   "% mês",   "Mensal",     "bar"),
+    "IBC-Br":      (24363, "índice",  "Mensal",     "line"),
+    "Dólar PTAX":  (1,     "R$",      "Diário",     "line"),
+    "PIB":         (4380,  "% trim.", "Trimestral", "bar"),
+    "Desemprego":  (24369, "%",       "Trimestral", "line"),
+    "IGP-M":       (189,   "% mês",   "Mensal",     "bar"),
+    "IPCA-15":     (7478,  "% mês",   "Mensal",     "bar"),
+    "Exportações": (2257,  "US$ mi",  "Mensal",     "bar"),
+    "Importações": (2258,  "US$ mi",  "Mensal",     "bar"),
+    "Dívida/PIB":  (4513,  "%",       "Mensal",     "line"),
+}
 
-def _limpa_nome_grupo(nome: str) -> str:
-    """Remove prefixo numérico ('9.Educação' → 'Educação') e espaços extras."""
-    nome = str(nome).strip()
-    nome = re.sub(r"^\d+[\.\-\s]+", "", nome)
-    return nome.strip()
+GLOBAL = {
+    "IBOVESPA":        ("^BVSP",    "pts",    False),
+    "Dólar (USD/BRL)": ("USDBRL=X", "R$",     True),
+    "Euro (EUR/BRL)":  ("EURBRL=X", "R$",     True),
+    "S&P 500":         ("^GSPC",    "pts",    False),
+    "Nasdaq 100":      ("^NDX",     "pts",    False),
+    "Dow Jones":       ("^DJI",     "pts",    False),
+    "FTSE 100":        ("^FTSE",    "pts",    False),
+    "DAX":             ("^GDAXI",   "pts",    False),
+    "Petróleo Brent":  ("BZ=F",     "US$",    True),
+    "Petróleo WTI":    ("CL=F",     "US$",    True),
+    "Ouro":            ("GC=F",     "US$",    False),
+    "Prata":           ("SI=F",     "US$",    False),
+    "Cobre":           ("HG=F",     "US$/lb", True),
+    "Bitcoin":         ("BTC-USD",  "US$",    False),
+    "Ethereum":        ("ETH-USD",  "US$",    False),
+}
 
-
-def _parse(v):
-    """Converte string de valor BCB para float, tratando vírgula como decimal."""
-    if v is None:
+# ─── UTILS BCB ───────────────────────────────────────────────────────────────
+def parse_bcb_valor(valor_str):
+    if valor_str is None:
         return None
-    s = str(v).strip().replace("\xa0", "").replace(" ", "")
+    s = str(valor_str).strip().replace("\xa0", "").replace(" ", "")
     if "," in s:
         s = s.replace(".", "").replace(",", ".")
     try:
@@ -46,529 +90,197 @@ def _parse(v):
     except (ValueError, TypeError):
         return None
 
-
-def _build(raw: list) -> pd.DataFrame:
-    """Constrói DataFrame padronizado [data, valor] a partir da resposta BCB."""
+def _build_df(raw: list) -> pd.DataFrame:
     if not raw:
         return pd.DataFrame(columns=["data", "valor"])
     df = pd.DataFrame(raw)
-    if "data" not in df.columns:
+    if "data" not in df.columns or "valor" not in df.columns:
         return pd.DataFrame(columns=["data", "valor"])
     df["data"]  = pd.to_datetime(df["data"], format="%d/%m/%Y", errors="coerce")
-    df["valor"] = df["valor"].apply(_parse)
-    return (df.dropna(subset=["data", "valor"])
-              .sort_values("data")
-              .reset_index(drop=True)
-              [["data", "valor"]])
+    df["valor"] = df["valor"].apply(parse_bcb_valor)
+    df = df.dropna(subset=["data", "valor"]).sort_values("data").reset_index(drop=True)
+    return df[["data", "valor"]]
 
-
-def _fetch(url: str, retries: int = 3, timeout: int = 20) -> list:
-    """Faz até `retries` tentativas de GET e retorna lista JSON ou []."""
-    for _ in range(retries):
-        try:
-            r = requests.get(url, headers=HDRS, timeout=timeout, verify=False)
-            if r.status_code == 200 and "html" not in r.headers.get("Content-Type", "").lower():
-                data = r.json()
-                if isinstance(data, list) and data:
-                    return data
-            time.sleep(0.8)
-        except Exception as e:
-            logger.warning("BCB fetch erro: %s", e)
-            time.sleep(1)
-    return []
-
-
-def aplicar_periodo(df: pd.DataFrame, periodo: str, ind_nome: str) -> tuple[pd.DataFrame, str]:
-    """
-    Aplica transformação temporal a uma série BCB.
-    Retorna (df_transformado, unidade_label).
-    """
-    df = df.copy().sort_values("data").reset_index(drop=True)
-    if periodo in ("Original", "Mensal (original)", "Var. trimestral (original)", "Nível (original)"):
-        return df, df.attrs.get("unit", "")
-    elif periodo == "Acumulado 12M":
-        df["valor"] = df["valor"].rolling(12).sum()
-        return df.dropna(), "% acum. 12M"
-    elif periodo == "Acumulado no ano":
-        df["valor"] = df.groupby(df["data"].dt.year)["valor"].cumsum()
-        return df, "% acum. ano"
-    elif periodo == "Var. mensal (m/m)":
-        df["valor"] = df["valor"].pct_change(1) * 100
-        return df.dropna(), "% m/m"
-    elif periodo == "Var. trimestral (t/t)":
-        df["valor"] = df["valor"].pct_change(3) * 100
-        return df.dropna(), "% t/t"
-    elif periodo == "Var. anual (a/a)":
-        df["valor"] = df["valor"].pct_change(12) * 100
-        return df.dropna(), "% a/a"
-    elif periodo == "Acumulado 4 trimestres":
-        df["valor"] = df["valor"].rolling(4).sum()
-        return df.dropna(), "% acum. 4 tri"
-    return df, ""
-
-
-# ── Cache de fallback (dados antigos quando API está fora) ────────────────────
-# Armazena sempre a série completa — get_bcb_full é a única função de fetch.
-_bcb_stale_cache: dict[int, tuple[pd.DataFrame, datetime]] = {}
-
-
-def _build_with_fallback(raw: list, c: int) -> pd.DataFrame:
-    """
-    Constrói DataFrame. Se raw estiver vazio, retorna a última série completa
-    do cache com o atributo 'stale_since' para exibir o aviso ao usuário.
-    """
-    df = _build(raw)
-    if not df.empty:
-        _bcb_stale_cache[c] = (df.copy(), datetime.now())
-        return df
-    if c in _bcb_stale_cache:
-        df_old, fetched_at = _bcb_stale_cache[c]
-        df_old = df_old.copy()
-        df_old.attrs["stale_since"] = fetched_at
-        logger.warning("BCB: série %s usando cache stale de %s", c, fetched_at.strftime("%d/%m/%Y %H:%M"))
-        return df_old
-    return df
-
-
-# ── BCB/SGS ───────────────────────────────────────────────────────────────────
-
-@st.cache_data(ttl=TTL_BCB, show_spinner=False)
-def get_bcb_full(c: int) -> pd.DataFrame:
-    """
-    Série BCB c — tenta série completa com fallbacks progressivos.
-    Toda filtragem por período é feita em memória nas páginas.
-    """
-    hoje = datetime.today()
-
-    # Tenta série completa primeiro (3 retries, timeout 20s)
-    raw = _fetch(BCB_BASE.format(c=c) + "?formato=json")
-
-    # Fallbacks progressivos com timeout reduzido (1 retry, 12s)
-    for anos in [10, 5, 2]:
-        if raw:
-            break
-        ini = (hoje - timedelta(days=365 * anos)).strftime("%d/%m/%Y")
-        fim = hoje.strftime("%d/%m/%Y")
-        raw = _fetch(BCB_BASE.format(c=c) + f"?formato=json&dataInicial={ini}&dataFinal={fim}",
-                     retries=1, timeout=12)
-        if raw:
-            logger.info("BCB: série %s obtida via fallback %da", c, anos)
-
-    if not raw:
-        logger.warning("BCB: série completa %s indisponível", c)
-    return _build_with_fallback(raw, c)
-
-
-# ── IBGE/SIDRA ────────────────────────────────────────────────────────────────
-
-def _parse_sidra_resultado(resultado: dict) -> tuple[str, str, dict] | None:
-    """Extrai grupo_id, grupo_nome e série de um resultado SIDRA."""
-    cats = resultado.get("classificacoes", [])
-    if not cats:
-        return None
-    cat_dict   = cats[0].get("categoria", {})
-    grupo_id   = str(next(iter(cat_dict), ""))
-    raw_nome   = next(iter(cat_dict.values()), "")
-    grupo_nome = _limpa_nome_grupo(raw_nome)
-    series_list = resultado.get("series", [])
-    if not series_list or not grupo_nome:
-        return None
-    return grupo_id, grupo_nome, series_list[0].get("serie", {})
-
-
-@st.cache_data(ttl=TTL_IBGE, show_spinner=False)
-def get_ipca_grupos(n_periodos: int = 60) -> pd.DataFrame:
-    """
-    Variação mensal do IPCA por grupo — IBGE SIDRA tabela 7060, variável 63.
-    Retorna colunas: [data, grupo_id, grupo, valor].
-    """
-    url = IBGE_SIDRA.format(
-        tabela="7060", periodos=f"-{n_periodos}",
-        var="63", cls=f"315[{IPCA_GRUPOS_IDS}]",
-    )
-    try:
-        r = requests.get(url, headers=HDRS, timeout=30)
-        r.raise_for_status()
-        rows = []
-        for variavel in r.json():
-            for resultado in variavel.get("resultados", []):
-                parsed = _parse_sidra_resultado(resultado)
-                if not parsed:
-                    continue
-                grupo_id, grupo_nome, serie = parsed
-                for periodo, valor in serie.items():
-                    try:
-                        rows.append({
-                            "data":     pd.to_datetime(periodo, format="%Y%m"),
-                            "grupo_id": grupo_id,
-                            "grupo":    grupo_nome,
-                            "valor":    float(str(valor).replace(",", ".")),
-                        })
-                    except Exception:
-                        pass
-        if not rows:
-            return pd.DataFrame(columns=["data", "grupo_id", "grupo", "valor"])
-        return pd.DataFrame(rows).sort_values(["data", "grupo"]).reset_index(drop=True)
-    except Exception as e:
-        logger.warning("IBGE SIDRA: falha na variação mensal por grupo — %s", e)
-        return pd.DataFrame(columns=["data", "grupo_id", "grupo", "valor"])
-
-
-@st.cache_data(ttl=TTL_IBGE, show_spinner=False)
-def get_ipca_acum_grupo(n_periodos: int = 60) -> pd.DataFrame:
-    """
-    Variação acumulada 12M do IPCA por grupo — IBGE SIDRA tabela 7060, variável 2266.
-    Retorna colunas: [data, grupo_id, grupo, valor].
-    """
-    url = IBGE_SIDRA.format(
-        tabela="7060", periodos=f"-{n_periodos}",
-        var="2266", cls=f"315[{IPCA_GRUPOS_IDS}]",
-    )
-    try:
-        r = requests.get(url, headers=HDRS, timeout=30)
-        r.raise_for_status()
-        rows = []
-        for variavel in r.json():
-            for resultado in variavel.get("resultados", []):
-                parsed = _parse_sidra_resultado(resultado)
-                if not parsed:
-                    continue
-                grupo_id, grupo_nome, serie = parsed
-                for periodo, valor in serie.items():
-                    try:
-                        rows.append({
-                            "data":     pd.to_datetime(periodo, format="%Y%m"),
-                            "grupo_id": grupo_id,
-                            "grupo":    grupo_nome,
-                            "valor":    float(str(valor).replace(",", ".")),
-                        })
-                    except Exception:
-                        pass
-        if not rows:
-            return pd.DataFrame(columns=["data", "grupo_id", "grupo", "valor"])
-        return pd.DataFrame(rows).sort_values(["data", "grupo"]).reset_index(drop=True)
-    except Exception as e:
-        logger.warning("IBGE SIDRA: falha no acumulado 12M por grupo — %s", e)
-        return pd.DataFrame(columns=["data", "grupo_id", "grupo", "valor"])
-
-
-
-
-# ── Cotações de mercado — yfinance + cache de servidor ────────────────────────
-#
-# Estratégia: background thread renova o cache a cada 13 minutos.
-# yfinance só é chamado pelo servidor, nunca por page load de usuário.
-# Resultado: zero rate limit — qualquer usuário recebe dados do cache.
-
-import threading as _threading
-import yfinance as _yf
-
-_HDRS_JSON = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Accept": "application/json",
-}
-
-# Mapa símbolo interno → símbolo Yahoo Finance
-_YF_SYMBOLS = {
-    "^BVSP":  "^BVSP",
-    "usdbrl": "USDBRL=X",
-    "eurbrl": "EURBRL=X",
-    "^spx":   "^GSPC",
-    "^ndx":   "^NDX",
-    "^dji":   "^DJI",
-    "^ukx":   "^FTSE",
-    "^dax":   "^GDAXI",
-    "sc.f":   "BZ=F",
-    "cl.f":   "CL=F",
-    "gc.f":   "GC=F",
-    "si.f":   "SI=F",
-    "hg.f":   "HG=F",
-    "btc.v":  "BTC-USD",
-    "eth.v":  "ETH-USD",
-}
-# Inverso para lookup rápido
-_YF_INV = {v: k for k, v in _YF_SYMBOLS.items()}
-
-
-def _fetch_yf_quotes() -> dict:
-    """
-    Busca cotações via yfinance em batch sequencial (threads=False).
-    Evita esgotamento do connection pool e rate limit por requisições simultâneas.
-    """
-    yf_syms = list(_YF_SYMBOLS.values())
+# ─── BCB/SGS ─────────────────────────────────────────────────────────────────
+def _bcb_fetch(url: str) -> list:
     for attempt in range(3):
         try:
-            df = _yf.download(
-                yf_syms,
-                period="5d",
-                auto_adjust=True,
-                progress=False,
-                group_by="ticker",
-                threads=False,   # sequencial — evita connection pool overflow
+            r = requests.get(url, headers=HEADERS, timeout=20, verify=False)
+            if r.status_code != 200:
+                time.sleep(1); continue
+            if "html" in r.headers.get("Content-Type", "").lower():
+                time.sleep(1); continue
+            data = r.json()
+            if isinstance(data, list) and len(data) > 0:
+                return data
+            time.sleep(0.5)
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            if attempt < 2:
+                time.sleep(1)
+        except Exception:
+            break
+    return []
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_bcb(codigo: int, ultimos: int) -> pd.DataFrame:
+    url = BCB_BASE.format(codigo=codigo) + f"/ultimos/{ultimos}?formato=json"
+    raw = _bcb_fetch(url)
+    if not raw:
+        hoje = datetime.today()
+        ini  = (hoje - timedelta(days=ultimos * 45)).strftime("%d/%m/%Y")
+        fim  = hoje.strftime("%d/%m/%Y")
+        raw  = _bcb_fetch(BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}")
+    return _build_df(raw)
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_bcb_full(codigo: int) -> pd.DataFrame:
+    return _build_df(_bcb_fetch(BCB_BASE.format(codigo=codigo) + "?formato=json"))
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_bcb_range(codigo: int, ini: str, fim: str) -> pd.DataFrame:
+    return _build_df(_bcb_fetch(
+        BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"))
+
+# ─── YAHOO FINANCE — sessão autenticada com crumb ─────────────────────────────
+def _build_yf_session() -> tuple:
+    """
+    Abre uma requests.Session autenticada com cookie + crumb do Yahoo Finance.
+    Retorna (session, crumb) ou lança RuntimeError se falhar.
+    """
+    s = requests.Session()
+    s.headers.update(HEADERS)
+
+    # 1. Obtém cookie inicial (Yahoo consent gate)
+    try:
+        s.get(_YF_COOKIE_URL, timeout=10)
+    except Exception:
+        pass  # falha silenciosa — o crumb dirá se a sessão é válida
+
+    # 2. Obtém crumb (texto plano, ex: "AbCdEfGhIjK")
+    r = s.get(_YF_CRUMB_URL, timeout=10)
+    if r.status_code != 200 or not r.text.strip():
+        raise RuntimeError(f"Yahoo crumb indisponível (status {r.status_code})")
+
+    return s, r.text.strip()
+
+
+def _get_yf_session() -> tuple:
+    """
+    Retorna (session, crumb) do cache em st.session_state.
+    Renova automaticamente se expirado (>50min) ou ausente.
+    """
+    key   = "_yf_session_cache"
+    cache = st.session_state.get(key)
+
+    if cache and (time.time() - cache["ts"]) < 3000:
+        return cache["session"], cache["crumb"]
+
+    session, crumb = _build_yf_session()
+    st.session_state[key] = {"session": session, "crumb": crumb, "ts": time.time()}
+    return session, crumb
+
+
+def _yf_request(sym: str, params: dict, retries: int = 3) -> dict | None:
+    """
+    Requisição autenticada ao Yahoo Finance chart endpoint.
+    Renova a sessão automaticamente em caso de 401 ou 429.
+    Retorna o JSON parseado ou None em caso de falha.
+    """
+    for attempt in range(retries):
+        try:
+            session, crumb = _get_yf_session()
+            r = session.get(
+                _YF_CHART_URL.format(sym=sym),
+                params={**params, "crumb": crumb},
+                timeout=12,
             )
-            if df.empty:
-                logger.warning("yfinance: download retornou vazio (tentativa %d)", attempt+1)
-                time.sleep(15 * (attempt + 1))  # backoff: 15s, 30s, 45s
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("chart", {}).get("result"):
+                    return data
+
+            if r.status_code in (401, 429):
+                # Crumb expirado ou rate limit — descarta cache e tenta novamente
+                st.session_state.pop("_yf_session_cache", None)
+                time.sleep(2 ** attempt)  # back-off: 1s, 2s, 4s
                 continue
 
-            out = {}
-            for yf_sym in yf_syms:
-                try:
-                    if isinstance(df.columns, pd.MultiIndex):
-                        closes = df[yf_sym]["Close"].dropna()
-                        highs  = df[yf_sym]["High"].dropna()
-                        lows   = df[yf_sym]["Low"].dropna()
-                    else:
-                        closes = df["Close"].dropna()
-                        highs  = df["High"].dropna()
-                        lows   = df["Low"].dropna()
+        except Exception:
+            time.sleep(1)
 
-                    if closes.empty:
-                        continue
+    return None
 
-                    price     = float(closes.iloc[-1])
-                    prev      = float(closes.iloc[-2]) if len(closes) >= 2 else price
-                    high      = float(highs.iloc[-1]) if not highs.empty else None
-                    low       = float(lows.iloc[-1])  if not lows.empty  else None
-                    last_date = pd.Timestamp(closes.index[-1]).tz_localize(None).date()
-                    is_today  = (last_date == now_brt().date())
-                    chg_p     = ((price - prev) / prev * 100) if prev else None
-
-                    internal = _YF_INV.get(yf_sym)
-                    if internal:
-                        out[internal] = {
-                            "price":       price, "prev": prev,
-                            "chg_p":       chg_p, "chg_v": price - prev,
-                            "day_high":    high,  "day_low": low,
-                            "market":      "REGULAR" if is_today else "CLOSED",
-                            "is_live":     is_today, "is_extended": False,
-                            "is_closed":   not is_today,
-                            "close_date":  last_date.strftime("%d/%m/%Y") if (last_date and not is_today) else None,
-                        }
-                except Exception as e:
-                    logger.warning("yfinance parse %s: %s", yf_sym, e)
-
-            logger.info("yfinance: %d/%d símbolos obtidos", len(out), len(yf_syms))
-            return out
-
-        except Exception as e:
-            logger.warning("yfinance download (tentativa %d): %s", attempt+1, e)
-            time.sleep(15 * (attempt + 1))
-
-    return {}
-
-
-# ── Cache compartilhado (15 min) ──────────────────────────────────────────────
-
-@st.cache_data(ttl=900, show_spinner=False)
-def _cached_quotes() -> dict:
-    """Cache de 15 min compartilhado entre todos os usuários."""
-    return _fetch_yf_quotes()
-
-
-# ── Background refresher ──────────────────────────────────────────────────────
-
-def _prewarm_home_bcb() -> None:
+# ─── YAHOO FINANCE — funções públicas ────────────────────────────────────────
+@st.cache_data(ttl=60, show_spinner=False)
+def get_quote(symbol: str) -> dict:
     """
-    Pré-aquece as séries BCB usadas na página Início.
-    Busca somente as séries de HOME_CHARTS + HOME_KPIS — não todas do SGS.
-    TTL de 1h — renova a cada 55min para nunca expirar durante o uso.
+    Cotação atual do ativo. Cache de 60s.
+    Retorna dict com: price, prev, chg_p, chg_v,
+    market, is_live, is_extended, is_closed, close_date.
+    Retorna {} em caso de falha.
     """
-    from settings import HOME_CHARTS, HOME_KPIS, SGS
-    # Códigos únicos das séries da página Início
-    codigos = list(dict.fromkeys(
-        SGS[nome][0]
-        for nome, *_ in list(HOME_CHARTS) + list(HOME_KPIS)
-        if nome in SGS
-    ))
-    for cod in codigos:
-        try:
-            get_bcb_full(cod)
-        except Exception as e:
-            logger.warning("Pré-aquecimento BCB %s: %s", cod, e)
-    logger.info("Pré-aquecimento BCB: %d séries da página Início prontas", len(codigos))
+    data = _yf_request(symbol, {"interval": "1d", "range": "5d"})
+    if not data:
+        return {}
 
+    try:
+        result = data["chart"]["result"][0]
+        meta   = result["meta"]
 
-def _bg_refresh_loop():
-    """
-    Thread de fundo: renova cotações (13 min) e séries BCB do Início (55 min).
-    Zero latência para qualquer usuário — cache sempre quente.
-    """
-    time.sleep(30)  # aguarda app inicializar completamente
-    _prewarm_home_bcb()  # pré-aquece BCB logo na primeira vez
+        market_state = meta.get("marketState", "CLOSED")
+        is_live      = market_state == "REGULAR"
+        is_extended  = market_state in ("PRE", "POST", "PREPRE", "POSTPOST")
+        is_closed    = not (is_live or is_extended)
 
-    _bcb_counter = 0
-    while True:
-        try:
-            # Cotações yfinance — a cada 13 min
-            data = _fetch_yf_quotes()
-            if data:
-                # Limpa só o cache de cotações, preserva BCB e histórico
-                _cached_quotes.clear()
-                _cached_quotes()  # força re-população imediata
-            logger.info("Background refresh: %d cotações renovadas", len(data))
-        except Exception as e:
-            logger.warning("Background refresh cotações: %s", e)
+        if is_live or is_extended:
+            price      = meta.get("regularMarketPrice") or meta.get("previousClose")
+            prev       = meta.get("chartPreviousClose") or meta.get("previousClose", price)
+            close_date = None
+        else:
+            price   = meta.get("previousClose") or meta.get("regularMarketPrice")
+            prev    = meta.get("chartPreviousClose") or price
+            ts_list = result.get("timestamp", [])
+            reg_ts  = meta.get("regularMarketTime")
+            close_date = (
+                datetime.fromtimestamp(ts_list[-1]).strftime("%d/%m/%Y") if ts_list
+                else datetime.fromtimestamp(reg_ts).strftime("%d/%m/%Y") if reg_ts
+                else None
+            )
 
-        _bcb_counter += 1
-        if _bcb_counter >= 4:  # 4 × 13 min = 52 min ≈ antes do TTL de 1h
-            try:
-                _prewarm_home_bcb()
-            except Exception as e:
-                logger.warning("Background refresh BCB: %s", e)
-            _bcb_counter = 0
+        if price is None:
+            return {}
 
-        time.sleep(780)  # 13 minutos
-
-
-@st.cache_resource
-def _start_bg_refresher():
-    """Inicia o thread de fundo uma única vez por processo Streamlit."""
-    t = _threading.Thread(target=_bg_refresh_loop, daemon=True)
-    t.start()
-    logger.info("Background refresher iniciado (cotações 13min · BCB Início 55min)")
-    return t
-
-_start_bg_refresher()
-
-
-# ── Interface pública ─────────────────────────────────────────────────────────
-
-def get_all_quotes(symbols: tuple) -> dict:
-    """
-    Retorna cotações do cache compartilhado.
-    Background thread garante cache sempre quente — zero latência para o usuário.
-    """
-    out = _cached_quotes()
-    for sym in symbols:
-        if sym not in out:
-            logger.warning("Cotação indisponível para %s", sym)
-    return out
-
-
-def get_quote(sym: str) -> dict:
-    """Cotação individual — usa cache batch interno."""
-    from settings import GLOBAL
-    return get_all_quotes(tuple(a.simbolo for a in GLOBAL.values())).get(sym, {})
+        chg_p = ((price - prev) / prev * 100) if (prev and prev != 0) else None
+        chg_v = (price - prev) if prev else None
+        return {
+            "price": float(price), "prev": float(prev),
+            "chg_p": chg_p, "chg_v": chg_v,
+            "market": market_state,
+            "is_live": is_live, "is_extended": is_extended,
+            "is_closed": is_closed, "close_date": close_date,
+        }
+    except Exception:
+        return {}
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def get_hist(sym: str, years: int = 5) -> pd.DataFrame:
-    """Histórico de fechamento via yfinance."""
-    yf_sym = _YF_SYMBOLS.get(sym)
-    if not yf_sym:
+def get_hist(symbol: str, years: int = 5) -> pd.DataFrame:
+    """
+    Histórico diário de fechamento. Cache de 1h.
+    Retorna DataFrame com colunas [data, valor], ou vazio em caso de falha.
+    """
+    data = _yf_request(symbol, {"interval": "1d", "range": f"{years}y"})
+    if not data:
         return pd.DataFrame(columns=["data", "valor"])
+
     try:
-        tk  = _yf.Ticker(yf_sym)
-        df  = tk.history(period=f"{years}y", auto_adjust=True)
-        if df.empty:
-            logger.warning("yfinance hist vazio para %s", yf_sym)
-            return pd.DataFrame(columns=["data", "valor"])
-        result = pd.DataFrame({
-            "data":  pd.to_datetime(df.index).tz_localize(None),
-            "valor": df["Close"].values.flatten(),
+        res    = data["chart"]["result"][0]
+        ts     = res["timestamp"]
+        closes = res["indicators"]["quote"][0]["close"]
+        df = pd.DataFrame({
+            "data":  pd.to_datetime(ts, unit="s"),
+            "valor": closes,
         })
-        return result.dropna().sort_values("data").reset_index(drop=True)
-    except Exception as e:
-        logger.warning("yfinance hist %s: %s", yf_sym, e)
+        return df.dropna().reset_index(drop=True)
+    except Exception:
         return pd.DataFrame(columns=["data", "valor"])
-
-
-# ── Boletim Focus (BCB/Expectativas) ─────────────────────────────────────────
-
-@st.cache_data(ttl=86_400, show_spinner=False)
-def get_focus_anual(indicador: str, anos: int = 5) -> pd.DataFrame:
-    """
-    Expectativas anuais do Boletim Focus para um indicador.
-    Retorna mediana por data de referência (ano) e data de divulgação.
-    Colunas: data, ano_ref, mediana, desvio_padrao, minimo, maximo.
-    """
-    from settings import FOCUS_BASE
-    import urllib.parse
-    hoje = datetime.today()
-    ini  = (hoje - timedelta(days=anos * 365)).strftime("%Y-%m-%d")
-    filtro = (
-        f"Indicador eq '{indicador}' and "
-        f"Data ge '{ini}' and "
-        f"baseCalculo eq 0"
-    )
-    url = (
-        f"{FOCUS_BASE}/ExpectativasMercadoAnuais"
-        f"?$filter={urllib.parse.quote(filtro)}"
-        f"&$select=Indicador,Data,DataReferencia,Mediana,DesvioPadrao,Minimo,Maximo"
-        f"&$orderby=Data desc"
-        f"&$format=json"
-        f"&$top=5000"
-    )
-    try:
-        r = requests.get(url, headers=HDRS, timeout=20, verify=False)
-        r.raise_for_status()
-        rows = r.json().get("value", [])
-        if not rows:
-            return pd.DataFrame()
-        df = pd.DataFrame(rows)
-        df["data"]    = pd.to_datetime(df["Data"])
-        df["ano_ref"] = df["DataReferencia"].astype(str)
-        df["mediana"] = pd.to_numeric(df["Mediana"],      errors="coerce")
-        df["desvio"]  = pd.to_numeric(df["DesvioPadrao"], errors="coerce")
-        df["minimo"]  = pd.to_numeric(df["Minimo"],       errors="coerce")
-        df["maximo"]  = pd.to_numeric(df["Maximo"],       errors="coerce")
-        return df[["data","ano_ref","mediana","desvio","minimo","maximo"]].dropna(subset=["mediana"]).sort_values("data").reset_index(drop=True)
-    except Exception as e:
-        logger.warning("Focus anual %s: %s", indicador, e)
-        return pd.DataFrame()
-
-
-# Indicadores que suportam o endpoint de 12 meses (apenas inflação)
-_FOCUS_12M_INDICADORES = {"IPCA", "IPCA-15", "IGP-M", "IGP-DI", "IPC-Fipe"}
-
-
-@st.cache_data(ttl=86_400, show_spinner=False)
-def get_focus_12m(indicador: str, anos: int = 3) -> pd.DataFrame:
-    """
-    Expectativas do Boletim Focus para os próximos 12 meses (apenas inflação).
-    Para outros indicadores usa expectativas anuais do ano corrente como proxy.
-    """
-    from settings import FOCUS_BASE
-    import urllib.parse
-    hoje = datetime.today()
-    ini  = (hoje - timedelta(days=anos * 365)).strftime("%Y-%m-%d")
-
-    # Endpoint de 12 meses só existe para indicadores de inflação
-    if indicador in _FOCUS_12M_INDICADORES:
-        filtro = (
-            f"Indicador eq '{indicador}' and "
-            f"Data ge '{ini}' and "
-            f"Suavizado eq 'S'"
-        )
-        url = (
-            f"{FOCUS_BASE}/ExpectativasMercadoInflacao12Meses"
-            f"?$filter={urllib.parse.quote(filtro)}"
-            f"&$select=Indicador,Data,Suavizado,Mediana,DesvioPadrao,Minimo,Maximo"
-            f"&$orderby=Data desc"
-            f"&$format=json"
-            f"&$top=2000"
-        )
-        try:
-            r = requests.get(url, headers=HDRS, timeout=20, verify=False)
-            r.raise_for_status()
-            rows = r.json().get("value", [])
-            if rows:
-                df = pd.DataFrame(rows)
-                df["data"]    = pd.to_datetime(df["Data"])
-                df["mediana"] = pd.to_numeric(df["Mediana"],      errors="coerce")
-                df["desvio"]  = pd.to_numeric(df["DesvioPadrao"], errors="coerce")
-                df["minimo"]  = pd.to_numeric(df["Minimo"],       errors="coerce")
-                df["maximo"]  = pd.to_numeric(df["Maximo"],       errors="coerce")
-                return df[["data","mediana","desvio","minimo","maximo"]].dropna(subset=["mediana"]).sort_values("data").reset_index(drop=True)
-        except Exception as e:
-            logger.warning("Focus 12M %s: %s", indicador, e)
-
-    # Fallback: usa expectativa do ano corrente como proxy de 12M
-    df_anual = get_focus_anual(indicador, anos=anos)
-    if not df_anual.empty:
-        ano_corrente = str(datetime.today().year)
-        df_ano = df_anual[df_anual["ano_ref"] == ano_corrente]
-        if not df_ano.empty:
-            return df_ano[["data","mediana","desvio","minimo","maximo"]].reset_index(drop=True)
-    return pd.DataFrame()
