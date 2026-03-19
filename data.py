@@ -7,11 +7,11 @@ Fontes:
   - IBGE/SIDRA     : IPCA por grupos
   - Yahoo Finance  : cotações e histórico de ativos globais
 
-Correção 429 / YFRateLimitError:
-  O Yahoo Finance exige um crumb token em todas as requisições programáticas.
-  _build_yf_session() autentica uma vez (cookie + crumb) e reutiliza a sessão
-  via st.session_state, renovando automaticamente a cada 50 minutos ou em 401/429.
-  Remove dependência do yfinance (era a fonte dos rate limits no Streamlit Cloud).
+Correções nesta versão:
+  - Fix 0.00 em FTSE/DAX: previousClose=0 era tratado como falsy pelo Python;
+    agora a extração de preço verifica explicitamente `is None` em vez de usar `or`
+  - Fix tiles vazios: adicionado jitter entre requests para evitar 429 em burst
+  - Sessão Yahoo com crumb: autenticação única, reutilizada via st.session_state
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -23,6 +23,7 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
 import time
+import random
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.filterwarnings("ignore", message="Unverified HTTPS")
@@ -33,7 +34,6 @@ FOCUS_ANUAL   = "https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1
 FOCUS_12M     = "https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoInflacao12Meses"
 SIDRA_BASE    = "https://servicodados.ibge.gov.br/api/v3/agregados"
 
-# Yahoo Finance
 _YF_COOKIE_URL = "https://fc.yahoo.com"
 _YF_CRUMB_URL  = "https://query1.finance.yahoo.com/v1/test/getcrumb"
 _YF_CHART_URL  = "https://query2.finance.yahoo.com/v8/finance/chart/{sym}"
@@ -73,6 +73,17 @@ def _build_df(raw: list) -> pd.DataFrame:
     df["valor"] = df["valor"].apply(parse_bcb_valor)
     df = df.dropna(subset=["data", "valor"]).sort_values("data").reset_index(drop=True)
     return df[["data", "valor"]]
+
+def _first_valid(*values):
+    """
+    Retorna o primeiro valor que não seja None.
+    Diferente de `a or b`, não descarta 0.0 — crítico para índices europeus
+    que fecham com previousClose=0 no payload do Yahoo Finance.
+    """
+    for v in values:
+        if v is not None:
+            return v
+    return None
 
 # ─── BCB/SGS ─────────────────────────────────────────────────────────────────
 def _bcb_fetch(url: str) -> list:
@@ -114,9 +125,8 @@ def get_bcb_range(codigo: int, ini: str, fim: str) -> pd.DataFrame:
     return _build_df(_bcb_fetch(
         BCB_BASE.format(codigo=codigo) + f"?formato=json&dataInicial={ini}&dataFinal={fim}"))
 
-# ─── BCB/FOCUS — Expectativas de Mercado ─────────────────────────────────────
+# ─── BCB/FOCUS ───────────────────────────────────────────────────────────────
 def _focus_fetch(url: str, params: dict) -> list:
-    """Busca dados da API Olinda (Focus) com paginação automática."""
     resultados = []
     params = {**params, "$format": "json", "$top": 10000, "$skip": 0}
     for _ in range(10):
@@ -137,30 +147,19 @@ def _focus_fetch(url: str, params: dict) -> list:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_focus_anual(indicador: str, anos: int = 5) -> pd.DataFrame:
-    """
-    Expectativas anuais do Boletim Focus para um indicador.
-    Retorna DataFrame com colunas: data, ano_ref, mediana, minimo, maximo, desvio.
-    """
     data_ini = (datetime.today() - timedelta(days=anos * 365)).strftime("%Y-%m-%d")
     params = {
-        "$filter": (
-            f"Indicador eq '{indicador}' and baseCalculo eq '0' "
-            f"and Data ge '{data_ini}'"
-        ),
+        "$filter": f"Indicador eq '{indicador}' and baseCalculo eq '0' and Data ge '{data_ini}'",
         "$select": "Data,DataReferencia,Mediana,Minimo,Maximo,DesvioPadrao",
         "$orderby": "Data asc",
     }
     raw = _focus_fetch(FOCUS_ANUAL, params)
     if not raw:
         return pd.DataFrame()
-    df = pd.DataFrame(raw)
-    df = df.rename(columns={
-        "Data":           "data",
-        "DataReferencia": "ano_ref",
-        "Mediana":        "mediana",
-        "Minimo":         "minimo",
-        "Maximo":         "maximo",
-        "DesvioPadrao":   "desvio",
+    df = pd.DataFrame(raw).rename(columns={
+        "Data": "data", "DataReferencia": "ano_ref",
+        "Mediana": "mediana", "Minimo": "minimo",
+        "Maximo": "maximo", "DesvioPadrao": "desvio",
     })
     df["data"]    = pd.to_datetime(df["data"], errors="coerce")
     df["ano_ref"] = pd.to_numeric(df["ano_ref"], errors="coerce")
@@ -170,47 +169,28 @@ def get_focus_anual(indicador: str, anos: int = 5) -> pd.DataFrame:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_focus_12m(indicador: str, anos: int = 3) -> pd.DataFrame:
-    """
-    Expectativas para os próximos 12 meses do Boletim Focus.
-    Disponível para: IPCA, IPCA-15, IGP-M, IGP-DI, IPC-Fipe.
-    Retorna DataFrame com colunas: data, mediana, minimo, maximo, desvio.
-    """
     data_ini = (datetime.today() - timedelta(days=anos * 365)).strftime("%Y-%m-%d")
     params = {
-        "$filter": (
-            f"Indicador eq '{indicador}' and baseCalculo eq '0' "
-            f"and Data ge '{data_ini}'"
-        ),
+        "$filter": f"Indicador eq '{indicador}' and baseCalculo eq '0' and Data ge '{data_ini}'",
         "$select": "Data,Mediana,Minimo,Maximo,DesvioPadrao",
         "$orderby": "Data asc",
     }
     raw = _focus_fetch(FOCUS_12M, params)
     if not raw:
-        # Fallback: expectativas anuais como proxy
         return get_focus_anual(indicador, anos=anos)
-    df = pd.DataFrame(raw)
-    df = df.rename(columns={
-        "Data":         "data",
-        "Mediana":      "mediana",
-        "Minimo":       "minimo",
-        "Maximo":       "maximo",
-        "DesvioPadrao": "desvio",
+    df = pd.DataFrame(raw).rename(columns={
+        "Data": "data", "Mediana": "mediana",
+        "Minimo": "minimo", "Maximo": "maximo", "DesvioPadrao": "desvio",
     })
     df["data"] = pd.to_datetime(df["data"], errors="coerce")
     for col in ["mediana", "minimo", "maximo", "desvio"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     return df.dropna(subset=["data", "mediana"]).sort_values("data").reset_index(drop=True)
 
-# ─── IBGE/SIDRA — IPCA por Grupos ────────────────────────────────────────────
-# Tabela 7060 · Variável 63 = var. mensal · Variável 2265 = acum. 12 meses
-# Classificação 315: grupos do IPCA (códigos SIDRA)
+# ─── IBGE/SIDRA ──────────────────────────────────────────────────────────────
 _SIDRA_GRUPOS = "7169,7170,7445,7486,7625,7626,7627,7628,7629"
 
 def _sidra_fetch(tabela: int, variavel: int, periodos: int) -> pd.DataFrame:
-    """
-    Busca IPCA por grupos no IBGE/SIDRA.
-    Retorna DataFrame com colunas: data, grupo_id, grupo, valor.
-    """
     url = (
         f"{SIDRA_BASE}/{tabela}/periodos/-{periodos}/variaveis/{variavel}"
         f"?localidades=N1[all]&classificacao=315[{_SIDRA_GRUPOS}]"
@@ -220,23 +200,18 @@ def _sidra_fetch(tabela: int, variavel: int, periodos: int) -> pd.DataFrame:
         try:
             r = requests.get(url, headers=HEADERS, timeout=30)
             if r.status_code == 200:
-                raw = r.json()
-                break
+                raw = r.json(); break
             time.sleep(1)
         except Exception:
             time.sleep(1)
-
     if not raw:
         return pd.DataFrame()
-
     rows = []
     for bloco in raw:
-        # SIDRA retorna período em D3C (formato YYYYMM) e grupo em D4C/D5C
         periodo_str = str(bloco.get("D3C") or bloco.get("D2C", ""))
         grupo_id    = str(bloco.get("D4C") or bloco.get("D5C", ""))
         grupo_nome  = str(bloco.get("D4N") or bloco.get("D5N", grupo_id))
         valor_str   = str(bloco.get("V", "")).strip()
-
         if not periodo_str or valor_str in ("...", "-", "", "X"):
             continue
         try:
@@ -244,43 +219,21 @@ def _sidra_fetch(tabela: int, variavel: int, periodos: int) -> pd.DataFrame:
             valor = float(valor_str.replace(",", "."))
         except Exception:
             continue
-
-        rows.append({
-            "data":     dt,
-            "grupo_id": grupo_id,
-            "grupo":    grupo_nome,
-            "valor":    valor,
-        })
-
+        rows.append({"data": dt, "grupo_id": grupo_id, "grupo": grupo_nome, "valor": valor})
     if not rows:
         return pd.DataFrame()
-
-    return (pd.DataFrame(rows)
-            .sort_values(["data", "grupo_id"])
-            .reset_index(drop=True))
+    return pd.DataFrame(rows).sort_values(["data", "grupo_id"]).reset_index(drop=True)
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_ipca_grupos(meses: int = 60) -> pd.DataFrame:
-    """
-    Variação mensal do IPCA por grupos — IBGE/SIDRA tabela 7060, variável 63.
-    Retorna DataFrame com colunas: data, grupo_id, grupo, valor.
-    """
     return _sidra_fetch(tabela=7060, variavel=63, periodos=meses)
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_ipca_acum_grupo(meses: int = 60) -> pd.DataFrame:
-    """
-    Variação acumulada em 12 meses do IPCA por grupos — IBGE/SIDRA tabela 7060, variável 2265.
-    Retorna DataFrame com colunas: data, grupo_id, grupo, valor.
-    """
     return _sidra_fetch(tabela=7060, variavel=2265, periodos=meses)
 
-# ─── TRANSFORMAÇÕES DE SÉRIE ──────────────────────────────────────────────────
+# ─── TRANSFORMAÇÕES ──────────────────────────────────────────────────────────
 def aplicar_periodo(df: pd.DataFrame, periodo: str, ind_nome: str) -> tuple:
-    """
-    Aplica transformação à série temporal.
-    Retorna (df_transformado, label_unidade).
-    """
     df = df.copy().sort_values("data").reset_index(drop=True)
     originais = {"Original", "Mensal (original)", "Var. trimestral (original)", "Nível (original)"}
     if periodo in originais:
@@ -307,10 +260,6 @@ def aplicar_periodo(df: pd.DataFrame, periodo: str, ind_nome: str) -> tuple:
 
 # ─── YAHOO FINANCE — sessão autenticada com crumb ─────────────────────────────
 def _build_yf_session() -> tuple:
-    """
-    Abre requests.Session autenticada com cookie + crumb do Yahoo Finance.
-    Retorna (session, crumb) ou lança RuntimeError se falhar.
-    """
     s = requests.Session()
     s.headers.update(HEADERS)
     try:
@@ -323,10 +272,6 @@ def _build_yf_session() -> tuple:
     return s, r.text.strip()
 
 def _get_yf_session() -> tuple:
-    """
-    Retorna (session, crumb) do cache em st.session_state.
-    Renova automaticamente se expirado (>50min) ou ausente.
-    """
     key   = "_yf_session_cache"
     cache = st.session_state.get(key)
     if cache and (time.time() - cache["ts"]) < 3000:
@@ -337,12 +282,20 @@ def _get_yf_session() -> tuple:
 
 def _yf_request(sym: str, params: dict, retries: int = 3) -> dict | None:
     """
-    Requisição autenticada ao Yahoo Finance chart endpoint.
-    Renova sessão automaticamente em 401/429 com back-off exponencial.
-    Retorna JSON parseado ou None em falha.
+    Requisição autenticada ao Yahoo Finance.
+
+    Jitter (0.1–0.4s) entre tentativas evita burst de 429 quando o fragment
+    carrega 15 ativos em sequência. Em 401/429 descarta o cache de sessão e
+    aplica back-off exponencial antes de retentar.
     """
     for attempt in range(retries):
         try:
+            # Pequeno jitter para não bater todos os requests ao mesmo tempo
+            if attempt > 0:
+                time.sleep(2 ** attempt + random.uniform(0.1, 0.4))
+            else:
+                time.sleep(random.uniform(0.05, 0.2))
+
             session, crumb = _get_yf_session()
             r = session.get(
                 _YF_CHART_URL.format(sym=sym),
@@ -355,20 +308,23 @@ def _yf_request(sym: str, params: dict, retries: int = 3) -> dict | None:
                     return data
             if r.status_code in (401, 429):
                 st.session_state.pop("_yf_session_cache", None)
-                time.sleep(2 ** attempt)  # 1s → 2s → 4s
                 continue
         except Exception:
-            time.sleep(1)
+            pass
     return None
 
 # ─── YAHOO FINANCE — funções públicas ────────────────────────────────────────
 @st.cache_data(ttl=900, show_spinner=False)
 def get_quote(symbol: str) -> dict:
     """
-    Cotação atual do ativo. Cache de 15min (alinhado com st.fragment run_every=900).
-    Retorna dict com: price, prev, chg_p, chg_v, day_high, day_low,
-    market, is_live, is_extended, is_closed, close_date.
-    Retorna {} em caso de falha.
+    Cotação atual do ativo. Cache de 15min.
+
+    Fix FTSE/DAX 0.00: usa _first_valid() em vez de `or` para extração de
+    preço, evitando que 0.0 seja descartado como falsy pelo Python.
+    Ordem de prioridade para preço:
+      1. regularMarketPrice  (mercado aberto ou extended)
+      2. chartPreviousClose  (mercado fechado — último fechamento real)
+      3. previousClose       (fallback)
     """
     data = _yf_request(symbol, {"interval": "1d", "range": "5d"})
     if not data:
@@ -382,13 +338,22 @@ def get_quote(symbol: str) -> dict:
         is_extended  = market_state in ("PRE", "POST", "PREPRE", "POSTPOST")
         is_closed    = not (is_live or is_extended)
 
+        # ── Extração de preço com _first_valid (não descarta 0) ──────────────
+        reg_price  = meta.get("regularMarketPrice")
+        chart_prev = meta.get("chartPreviousClose")
+        prev_close = meta.get("previousClose")
+
         if is_live or is_extended:
-            price      = meta.get("regularMarketPrice") or meta.get("previousClose")
-            prev       = meta.get("chartPreviousClose") or meta.get("previousClose", price)
+            price = _first_valid(reg_price, chart_prev, prev_close)
+            prev  = _first_valid(chart_prev, prev_close, price)
             close_date = None
         else:
-            price   = meta.get("previousClose") or meta.get("regularMarketPrice")
-            prev    = meta.get("chartPreviousClose") or price
+            # Mercado fechado: chartPreviousClose é o último fechamento real
+            price = _first_valid(chart_prev, reg_price, prev_close)
+            # "anterior" = fechamento do pregão antes do último
+            quotes = result.get("indicators", {}).get("quote", [{}])[0]
+            closes = [v for v in (quotes.get("close") or []) if v is not None]
+            prev   = float(closes[-2]) if len(closes) >= 2 else _first_valid(prev_close, price)
             ts_list = result.get("timestamp", [])
             reg_ts  = meta.get("regularMarketTime")
             close_date = (
@@ -400,18 +365,21 @@ def get_quote(symbol: str) -> dict:
         if price is None:
             return {}
 
-        chg_p    = ((price - prev) / prev * 100) if (prev and prev != 0) else None
-        chg_v    = (price - prev) if prev else None
+        price = float(price)
+        prev  = float(prev) if prev is not None else price
+
+        chg_p    = ((price - prev) / prev * 100) if prev != 0 else None
+        chg_v    = (price - prev)
         day_high = meta.get("regularMarketDayHigh")
         day_low  = meta.get("regularMarketDayLow")
 
         return {
-            "price":       float(price),
-            "prev":        float(prev),
+            "price":       price,
+            "prev":        prev,
             "chg_p":       chg_p,
             "chg_v":       chg_v,
-            "day_high":    float(day_high) if day_high else None,
-            "day_low":     float(day_low)  if day_low  else None,
+            "day_high":    float(day_high) if day_high is not None else None,
+            "day_low":     float(day_low)  if day_low  is not None else None,
             "market":      market_state,
             "is_live":     is_live,
             "is_extended": is_extended,
