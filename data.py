@@ -1,17 +1,12 @@
 """
 data.py — Camada de dados do EQI Dashboard Macro
 
-Fontes:
-  - BCB/SGS        : indicadores macro brasileiros
-  - BCB/Focus      : expectativas de mercado (Boletim Focus)
-  - IBGE/SIDRA     : IPCA por grupos
-  - Yahoo Finance  : cotações e histórico de ativos globais
-
-Correções nesta versão:
-  - Fix 0.00 em FTSE/DAX: previousClose=0 era tratado como falsy pelo Python;
-    agora a extração de preço verifica explicitamente `is None` em vez de usar `or`
-  - Fix tiles vazios: adicionado jitter entre requests para evitar 429 em burst
-  - Sessão Yahoo com crumb: autenticação única, reutilizada via st.session_state
+Correções desta versão:
+  - FTSE/DAX 0.00: chartPreviousClose pode ser 0 no payload; agora busca o
+    último fechamento real no array de candles (indicators.quote.close)
+  - Tiles vazios: substituídas 15 chamadas independentes de get_quote() por
+    get_all_quotes(symbols), que busca sequencialmente com espaçamento e
+    é cacheada como uma unidade — elimina o burst que causava 429
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -74,15 +69,11 @@ def _build_df(raw: list) -> pd.DataFrame:
     df = df.dropna(subset=["data", "valor"]).sort_values("data").reset_index(drop=True)
     return df[["data", "valor"]]
 
-def _first_valid(*values):
-    """
-    Retorna o primeiro valor que não seja None.
-    Diferente de `a or b`, não descarta 0.0 — crítico para índices europeus
-    que fecham com previousClose=0 no payload do Yahoo Finance.
-    """
-    for v in values:
-        if v is not None:
-            return v
+def _last_nonzero(values: list) -> float | None:
+    """Último valor não-None e não-zero numa lista de candles."""
+    for v in reversed(values):
+        if v is not None and v != 0.0:
+            return float(v)
     return None
 
 # ─── BCB/SGS ─────────────────────────────────────────────────────────────────
@@ -281,21 +272,8 @@ def _get_yf_session() -> tuple:
     return session, crumb
 
 def _yf_request(sym: str, params: dict, retries: int = 3) -> dict | None:
-    """
-    Requisição autenticada ao Yahoo Finance.
-
-    Jitter (0.1–0.4s) entre tentativas evita burst de 429 quando o fragment
-    carrega 15 ativos em sequência. Em 401/429 descarta o cache de sessão e
-    aplica back-off exponencial antes de retentar.
-    """
     for attempt in range(retries):
         try:
-            # Pequeno jitter para não bater todos os requests ao mesmo tempo
-            if attempt > 0:
-                time.sleep(2 ** attempt + random.uniform(0.1, 0.4))
-            else:
-                time.sleep(random.uniform(0.05, 0.2))
-
             session, crumb = _get_yf_session()
             r = session.get(
                 _YF_CHART_URL.format(sym=sym),
@@ -308,27 +286,21 @@ def _yf_request(sym: str, params: dict, retries: int = 3) -> dict | None:
                     return data
             if r.status_code in (401, 429):
                 st.session_state.pop("_yf_session_cache", None)
+                time.sleep(2 ** attempt + random.uniform(0.5, 1.5))
                 continue
         except Exception:
-            pass
+            time.sleep(1)
     return None
 
-# ─── YAHOO FINANCE — funções públicas ────────────────────────────────────────
-@st.cache_data(ttl=900, show_spinner=False)
-def get_quote(symbol: str) -> dict:
+def _parse_quote(data: dict) -> dict:
     """
-    Cotação atual do ativo. Cache de 15min.
+    Extrai cotação de um payload JSON do Yahoo Finance.
 
-    Fix FTSE/DAX 0.00: usa _first_valid() em vez de `or` para extração de
-    preço, evitando que 0.0 seja descartado como falsy pelo Python.
-    Ordem de prioridade para preço:
-      1. regularMarketPrice  (mercado aberto ou extended)
-      2. chartPreviousClose  (mercado fechado — último fechamento real)
-      3. previousClose       (fallback)
+    Fix FTSE/DAX 0.00: meta.chartPreviousClose e meta.previousClose
+    podem chegar como 0 para índices europeus fora do horário de negociação.
+    Busca o último fechamento real no array de candles (indicators.quote.close)
+    usando _last_nonzero(), que ignora zeros e Nones.
     """
-    data = _yf_request(symbol, {"interval": "1d", "range": "5d"})
-    if not data:
-        return {}
     try:
         result = data["chart"]["result"][0]
         meta   = result["meta"]
@@ -338,22 +310,36 @@ def get_quote(symbol: str) -> dict:
         is_extended  = market_state in ("PRE", "POST", "PREPRE", "POSTPOST")
         is_closed    = not (is_live or is_extended)
 
-        # ── Extração de preço com _first_valid (não descarta 0) ──────────────
+        # Array de fechamentos reais dos últimos 5 dias — fonte mais confiável
+        quotes  = result.get("indicators", {}).get("quote", [{}])[0]
+        closes  = quotes.get("close") or []
+        last_close = _last_nonzero(closes)
+        prev_close = _last_nonzero(closes[:-1]) if len(closes) >= 2 else None
+
+        # Meta fields como fallback
         reg_price  = meta.get("regularMarketPrice")
         chart_prev = meta.get("chartPreviousClose")
-        prev_close = meta.get("previousClose")
+        meta_prev  = meta.get("previousClose")
 
         if is_live or is_extended:
-            price = _first_valid(reg_price, chart_prev, prev_close)
-            prev  = _first_valid(chart_prev, prev_close, price)
+            # Mercado aberto: regularMarketPrice é o mais atual
+            price = reg_price if (reg_price is not None and reg_price != 0) else last_close
+            prev  = (chart_prev if (chart_prev is not None and chart_prev != 0)
+                     else prev_close
+                     or (meta_prev if (meta_prev is not None and meta_prev != 0) else None))
             close_date = None
         else:
-            # Mercado fechado: chartPreviousClose é o último fechamento real
-            price = _first_valid(chart_prev, reg_price, prev_close)
-            # "anterior" = fechamento do pregão antes do último
-            quotes = result.get("indicators", {}).get("quote", [{}])[0]
-            closes = [v for v in (quotes.get("close") or []) if v is not None]
-            prev   = float(closes[-2]) if len(closes) >= 2 else _first_valid(prev_close, price)
+            # Mercado fechado: último candle é o fechamento real
+            price = last_close
+            prev  = prev_close
+            # Fallback para meta se candles insuficientes
+            if price is None:
+                price = (chart_prev if (chart_prev is not None and chart_prev != 0)
+                         else reg_price if (reg_price is not None and reg_price != 0)
+                         else meta_prev)
+            if prev is None:
+                prev = (chart_prev if (chart_prev is not None and chart_prev != 0)
+                        else meta_prev)
             ts_list = result.get("timestamp", [])
             reg_ts  = meta.get("regularMarketTime")
             close_date = (
@@ -369,7 +355,7 @@ def get_quote(symbol: str) -> dict:
         prev  = float(prev) if prev is not None else price
 
         chg_p    = ((price - prev) / prev * 100) if prev != 0 else None
-        chg_v    = (price - prev)
+        chg_v    = price - prev
         day_high = meta.get("regularMarketDayHigh")
         day_low  = meta.get("regularMarketDayLow")
 
@@ -378,8 +364,8 @@ def get_quote(symbol: str) -> dict:
             "prev":        prev,
             "chg_p":       chg_p,
             "chg_v":       chg_v,
-            "day_high":    float(day_high) if day_high is not None else None,
-            "day_low":     float(day_low)  if day_low  is not None else None,
+            "day_high":    float(day_high) if (day_high is not None and day_high != 0) else None,
+            "day_low":     float(day_low)  if (day_low  is not None and day_low  != 0) else None,
             "market":      market_state,
             "is_live":     is_live,
             "is_extended": is_extended,
@@ -388,6 +374,42 @@ def get_quote(symbol: str) -> dict:
         }
     except Exception:
         return {}
+
+# ─── YAHOO FINANCE — funções públicas ────────────────────────────────────────
+
+@st.cache_data(ttl=900, show_spinner=False)
+def get_all_quotes(symbols: tuple) -> dict:
+    """
+    Busca cotações de uma lista de símbolos de forma sequencial e com
+    espaçamento entre requests, evitando o burst de 429 que ocorre quando
+    15 get_quote() independentes são chamados no mesmo ciclo de render.
+
+    Recebe uma tuple (hashável para cache) e retorna dict {symbol: quote_dict}.
+    Cache de 15min — alinhado com st.fragment(run_every=900).
+
+    Uso no app.py:
+        quotes = get_all_quotes(tuple(sym for sym, _, _ in GLOBAL.values()))
+        d = quotes.get(GLOBAL["IBOVESPA"].simbolo, {})
+    """
+    results = {}
+    for i, sym in enumerate(symbols):
+        # Espaçamento crescente: 0.3s base + jitter, aumenta levemente com o índice
+        # para distribuir os 15 requests ao longo de ~6s no total
+        if i > 0:
+            time.sleep(0.3 + random.uniform(0.1, 0.3) + i * 0.02)
+        data = _yf_request(sym, {"interval": "1d", "range": "5d"})
+        results[sym] = _parse_quote(data) if data else {}
+    return results
+
+@st.cache_data(ttl=900, show_spinner=False)
+def get_quote(symbol: str) -> dict:
+    """
+    Cotação de um único símbolo. Cache de 15min.
+    Mantida para compatibilidade com chamadas individuais (ex: página Início).
+    Para a página Mercados Globais, prefira get_all_quotes().
+    """
+    data = _yf_request(symbol, {"interval": "1d", "range": "5d"})
+    return _parse_quote(data) if data else {}
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_hist(symbol: str, years: int = 5) -> pd.DataFrame:
